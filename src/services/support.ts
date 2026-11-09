@@ -6,6 +6,8 @@ import {
   ImportRecordInsert,
   MapeamentoRecord,
   MapeamentoInsert,
+  DepartmentCapacityRecord,
+  DepartmentCapacityUpsert,
 } from '@/types/support'
 
 /* ========================================================
@@ -168,5 +170,140 @@ export async function deleteMapeamento(id: string): Promise<void> {
 
   if (error) {
     throw new Error(`Erro ao excluir mapeamento: ${error.message}`)
+  }
+}
+
+/* ========================================================
+   DEPARTAMENTOS DINÂMICOS
+   ======================================================== */
+
+/**
+ * Lista apenas os departamentos que realmente existem nos registros do usuário
+ * (usado no filtro e no gráfico "Chamados por departamento").
+ */
+export async function fetchDepartamentosEmUso(): Promise<string[]> {
+  const { data, error } = await (supabase as any)
+    .from('support_records')
+    .select('departamento')
+    .not('departamento', 'is', null)
+
+  if (error) {
+    throw new Error(`Erro ao buscar departamentos: ${error.message}`)
+  }
+  const set = new Set<string>()
+  for (const row of data as Array<{ departamento: string | null }>) {
+    if (row.departamento) set.add(row.departamento)
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+}
+
+/* ========================================================
+   CHAMADOS (consulta individual, paginada)
+   ======================================================== */
+
+export interface FetchChamadosParams {
+  page?: number // 1-based
+  pageSize?: number // default 25
+  startDate?: string // YYYY-MM-DD
+  endDate?: string // YYYY-MM-DD
+  departamento?: string
+  busca?: string // número do chamado ou cliente
+  ordenarPor?: 'data_chamado' | 'numero'
+  ordem?: 'asc' | 'desc'
+}
+
+export interface FetchChamadosResult {
+  rows: SupportRecord[]
+  total: number
+}
+
+export async function fetchChamados(params?: FetchChamadosParams): Promise<FetchChamadosResult> {
+  const page = params?.page && params.page > 0 ? params.page : 1
+  const pageSize = params?.pageSize && params.pageSize > 0 ? params.pageSize : 25
+  const from = (page - 1) * pageSize
+
+  let query = (supabase as any).from('support_records').select('*', { count: 'exact' })
+
+  if (params?.startDate) {
+    query = query.gte('data_chamado', params.startDate)
+  }
+  if (params?.endDate) {
+    query = query.lte('data_chamado', params.endDate)
+  }
+  if (params?.departamento) {
+    query = query.eq('departamento', params.departamento)
+  }
+  if (params?.busca && params.busca.trim()) {
+    const termo = params.busca.trim()
+    const orCond = `numero.ilike.%${termo}%,cliente.ilike.%${termo}%,organizacao.ilike.%${termo}%`
+    query = query.or(orCond)
+  }
+
+  const campo = params?.ordenarPor === 'numero' ? 'numero' : 'data_chamado'
+  const asc = params?.ordem === 'asc'
+  query = query
+    .order(campo, { ascending: asc, nullsFirst: false })
+    .order('created_at', { ascending: false })
+
+  const { data, error, count } = await query.range(from, from + pageSize - 1)
+  if (error) {
+    throw new Error(`Erro ao buscar chamados: ${error.message}`)
+  }
+  return { rows: (data as SupportRecord[]) || [], total: count ?? 0 }
+}
+
+/* ========================================================
+   CAPACIDADE POR DEPARTAMENTO
+   ======================================================== */
+
+export async function fetchDepartmentCapacity(): Promise<DepartmentCapacityRecord[]> {
+  const { data, error } = await (supabase as any)
+    .from('department_capacity')
+    .select('*')
+    .order('departamento', { ascending: true })
+
+  if (error) {
+    throw new Error(`Erro ao buscar capacidade dos departamentos: ${error.message}`)
+  }
+  return (data as DepartmentCapacityRecord[]) || []
+}
+
+export async function upsertDepartmentCapacity(
+  record: DepartmentCapacityUpsert,
+): Promise<DepartmentCapacityRecord> {
+  const { data: userData } = await supabase.auth.getUser()
+  const userId = userData?.user?.id
+  if (!userId) throw new Error('Usuário não autenticado.')
+
+  const { data, error } = await (supabase as any)
+    .from('department_capacity')
+    .upsert(
+      {
+        user_id: userId,
+        departamento: record.departamento,
+        qtd_tecnicos: record.qtd_tecnicos,
+        dias_uteis: record.dias_uteis,
+        limite_diario: record.limite_diario,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,departamento' },
+    )
+    .select()
+    .single()
+
+  if (error) {
+    throw new Error(`Erro ao salvar capacidade do departamento: ${error.message}`)
+  }
+  return data as DepartmentCapacityRecord
+}
+
+export async function deleteDepartmentCapacity(departamento: string): Promise<void> {
+  const { error } = await (supabase as any)
+    .from('department_capacity')
+    .delete()
+    .eq('departamento', departamento)
+
+  if (error) {
+    throw new Error(`Erro ao remover capacidade do departamento: ${error.message}`)
   }
 }

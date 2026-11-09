@@ -42,6 +42,21 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 
+const EMPTY_MAPPING: Record<StandardFieldKey, string> = {
+  cliente: '',
+  tecnico: '',
+  data_chamado: '',
+  tipo_chamado: '',
+  tempo_atendimento_min: '',
+  prioridade: '',
+  observacoes: '',
+  aberto_por: '',
+  departamento: '',
+  sla_horas: '',
+  numero: '',
+  organizacao: '',
+}
+
 export default function Importar() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -63,18 +78,7 @@ export default function Importar() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Passo 2: Mapeamento de Colunas
-  const [mapping, setMapping] = useState<Record<StandardFieldKey, string>>({
-    cliente: '',
-    tecnico: '',
-    data_chamado: '',
-    tipo_chamado: '',
-    tempo_atendimento_min: '',
-    prioridade: '',
-    observacoes: '',
-    aberto_por: '',
-    departamento: '',
-    sla_horas: '',
-  })
+  const [mapping, setMapping] = useState<Record<StandardFieldKey, string>>({ ...EMPTY_MAPPING })
   const [mappingName, setMappingName] = useState<string>('')
   const [saveMapping, setSaveMapping] = useState<boolean>(true)
   const [autoDetectedMessage, setAutoDetectedMessage] = useState<string | null>(null)
@@ -157,17 +161,9 @@ export default function Importar() {
 
       if (matchedSavedMapping) {
         // Usa o mapeamento salvo
-        const newMap: Record<StandardFieldKey, string> = {
-          cliente: matchedSavedMapping.mapeamento['cliente'] || '',
-          tecnico: matchedSavedMapping.mapeamento['tecnico'] || '',
-          data_chamado: matchedSavedMapping.mapeamento['data_chamado'] || '',
-          tipo_chamado: matchedSavedMapping.mapeamento['tipo_chamado'] || '',
-          tempo_atendimento_min: matchedSavedMapping.mapeamento['tempo_atendimento_min'] || '',
-          prioridade: matchedSavedMapping.mapeamento['prioridade'] || '',
-          observacoes: matchedSavedMapping.mapeamento['observacoes'] || '',
-          aberto_por: matchedSavedMapping.mapeamento['aberto_por'] || '',
-          departamento: matchedSavedMapping.mapeamento['departamento'] || '',
-          sla_horas: matchedSavedMapping.mapeamento['sla_horas'] || '',
+        const newMap: Record<StandardFieldKey, string> = { ...EMPTY_MAPPING }
+        for (const key of Object.keys(EMPTY_MAPPING) as StandardFieldKey[]) {
+          newMap[key] = matchedSavedMapping.mapeamento[key] || ''
         }
         setMapping(newMap)
         setSelectedMappingId(matchedSavedMapping.id)
@@ -225,17 +221,9 @@ export default function Importar() {
     } else {
       const target = savedMappings.find((m) => m.id === mappingId)
       if (target) {
-        const newMap: Record<StandardFieldKey, string> = {
-          cliente: target.mapeamento['cliente'] || '',
-          tecnico: target.mapeamento['tecnico'] || '',
-          data_chamado: target.mapeamento['data_chamado'] || '',
-          tipo_chamado: target.mapeamento['tipo_chamado'] || '',
-          tempo_atendimento_min: target.mapeamento['tempo_atendimento_min'] || '',
-          prioridade: target.mapeamento['prioridade'] || '',
-          observacoes: target.mapeamento['observacoes'] || '',
-          aberto_por: target.mapeamento['aberto_por'] || '',
-          departamento: target.mapeamento['departamento'] || '',
-          sla_horas: target.mapeamento['sla_horas'] || '',
+        const newMap: Record<StandardFieldKey, string> = { ...EMPTY_MAPPING }
+        for (const key of Object.keys(EMPTY_MAPPING) as StandardFieldKey[]) {
+          newMap[key] = target.mapeamento[key] || ''
         }
         setMapping(newMap)
         setAutoDetectedMessage(`Usando mapeamento salvo: ${target.nome}`)
@@ -332,6 +320,18 @@ export default function Importar() {
           slaHoras = parseSlaHoras(row[mapping.sla_horas])
         }
 
+        let numeroChamado: string | null = null
+        if (mapping.numero && row[mapping.numero] !== undefined) {
+          const val = String(row[mapping.numero] ?? '').trim()
+          numeroChamado = val || null
+        }
+
+        let organizacao: string | null = null
+        if (mapping.organizacao && row[mapping.organizacao] !== undefined) {
+          const val = String(row[mapping.organizacao] ?? '').trim()
+          organizacao = val || null
+        }
+
         validRecords.push({
           cliente,
           tecnico,
@@ -343,6 +343,8 @@ export default function Importar() {
           aberto_por: abertoPor,
           departamento,
           sla_horas: slaHoras,
+          numero: numeroChamado,
+          organizacao,
           origem_arquivo: file.name,
         })
       })

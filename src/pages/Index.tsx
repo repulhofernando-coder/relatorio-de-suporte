@@ -1,7 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchSupportRecords, FetchSupportRecordsParams } from '@/services/support'
-import { SupportRecord, DEPARTMENT_VALUES } from '@/types/support'
+import {
+  fetchSupportRecords,
+  fetchDepartamentosEmUso,
+  fetchDepartmentCapacity,
+  FetchSupportRecordsParams,
+} from '@/services/support'
+import { SupportRecord, DepartmentCapacityRecord } from '@/types/support'
 import { normalizeHeader } from '@/lib/spreadsheet'
 import { CountUp } from '@/components/dashboard/CountUp'
 import {
@@ -22,6 +27,8 @@ import {
   Building2,
   Timer,
 } from 'lucide-react'
+import { CapacityPanel } from '@/components/dashboard/CapacityPanel'
+import { TecnicoDrillDown } from '@/components/dashboard/TecnicoDrillDown'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -192,9 +199,12 @@ export default function Index() {
   const [previousPeriodSlaMedia, setPreviousPeriodSlaMedia] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [departamentosEmUso, setDepartamentosEmUso] = useState<string[]>([])
+  const [capacities, setCapacities] = useState<DepartmentCapacityRecord[]>([])
+  const [tecnicoSelecionado, setTecnicoSelecionado] = useState<string | null>(null)
 
-  // Filtros
-  const [preset, setPreset] = useState<PeriodPreset>('este-mes')
+  // Filtros — o preset inicial é resolvido no primeiro load (mês atual vazio → "Tudo")
+  const [preset, setPreset] = useState<PeriodPreset | null>(null)
   const [customStart, setCustomStart] = useState<string>('')
   const [customEnd, setCustomEnd] = useState<string>('')
   const [activeDateRange, setActiveDateRange] = useState<{
@@ -203,6 +213,7 @@ export default function Index() {
     label: string
   }>(() => getPresetDates('este-mes'))
   const [departamentoFiltro, setDepartamentoFiltro] = useState<string>('todos')
+  const [inicializado, setInicializado] = useState(false)
 
   const loadData = useCallback(
     async (depto: string = departamentoFiltro) => {
@@ -257,9 +268,49 @@ export default function Index() {
     [activeDateRange, departamentoFiltro],
   )
 
+  // Primeiro load: se o mês atual não tem nenhum registro, o padrão é "Tudo"
   useEffect(() => {
-    loadData()
-  }, [loadData])
+    const inicializar = async () => {
+      try {
+        const now = new Date()
+        const y = now.getFullYear()
+        const m = String(now.getMonth() + 1).padStart(2, '0')
+        const lastDay = new Date(y, now.getMonth() + 1, 0).getDate()
+        const mesAtual = await fetchSupportRecords({
+          startDate: `${y}-${m}-01`,
+          endDate: `${y}-${m}-${String(lastDay).padStart(2, '0')}`,
+        })
+        if (mesAtual.length === 0) {
+          setPreset('tudo')
+          setActiveDateRange(getPresetDates('tudo'))
+        } else {
+          setPreset('este-mes')
+        }
+      } catch (err) {
+        console.error('Erro ao definir período inicial:', err)
+        setPreset('tudo')
+        setActiveDateRange(getPresetDates('tudo'))
+      } finally {
+        setInicializado(true)
+      }
+    }
+    inicializar()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if (inicializado) loadData()
+  }, [inicializado, loadData])
+
+  // Departamentos que realmente existem nos registros (filtro e gráfico dinâmicos)
+  useEffect(() => {
+    fetchDepartamentosEmUso()
+      .then(setDepartamentosEmUso)
+      .catch((err) => console.error('Erro ao buscar departamentos:', err))
+    fetchDepartmentCapacity()
+      .then(setCapacities)
+      .catch((err) => console.error('Erro ao buscar capacidade:', err))
+  }, [])
 
   // Aplica filtro predefinido
   const handleSelectPreset = (newPreset: PeriodPreset) => {
@@ -372,14 +423,7 @@ export default function Index() {
         registros: v.count,
         color: departmentColor(departamento),
       }))
-      .sort((a, b) => {
-        const ia = (DEPARTMENT_VALUES as readonly string[]).indexOf(a.departamento)
-        const ib = (DEPARTMENT_VALUES as readonly string[]).indexOf(b.departamento)
-        if (ia !== -1 && ib !== -1) return ia - ib
-        if (ia !== -1) return -1
-        if (ib !== -1) return 1
-        return b.media - a.media
-      })
+      .sort((a, b) => b.media - a.media)
   }, [records])
 
   // Tendência do Total de Chamados vs período anterior
@@ -528,39 +572,18 @@ export default function Index() {
         percent: ((count / total) * 100).toFixed(1),
         color: departmentColor(departamento),
       }))
-      .sort((a, b) => {
-        const ia = (DEPARTMENT_VALUES as readonly string[]).indexOf(a.departamento)
-        const ib = (DEPARTMENT_VALUES as readonly string[]).indexOf(b.departamento)
-        if (ia !== -1 && ib !== -1) return ia - ib
-        if (ia !== -1) return -1
-        if (ib !== -1) return 1
-        return b.count - a.count
-      })
+      .sort((a, b) => b.count - a.count)
   }, [records])
 
-  // Departamentos disponíveis no filtro (union dos setores fixos e dos valores já importados)
-  const departamentosDisponiveis = useMemo(() => {
-    const set = new Set<string>(DEPARTMENT_VALUES as readonly string[])
-    records.forEach((r) => {
-      const depto = r.departamento?.trim()
-      if (depto) set.add(depto)
-    })
-    return Array.from(set).sort((a, b) => {
-      const ia = (DEPARTMENT_VALUES as readonly string[]).indexOf(a)
-      const ib = (DEPARTMENT_VALUES as readonly string[]).indexOf(b)
-      if (ia !== -1 && ib !== -1) return ia - ib
-      if (ia !== -1) return -1
-      if (ib !== -1) return 1
-      return a.localeCompare(b)
-    })
-  }, [records])
+  // Departamentos disponíveis no filtro: SOMENTE os que existem nos registros importados
+  const departamentosDisponiveis = departamentosEmUso
 
   // Últimos 10 registros
   const ultimosRegistros = useMemo(() => {
     return records.slice(0, 10)
   }, [records])
 
-  const isEmpty = !loading && records.length === 0 && preset === 'tudo'
+  const isEmpty = !loading && inicializado && records.length === 0 && preset === 'tudo'
 
   return (
     <div className="space-y-6 pb-12">
@@ -956,8 +979,8 @@ export default function Index() {
               <div className="mb-4">
                 <h3 className="text-base font-bold text-slate-900">SLA médio por departamento</h3>
                 <p className="text-xs text-slate-500">
-                  Tempo médio de SLA (em horas) por setor: Windows, Campo, Windows N2, Ativação e
-                  Projetos
+                  Tempo médio de SLA (em horas) por setor — apenas departamentos com dados no
+                  período
                 </p>
               </div>
 
@@ -1126,14 +1149,14 @@ export default function Index() {
               </div>
             </div>
 
-            {/* Ranking de Técnicos (5 colunas / ~42%) */}
+            {/* Ranking de Técnicos (5 colunas / ~42%) — nomes clicáveis abrem o detalhamento */}
             <div className="lg:col-span-5 bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80 flex flex-col">
               <div className="mb-4">
                 <h3 className="text-base font-bold text-slate-900">
                   Ranking de técnicos que mais atendem
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Volume de atendimentos concluídos por profissional
+                  Volume de atendimentos por profissional — clique no nome para ver os números dele
                 </p>
               </div>
 
@@ -1179,16 +1202,45 @@ export default function Index() {
                           return null
                         }}
                       />
-                      <Bar dataKey="chamados" radius={[6, 6, 0, 0]} animationDuration={600}>
+                      <Bar
+                        dataKey="chamados"
+                        radius={[6, 6, 0, 0]}
+                        animationDuration={600}
+                        cursor="pointer"
+                        onClick={(entry: { payload?: { tecnico?: string } }) => {
+                          const nome = entry?.payload?.tecnico
+                          if (nome) setTecnicoSelecionado(nome)
+                        }}
+                      >
                         {rankingTecnicosData.map((_entry, index) => (
                           <Cell
                             key={`tecnico-${index}`}
                             fill={CHART_PALETTE[index % CHART_PALETTE.length]}
+                            cursor="pointer"
                           />
                         ))}
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
+                )}
+
+                {/* Legenda clicável: um "botão" por técnico do ranking */}
+                {!loading && rankingTecnicosData.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {rankingTecnicosData.map((item) => (
+                      <button
+                        key={item.tecnico}
+                        onClick={() => setTecnicoSelecionado(item.tecnico)}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 hover:bg-teal-50 hover:text-teal-700 px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors cursor-pointer"
+                        title={`Ver números de ${item.tecnico}`}
+                      >
+                        {item.tecnico}
+                        <span className="font-mono text-[11px] text-slate-500">
+                          {item.chamados}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
@@ -1484,6 +1536,14 @@ export default function Index() {
             </div>
           </div>
 
+          {/* NOVO: Capacidade por departamento (chamados ÷ técnicos, média/dia, aviso de limite) */}
+          <CapacityPanel
+            records={records}
+            capacities={capacities}
+            loading={loading}
+            onGoToConfig={() => navigate('/equipes')}
+          />
+
           {/* ÚLTIMOS REGISTROS IMPORTADOS */}
           <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
             <div className="flex items-center justify-between mb-4">
@@ -1630,6 +1690,15 @@ export default function Index() {
             )}
           </div>
         </>
+      )}
+
+      {/* Drill-down de técnico (abre ao clicar num nome do ranking) */}
+      {tecnicoSelecionado && (
+        <TecnicoDrillDown
+          tecnico={tecnicoSelecionado}
+          records={records}
+          onClose={() => setTecnicoSelecionado(null)}
+        />
       )}
     </div>
   )

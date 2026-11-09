@@ -9,6 +9,8 @@ import Login from './pages/Login'
 import Importar from './pages/Importar'
 import Importacoes from './pages/Importacoes'
 import Mapeamentos from './pages/Mapeamentos'
+import Chamados from './pages/Chamados'
+import Equipes from './pages/Equipes'
 import NotFound from './pages/NotFound'
 
 const App = () => (
@@ -27,6 +29,8 @@ const App = () => (
             <Route path="/importar" element={<Importar />} />
             <Route path="/importacoes" element={<Importacoes />} />
             <Route path="/mapeamentos" element={<Mapeamentos />} />
+            <Route path="/chamados" element={<Chamados />} />
+            <Route path="/equipes" element={<Equipes />} />
           </Route>
 
           {/* Fallback */}

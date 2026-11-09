@@ -7,6 +7,8 @@ import {
   Upload,
   History,
   Sliders,
+  Ticket,
+  Users,
   LogOut,
   Menu,
   X,
@@ -17,6 +19,8 @@ import { Button } from '@/components/ui/button'
 
 const NAV_ITEMS = [
   { label: 'Visão Geral', path: '/', icon: LineChart },
+  { label: 'Chamados', path: '/chamados', icon: Ticket },
+  { label: 'Equipes', path: '/equipes', icon: Users },
   { label: 'Importar Planilha', path: '/importar', icon: Upload },
   { label: 'Importações', path: '/importacoes', icon: History },
   { label: 'Mapeamentos', path: '/mapeamentos', icon: Sliders },

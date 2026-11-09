@@ -90,6 +90,7 @@ export type Database = {
           observacoes: string | null
           origem_arquivo: string | null
           prioridade: string | null
+          sla_horas: number | null
           tecnico: string
           tempo_atendimento_min: number | null
           tipo_chamado: string | null
@@ -106,6 +107,7 @@ export type Database = {
           observacoes?: string | null
           origem_arquivo?: string | null
           prioridade?: string | null
+          sla_horas?: number | null
           tecnico: string
           tempo_atendimento_min?: number | null
           tipo_chamado?: string | null
@@ -122,6 +124,7 @@ export type Database = {
           observacoes?: string | null
           origem_arquivo?: string | null
           prioridade?: string | null
+          sla_horas?: number | null
           tecnico?: string
           tempo_atendimento_min?: number | null
           tipo_chamado?: string | null

@@ -12,6 +12,8 @@ export interface SupportRecord {
   aberto_por: string | null
   departamento: string | null
   sla_horas: number | null
+  numero: string | null
+  organizacao: string | null
   import_id: string | null
   created_at: string
 }
@@ -28,7 +30,28 @@ export interface SupportRecordInsert {
   aberto_por?: string | null
   departamento?: string | null
   sla_horas?: number | null
+  numero?: string | null
+  organizacao?: string | null
   import_id?: string | null
+  user_id?: string
+}
+
+export interface DepartmentCapacityRecord {
+  id: string
+  user_id: string
+  departamento: string
+  qtd_tecnicos: number
+  dias_uteis: number
+  limite_diario: number
+  created_at: string
+  updated_at: string
+}
+
+export interface DepartmentCapacityUpsert {
+  departamento: string
+  qtd_tecnicos: number
+  dias_uteis: number
+  limite_diario: number
   user_id?: string
 }
 
@@ -84,6 +107,8 @@ export type StandardFieldKey =
   | 'aberto_por'
   | 'departamento'
   | 'sla_horas'
+  | 'numero'
+  | 'organizacao'
 
 export interface StandardFieldDef {
   key: StandardFieldKey
@@ -210,6 +235,9 @@ export const STANDARD_FIELDS: StandardFieldDef[] = [
       'usuario',
       'reportado por',
       'quem abriu',
+      'criado por',
+      'criador',
+      'autor',
     ],
     description: 'Quem abriu o chamado (não o técnico que atendeu)',
   },
@@ -245,34 +273,84 @@ export const STANDARD_FIELDS: StandardFieldDef[] = [
     ],
     description: 'Tempo de SLA do chamado, em horas (ex.: 2,5 ou "2h30")',
   },
+  {
+    key: 'numero',
+    label: 'Número do chamado',
+    required: false,
+    synonyms: [
+      'número',
+      'numero',
+      'nº',
+      'no',
+      'num',
+      'chamado',
+      'n chamado',
+      'numero do chamado',
+      'número do chamado',
+      'nº do chamado',
+      'ticket',
+      'ticket id',
+      'id',
+      'id do chamado',
+      'cod',
+      'código',
+      'codigo',
+    ],
+    description: 'Número/identificador do chamado na planilha (ex.: INC0012345)',
+  },
+  {
+    key: 'organizacao',
+    label: 'Cliente / Organização',
+    required: false,
+    synonyms: [
+      'organização',
+      'organizacao',
+      'cliente organização',
+      'cliente organizacao',
+      'org',
+      'empresa do cliente',
+      'unidade',
+      'filial',
+    ],
+    description:
+      'Organização/unidade do cliente referente ao chamado (se for a mesma coluna de Cliente, pode deixar sem mapear)',
+  },
 ]
 
 export const DEPARTMENT_VALUES = ['Windows', 'Campo', 'Windows N2', 'Ativação', 'Projetos'] as const
 
 /**
- * Normaliza o valor do departamento para um dos setores fixos (case/acentos insensível).
- * Valores fora da lista são devolvidos como vieram (trim).
+ * Remove prefixos numéricos e espaços do início de um valor de departamento
+ * (ex.: "01.Windows" → "Windows", "02. Windows N2" → "Windows N2", "04. Campo" → "Campo").
  */
-export function normalizeDepartamento(value: string | null | undefined): string | null {
-  if (!value) return null
-  const trimmed = value.trim()
-  if (!trimmed) return null
-  const norm = trimmed
+export function stripDepartamentoPrefix(value: string): string {
+  return value.replace(/^\s*\d+\s*[.\-–—:]?\s*/, '')
+}
+
+function normalizeBase(value: string): string {
+  return value
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, ' ')
+    .trim()
+}
 
-  const direct = DEPARTMENT_VALUES.find(
-    (d) =>
-      d
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '') === norm,
-  )
+/**
+ * Normaliza o valor do departamento (case/acentos insensível, ignorando prefixos
+ * numéricos como "01." e espaços): "01.Windows" → Windows, "04. Campo" → Campo.
+ * Valores fora dos setores conhecidos são devolvidos como vieram (trim).
+ */
+export function normalizeDepartamento(value: string | null | undefined): string | null {
+  if (!value) return null
+  const trimmed = stripDepartamentoPrefix(String(value)).trim()
+  if (!trimmed) return null
+  const norm = normalizeBase(trimmed)
+
+  const direct = DEPARTMENT_VALUES.find((d) => normalizeBase(d) === norm)
   if (direct) return direct
 
-  // Variações comuns: "Windows N2" escrito "windows n2"/"windowsN2"
+  // Variações comuns: "Windows N2" escrito "windowsn2"/"win n2"
   if (norm === 'windows n2' || norm === 'windowsn2' || norm === 'win n2') {
     return 'Windows N2'
   }
