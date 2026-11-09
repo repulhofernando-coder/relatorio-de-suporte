@@ -290,7 +290,7 @@ export async function fetchChamados(params?: FetchChamadosParams): Promise<Fetch
     query = query.eq('tecnico', params.tecnico)
   }
   if (params?.abertoPorProprioTecnico && params?.tecnico) {
-    query = query.ilike('aberto_por', params.tecnico)
+    query = query.ilike('aberto_por', params.tecnico.trim())
   }
   if (params?.busca && params.busca.trim()) {
     const termo = params.busca.trim()

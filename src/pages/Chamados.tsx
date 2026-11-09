@@ -142,7 +142,15 @@ export default function Chamados() {
         setRefreshing(false)
       }
     },
-    [range, departamentoFiltro, buscaAplicada, ordenarPor, ordem, tecnicoFiltro],
+    [
+      range,
+      departamentoFiltro,
+      buscaAplicada,
+      ordenarPor,
+      ordem,
+      tecnicoFiltro,
+      somenteProprioFiltro,
+    ],
   )
 
   const carregarRegistros = useCallback(async () => {
@@ -213,12 +221,16 @@ export default function Chamados() {
   const handleSelecionarTecnico = (nome: string | null) => {
     setTecnicoFiltro(nome)
     setSomenteProprioFiltro(false)
-    setPage(1)
+    if (page !== 1) {
+      setPage(1)
+    }
   }
 
   const handleToggleSomenteProprio = () => {
     setSomenteProprioFiltro((prev) => !prev)
-    setPage(1)
+    if (page !== 1) {
+      setPage(1)
+    }
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -417,13 +429,22 @@ export default function Chamados() {
           <div className="px-5 py-3 bg-teal-50/60 border-b border-teal-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-sm font-bold text-teal-900">
-                {clientesDoTecnico} {clientesDoTecnico === 1 ? 'cliente' : 'clientes'} ·{' '}
-                {registrosDoTecnico.length}{' '}
-                {registrosDoTecnico.length === 1 ? 'chamado' : 'chamados'}
+                {somenteProprioFiltro ? (
+                  <>
+                    {total} {total === 1 ? 'chamado aberto' : 'chamados abertos'} por ele mesmo (de{' '}
+                    {registrosDoTecnico.length} no período)
+                  </>
+                ) : (
+                  <>
+                    {clientesDoTecnico} {clientesDoTecnico === 1 ? 'cliente' : 'clientes'} ·{' '}
+                    {registrosDoTecnico.length}{' '}
+                    {registrosDoTecnico.length === 1 ? 'chamado' : 'chamados'}
+                  </>
+                )}
               </p>
               {somenteProprioFiltro && (
                 <Badge className="bg-teal-600 text-white text-[11px] gap-1 px-2 py-0.5">
-                  Filtro: abertos por ele mesmo
+                  Filtro: abertos por ele mesmo ({total})
                   <button
                     onClick={handleToggleSomenteProprio}
                     className="ml-1 hover:text-teal-200 text-xs font-bold leading-none"
@@ -433,6 +454,14 @@ export default function Chamados() {
                   </button>
                 </Badge>
               )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleSelecionarTecnico(null)}
+                className="h-6 px-2 text-[11px] text-teal-700 hover:text-teal-900 hover:bg-teal-100/60 font-medium"
+              >
+                Limpar técnico
+              </Button>
             </div>
             <p className="text-xs text-teal-800">
               Atendidos por <span className="font-semibold">{tecnicoFiltro}</span>
