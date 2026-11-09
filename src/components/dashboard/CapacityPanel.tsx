@@ -1,17 +1,21 @@
 import { useMemo } from 'react'
-import { Users, AlertTriangle, Settings2, Inbox } from 'lucide-react'
+import { Users, AlertTriangle, Settings2, Inbox, Calendar } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { SupportRecord, DepartmentCapacityRecord } from '@/types/support'
+import { calculatePeriodBusinessDays } from '@/lib/business-days'
 
 interface CapacityRow {
   departamento: string
   chamados: number
   qtdTecnicos: number
-  diasUteis: number
+  diasUteisBaseMensal: number
+  diasUteisPeriodo: number
   limiteDiario: number
+  capacidadeTotalPeriodo: number
   porTecnico: number | null
   mediaPorDia: number | null
+  ocupacaoCapacidadePercent: number | null
   acimaDoLimite: boolean
   configurado: boolean
 }
@@ -21,6 +25,9 @@ interface CapacityPanelProps {
   capacities: DepartmentCapacityRecord[]
   loading?: boolean
   onGoToConfig: () => void
+  startDate?: string
+  endDate?: string
+  periodLabel?: string
 }
 
 const DEFAULT_DIAS_UTEIS = 22
@@ -30,11 +37,38 @@ function formatNum(v: number): string {
   return v.toLocaleString('pt-BR', { maximumFractionDigits: 1 })
 }
 
+function formatShortDateBR(iso: string): string {
+  const parts = iso.split('-')
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`
+  }
+  return iso
+}
+
 /**
  * Painel "Capacidade por departamento": cruzam-se os chamados do período
  * com a quantidade de técnicos informada na tela Equipes.
+ *
+ * Correção aplicada: os dias úteis utilizados como divisor da média/dia/técnico
+ * e da capacidade total do período refletem a extensão REAL do período filtrado
+ * (dias úteis de segunda a sexta entre data inicial e final ou extensão real dos
+ * chamados no filtro "Tudo"), e não o valor estático de apenas 1 mês (22 dias).
  */
-export function CapacityPanel({ records, capacities, loading, onGoToConfig }: CapacityPanelProps) {
+export function CapacityPanel({
+  records,
+  capacities,
+  loading,
+  onGoToConfig,
+  startDate,
+  endDate,
+  periodLabel,
+}: CapacityPanelProps) {
+  // 1. Calcula os dias úteis reais do período com base no filtro ou na extensão real dos dados
+  const periodInfo = useMemo(() => {
+    const dates = records.map((r) => r.data_chamado)
+    return calculatePeriodBusinessDays(startDate, endDate, dates, DEFAULT_DIAS_UTEIS)
+  }, [startDate, endDate, records])
+
   const rows = useMemo<CapacityRow[]>(() => {
     const counts: Record<string, number> = {}
     records.forEach((r) => {
@@ -47,24 +81,43 @@ export function CapacityPanel({ records, capacities, loading, onGoToConfig }: Ca
       .map(([departamento, chamados]) => {
         const cap = capacities.find((c) => c.departamento === departamento)
         const qtdTecnicos = cap?.qtd_tecnicos ?? 0
-        const diasUteis = cap?.dias_uteis ?? DEFAULT_DIAS_UTEIS
+        const diasUteisBaseMensal = cap?.dias_uteis ?? DEFAULT_DIAS_UTEIS
         const limiteDiario = cap?.limite_diario ?? DEFAULT_LIMITE_DIARIO
+
+        // Se o departamento tiver customizado os dias úteis mensais diferente de 22,
+        // ajustamos proporcionalmente se necessário:
+        // fator = cap.dias_uteis / 22. Geralmente é 22.
+        const fatorDepto = diasUteisBaseMensal / DEFAULT_DIAS_UTEIS
+        const diasUteisPeriodo = Math.max(
+          1,
+          Math.round(periodInfo.diasUteisCalculados * fatorDepto),
+        )
+
         const porTecnico = qtdTecnicos > 0 ? chamados / qtdTecnicos : null
-        const mediaPorDia = porTecnico !== null ? porTecnico / diasUteis : null
+        const mediaPorDia = porTecnico !== null ? porTecnico / diasUteisPeriodo : null
+
+        // Capacidade total do período para este departamento
+        const capacidadeTotalPeriodo = qtdTecnicos * limiteDiario * diasUteisPeriodo
+        const ocupacaoCapacidadePercent =
+          capacidadeTotalPeriodo > 0 ? (chamados / capacidadeTotalPeriodo) * 100 : null
+
         return {
           departamento,
           chamados,
           qtdTecnicos,
-          diasUteis,
+          diasUteisBaseMensal,
+          diasUteisPeriodo,
           limiteDiario,
+          capacidadeTotalPeriodo,
           porTecnico,
           mediaPorDia,
+          ocupacaoCapacidadePercent,
           acimaDoLimite: mediaPorDia !== null && mediaPorDia > limiteDiario,
           configurado: Boolean(cap),
         }
       })
       .sort((a, b) => b.chamados - a.chamados)
-  }, [records, capacities])
+  }, [records, capacities, periodInfo])
 
   const algumConfigurado = capacities.length > 0
 
@@ -72,16 +125,32 @@ export function CapacityPanel({ records, capacities, loading, onGoToConfig }: Ca
     <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
         <div>
-          <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <Users className="w-4 h-4 text-teal-600" />
-            Capacidade por departamento
-          </h3>
-          <p className="text-xs text-slate-500">
-            Chamados no período ÷ técnicos cadastrados = carga por técnico (média diária por técnico
-            em dias úteis)
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Users className="w-4 h-4 text-teal-600" />
+              Capacidade por departamento
+            </h3>
+            <Badge
+              variant="outline"
+              className="text-[11px] font-medium border-teal-200 text-teal-700 bg-teal-50 gap-1 py-0.5 px-2"
+            >
+              <Calendar className="w-3 h-3 text-teal-600" />
+              {periodInfo.diasUteisCalculados}{' '}
+              {periodInfo.diasUteisCalculados === 1 ? 'dia útil' : 'dias úteis'} no período
+            </Badge>
+          </div>
+          <p className="text-xs text-slate-500 mt-1">
+            Chamados no período ÷ técnicos ÷ dias úteis reais = carga diária por técnico (coerente
+            em qualquer período: mês, ano ou personalizado)
           </p>
           <p className="text-[11px] text-slate-400 mt-0.5">
             Exclui chamados internos abertos por técnicos (Mundo Open).
+            {periodInfo.dataInicio && periodInfo.dataFim && (
+              <span className="ml-1 text-slate-500 font-mono">
+                (Base: {formatShortDateBR(periodInfo.dataInicio)} a{' '}
+                {formatShortDateBR(periodInfo.dataFim)})
+              </span>
+            )}
           </p>
         </div>
         <Button
@@ -114,8 +183,10 @@ export function CapacityPanel({ records, capacities, loading, onGoToConfig }: Ca
                 <th className="py-2.5 px-3">Departamento</th>
                 <th className="py-2.5 px-3 text-right">Chamados</th>
                 <th className="py-2.5 px-3 text-right">Técnicos</th>
+                <th className="py-2.5 px-3 text-right">Dias úteis</th>
                 <th className="py-2.5 px-3 text-right">Por técnico</th>
                 <th className="py-2.5 px-3 text-right">Média/dia/técnico</th>
+                <th className="py-2.5 px-3 text-right">Capacidade total</th>
                 <th className="py-2.5 px-3 text-right">Situação</th>
               </tr>
             </thead>
@@ -131,11 +202,25 @@ export function CapacityPanel({ records, capacities, loading, onGoToConfig }: Ca
                       <span className="text-amber-600 font-medium">não informado</span>
                     )}
                   </td>
+                  <td className="py-3 px-3 text-right font-mono text-slate-600">
+                    {row.diasUteisPeriodo}
+                  </td>
                   <td className="py-3 px-3 text-right font-mono text-slate-700">
                     {row.porTecnico !== null ? formatNum(row.porTecnico) : '—'}
                   </td>
-                  <td className="py-3 px-3 text-right font-mono text-slate-700">
+                  <td className="py-3 px-3 text-right font-mono font-semibold text-slate-800">
                     {row.mediaPorDia !== null ? formatNum(row.mediaPorDia) : '—'}
+                  </td>
+                  <td className="py-3 px-3 text-right font-mono text-slate-600">
+                    {row.qtdTecnicos > 0 ? (
+                      <span
+                        title={`Capacidade: ${row.capacidadeTotalPeriodo.toLocaleString('pt-BR')} chamados no período (${formatNum(row.ocupacaoCapacidadePercent ?? 0)}% ocupado)`}
+                      >
+                        {row.capacidadeTotalPeriodo.toLocaleString('pt-BR')} ch
+                      </span>
+                    ) : (
+                      '—'
+                    )}
                   </td>
                   <td className="py-3 px-3 text-right">
                     {!row.configurado ? (
@@ -155,7 +240,7 @@ export function CapacityPanel({ records, capacities, loading, onGoToConfig }: Ca
                         variant="outline"
                         className="text-[10px] font-medium border-emerald-200 text-emerald-700 bg-emerald-50"
                       >
-                        Dentro do limite
+                        Dentro do limite ({formatNum(row.limiteDiario)}/dia)
                       </Badge>
                     )}
                   </td>
@@ -164,8 +249,9 @@ export function CapacityPanel({ records, capacities, loading, onGoToConfig }: Ca
             </tbody>
           </table>
           <p className="text-[11px] text-slate-400 mt-3">
-            Limite diário padrão: {DEFAULT_LIMITE_DIARIO} chamados/dia por técnico •{' '}
-            {DEFAULT_DIAS_UTEIS} dias úteis no mês (editável em Equipes).
+            Limite diário cadastrado em Equipes • Dias úteis calculados proporcionalmente ao período
+            filtrado ({periodInfo.diasUteisCalculados} dias úteis
+            {periodLabel ? ` — ${periodLabel}` : ''}).
             {!algumConfigurado && ' Nenhum departamento configurado ainda.'}
           </p>
         </div>

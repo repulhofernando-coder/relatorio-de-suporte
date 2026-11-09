@@ -117,6 +117,7 @@ export function BenchmarkPanel({
       horasDisponiveisEquipe > 0 ? (horasTrabalhadasTotal / horasDisponiveisEquipe) * 100 : null
 
     // 4) Capacidade total planejada vs real (ociosidade / folga)
+    // A capacidade planejada para o período é: técnicos × limite diário × dias de atendimento reais
     let capacidadePlanejadaChamados = 0
     if (activeCapacity) {
       const qtd = activeCapacity.qtd_tecnicos || 1
@@ -127,9 +128,7 @@ export function BenchmarkPanel({
           activeCapacity.meta_chamados_dia ||
           fallbackLim,
       )
-      const dias = Number(activeCapacity.dias_uteis || 22)
-      const fatorDias = diasAtendimento < dias ? diasAtendimento / dias : 1
-      capacidadePlanejadaChamados = qtd * lim * dias * fatorDias
+      capacidadePlanejadaChamados = qtd * lim * diasAtendimento
     } else if (
       capacities &&
       capacities.length > 0 &&
@@ -138,9 +137,7 @@ export function BenchmarkPanel({
       capacidadePlanejadaChamados = capacities.reduce((acc, c) => {
         const qtd = c.qtd_tecnicos || 0
         const lim = Number(c.limite_diario || c.meta_chamados_dia || 15)
-        const dias = Number(c.dias_uteis || 22)
-        const fatorDias = diasAtendimento < dias ? diasAtendimento / dias : 1
-        return acc + qtd * lim * dias * fatorDias
+        return acc + qtd * lim * diasAtendimento
       }, 0)
     }
 

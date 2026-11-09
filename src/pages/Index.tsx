@@ -1649,6 +1649,9 @@ export default function Index() {
             capacities={capacities}
             loading={loading}
             onGoToConfig={() => navigate('/equipes')}
+            startDate={activeDateRange.startDate}
+            endDate={activeDateRange.endDate}
+            periodLabel={activeDateRange.label}
           />
 
           {/* ÚLTIMOS REGISTROS IMPORTADOS */}

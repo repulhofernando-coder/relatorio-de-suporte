@@ -135,6 +135,33 @@ export type Database = {
         }
         Relationships: []
       }
+      saved_reports: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          created_by_name: string | null
+          filters: Json
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          filters: Json
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          filters?: Json
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       support_records: {
         Row: {
           aberto_por: string | null
