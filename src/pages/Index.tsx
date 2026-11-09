@@ -20,6 +20,7 @@ import {
   Sparkles,
   UserPlus,
   Building2,
+  Timer,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -138,6 +139,20 @@ function formatMinutes(min: number | null): string {
   return `${remaining}min`
 }
 
+/** Formata horas decimais de SLA: 1.5 → "1h30", 2.5 → "2,5h", null → "—" */
+function formatSlaHoras(horas: number | null | undefined): string {
+  if (horas === null || horas === undefined || isNaN(horas) || horas <= 0) return '—'
+  const hours = Math.floor(horas)
+  const minutes = Math.round((horas - hours) * 60)
+  if (minutes === 60) {
+    return `${hours + 1}h`
+  }
+  if (hours > 0) {
+    return minutes > 0 ? `${hours}h${String(minutes).padStart(2, '0')}` : `${hours}h`
+  }
+  return `${(horas + Number.EPSILON).toFixed(2).replace('.', ',').replace(/,?0+$/, '')}h`
+}
+
 function formatShortDate(dateStr: string): string {
   if (!dateStr) return '—'
   const [y, m, d] = dateStr.split('-')
@@ -174,6 +189,7 @@ export default function Index() {
   const navigate = useNavigate()
   const [records, setRecords] = useState<SupportRecord[]>([])
   const [previousPeriodRecordsCount, setPreviousPeriodRecordsCount] = useState<number | null>(null)
+  const [previousPeriodSlaMedia, setPreviousPeriodSlaMedia] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -200,7 +216,7 @@ export default function Index() {
         const data = await fetchSupportRecords(params)
         setRecords(data)
 
-        // Calcular contagem do período anterior equivalente se houver datas
+        // Calcular contagem e média de SLA do período anterior equivalente se houver datas
         if (activeDateRange.startDate && activeDateRange.endDate) {
           const start = new Date(activeDateRange.startDate)
           const end = new Date(activeDateRange.endDate)
@@ -215,11 +231,21 @@ export default function Index() {
               departamento: depto && depto !== 'todos' ? depto : undefined,
             })
             setPreviousPeriodRecordsCount(prevData.length)
+            const prevSlaValues = prevData
+              .map((r) => r.sla_horas)
+              .filter((s): s is number => typeof s === 'number' && !isNaN(s) && s > 0)
+            setPreviousPeriodSlaMedia(
+              prevSlaValues.length
+                ? prevSlaValues.reduce((acc, v) => acc + v, 0) / prevSlaValues.length
+                : null,
+            )
           } else {
             setPreviousPeriodRecordsCount(null)
+            setPreviousPeriodSlaMedia(null)
           }
         } else {
           setPreviousPeriodRecordsCount(null)
+          setPreviousPeriodSlaMedia(null)
         }
       } catch (err) {
         console.error('Erro ao carregar dados do dashboard:', err)
@@ -281,6 +307,79 @@ export default function Index() {
     if (validTimes.length === 0) return null
     const sum = validTimes.reduce((acc, v) => acc + v, 0)
     return Math.round(sum / validTimes.length)
+  }, [records])
+
+  const slaMedioHoras = useMemo(() => {
+    const valid = records
+      .map((r) => r.sla_horas)
+      .filter((s): s is number => typeof s === 'number' && !isNaN(s) && s > 0)
+    if (valid.length === 0) return null
+    const sum = valid.reduce((acc, v) => acc + v, 0)
+    return sum / valid.length
+  }, [records])
+
+  // Tendência do SLA médio vs período anterior (queda é boa → verde)
+  const slaTrend = useMemo(() => {
+    if (previousPeriodSlaMedia === null || slaMedioHoras === null) return null
+    if (previousPeriodSlaMedia === 0) {
+      return slaMedioHoras > 0
+        ? { direction: 'up', percent: 100, positive: false }
+        : { direction: 'neutral', percent: 0, positive: true }
+    }
+    const diff = slaMedioHoras - previousPeriodSlaMedia
+    const percent = Math.round((Math.abs(diff) / previousPeriodSlaMedia) * 100)
+    if (diff > 0) return { direction: 'up', percent, positive: false }
+    if (diff < 0) return { direction: 'down', percent, positive: true }
+    return { direction: 'neutral', percent: 0, positive: true }
+  }, [slaMedioHoras, previousPeriodSlaMedia])
+
+  // SLA médio por técnico (apenas registros com SLA preenchido)
+  const slaPorTecnicoData = useMemo(() => {
+    const acc: Record<string, { sum: number; count: number }> = {}
+    records.forEach((r) => {
+      const tecnico = r.tecnico?.trim()
+      const sla = r.sla_horas
+      if (!tecnico || typeof sla !== 'number' || isNaN(sla) || sla <= 0) return
+      if (!acc[tecnico]) acc[tecnico] = { sum: 0, count: 0 }
+      acc[tecnico].sum += sla
+      acc[tecnico].count += 1
+    })
+    return Object.entries(acc)
+      .map(([tecnico, v]) => ({
+        tecnico,
+        media: Math.round((v.sum / v.count) * 100) / 100,
+        registros: v.count,
+      }))
+      .sort((a, b) => b.media - a.media)
+      .slice(0, 8)
+  }, [records])
+
+  // SLA médio por departamento (apenas registros com SLA preenchido)
+  const slaPorDepartamentoData = useMemo(() => {
+    const acc: Record<string, { sum: number; count: number }> = {}
+    records.forEach((r) => {
+      const depto = r.departamento?.trim()
+      const sla = r.sla_horas
+      if (!depto || typeof sla !== 'number' || isNaN(sla) || sla <= 0) return
+      if (!acc[depto]) acc[depto] = { sum: 0, count: 0 }
+      acc[depto].sum += sla
+      acc[depto].count += 1
+    })
+    return Object.entries(acc)
+      .map(([departamento, v]) => ({
+        departamento,
+        media: Math.round((v.sum / v.count) * 100) / 100,
+        registros: v.count,
+        color: departmentColor(departamento),
+      }))
+      .sort((a, b) => {
+        const ia = (DEPARTMENT_VALUES as readonly string[]).indexOf(a.departamento)
+        const ib = (DEPARTMENT_VALUES as readonly string[]).indexOf(b.departamento)
+        if (ia !== -1 && ib !== -1) return ia - ib
+        if (ia !== -1) return -1
+        if (ib !== -1) return 1
+        return b.media - a.media
+      })
   }, [records])
 
   // Tendência do Total de Chamados vs período anterior
@@ -607,8 +706,8 @@ export default function Index() {
         </div>
       ) : (
         <>
-          {/* 4 KPI CARDS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* 5 KPI CARDS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {/* KPI 1: Total de Chamados */}
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between transition-all hover:shadow-md">
               <div className="flex items-center justify-between mb-3">
@@ -718,6 +817,204 @@ export default function Index() {
                   )}
                 </div>
                 <div className="mt-2 text-xs text-slate-400">Média por chamado</div>
+              </div>
+            </div>
+
+            {/* KPI 5: Tempo Médio de SLA */}
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between transition-all hover:shadow-md">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Tempo Médio de SLA
+                </span>
+                <div className="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center">
+                  <Timer className="w-5 h-5" />
+                </div>
+              </div>
+              <div>
+                <div className="text-3xl font-extrabold text-slate-900 tracking-tight">
+                  {loading ? (
+                    <div className="h-9 w-24 bg-slate-100 rounded-lg animate-pulse" />
+                  ) : (
+                    formatSlaHoras(slaMedioHoras)
+                  )}
+                </div>
+                <div className="mt-2 flex items-center gap-1.5 text-xs">
+                  {slaTrend ? (
+                    <>
+                      {slaTrend.direction !== 'neutral' && (
+                        <span
+                          className={`inline-flex items-center gap-0.5 font-semibold px-2 py-0.5 rounded-full ${
+                            slaTrend.positive
+                              ? 'text-emerald-600 bg-emerald-50'
+                              : 'text-rose-600 bg-rose-50'
+                          }`}
+                        >
+                          {slaTrend.direction === 'up' ? (
+                            <TrendingUp className="w-3.5 h-3.5" />
+                          ) : (
+                            <TrendingDown className="w-3.5 h-3.5" />
+                          )}
+                          {slaTrend.direction === 'up' ? '+' : '-'}
+                          {slaTrend.percent}%
+                        </span>
+                      )}
+                      {slaTrend.direction === 'neutral' && (
+                        <span className="inline-flex items-center gap-0.5 text-slate-500 font-semibold bg-slate-100 px-2 py-0.5 rounded-full">
+                          <Minus className="w-3.5 h-3.5" />
+                          0%
+                        </span>
+                      )}
+                      <span className="text-slate-400">vs período anterior</span>
+                    </>
+                  ) : (
+                    <span className="text-slate-400">Média dos chamados com SLA</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* GRÁFICOS SLA (50% / 50%) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* SLA médio por técnico */}
+            <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80 flex flex-col">
+              <div className="mb-4">
+                <h3 className="text-base font-bold text-slate-900">SLA médio por técnico</h3>
+                <p className="text-xs text-slate-500">
+                  Tempo médio de SLA (em horas) dos chamados com SLA preenchido
+                </p>
+              </div>
+
+              <div className="flex-1 min-h-[260px] w-full">
+                {loading ? (
+                  <div className="h-full w-full flex items-center justify-center">
+                    <div className="w-full h-52 bg-slate-50 rounded-xl animate-pulse" />
+                  </div>
+                ) : slaPorTecnicoData.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400 py-12">
+                    <Inbox className="w-10 h-10 mb-2 stroke-1" />
+                    <p className="text-xs">
+                      Sem dados de SLA neste período (importações antigas podem não ter essa coluna)
+                    </p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart
+                      data={slaPorTecnicoData}
+                      layout="vertical"
+                      margin={{ top: 10, right: 30, left: 10, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
+                      <XAxis
+                        type="number"
+                        tick={{ fontSize: 11, fill: '#64748B' }}
+                        tickFormatter={(v: number) => `${v}h`}
+                      />
+                      <YAxis
+                        type="category"
+                        dataKey="tecnico"
+                        width={130}
+                        tick={{ fontSize: 11, fill: '#334155' }}
+                        tickFormatter={(val) =>
+                          val.length > 16 ? `${val.substring(0, 15)}…` : val
+                        }
+                      />
+                      <Tooltip
+                        cursor={{ fill: 'rgba(13, 148, 136, 0.06)' }}
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload
+                            return (
+                              <div className="bg-slate-900 text-white px-3 py-2 rounded-xl text-xs shadow-lg">
+                                <p className="font-semibold">{data.tecnico}</p>
+                                <p className="text-teal-300 font-mono mt-0.5">
+                                  SLA médio de {formatSlaHoras(data.media)} ({data.registros}{' '}
+                                  {data.registros === 1 ? 'chamado' : 'chamados'})
+                                </p>
+                              </div>
+                            )
+                          }
+                          return null
+                        }}
+                      />
+                      <Bar dataKey="media" radius={[0, 8, 8, 0]} animationDuration={600}>
+                        {slaPorTecnicoData.map((_entry, index) => (
+                          <Cell
+                            key={`sla-tecnico-${index}`}
+                            fill={CHART_PALETTE[index % CHART_PALETTE.length]}
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+
+            {/* SLA médio por departamento */}
+            <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80 flex flex-col">
+              <div className="mb-4">
+                <h3 className="text-base font-bold text-slate-900">SLA médio por departamento</h3>
+                <p className="text-xs text-slate-500">
+                  Tempo médio de SLA (em horas) por setor: Windows, Campo, Windows N2, Ativação e
+                  Projetos
+                </p>
+              </div>
+
+              <div className="flex-1 min-h-[260px] w-full">
+                {loading ? (
+                  <div className="h-full w-full flex items-center justify-center">
+                    <div className="w-full h-52 bg-slate-50 rounded-xl animate-pulse" />
+                  </div>
+                ) : slaPorDepartamentoData.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400 py-12">
+                    <Inbox className="w-10 h-10 mb-2 stroke-1" />
+                    <p className="text-xs">
+                      Sem dados de SLA neste período (importações antigas podem não ter essa coluna)
+                    </p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart
+                      data={slaPorDepartamentoData}
+                      margin={{ top: 10, right: 20, left: -20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                      <XAxis
+                        dataKey="departamento"
+                        tick={{ fontSize: 11, fill: '#64748B' }}
+                        interval={0}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 11, fill: '#64748B' }}
+                        tickFormatter={(v: number) => `${v}h`}
+                      />
+                      <Tooltip
+                        cursor={{ fill: 'rgba(13, 148, 136, 0.06)' }}
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload
+                            return (
+                              <div className="bg-slate-900 text-white px-3 py-2 rounded-xl text-xs shadow-lg">
+                                <p className="font-semibold">{data.departamento}</p>
+                                <p className="text-teal-300 font-mono mt-0.5">
+                                  SLA médio de {formatSlaHoras(data.media)} ({data.registros}{' '}
+                                  {data.registros === 1 ? 'chamado' : 'chamados'})
+                                </p>
+                              </div>
+                            )
+                          }
+                          return null
+                        }}
+                      />
+                      <Bar dataKey="media" radius={[6, 6, 0, 0]} animationDuration={600}>
+                        {slaPorDepartamentoData.map((entry, index) => (
+                          <Cell key={`sla-depto-${index}`} fill={entry.color} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
           </div>
@@ -1231,6 +1528,7 @@ export default function Index() {
                         <th className="py-2.5 px-3">Tipo</th>
                         <th className="py-2.5 px-3">Prioridade</th>
                         <th className="py-2.5 px-3 text-right">Tempo</th>
+                        <th className="py-2.5 px-3 text-right">Tempo de SLA</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1269,6 +1567,9 @@ export default function Index() {
                           <td className="py-3 px-3 text-right font-mono text-slate-600">
                             {formatMinutes(item.tempo_atendimento_min)}
                           </td>
+                          <td className="py-3 px-3 text-right font-mono text-slate-600">
+                            {formatSlaHoras(item.sla_horas)}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1296,7 +1597,8 @@ export default function Index() {
                           <strong className="font-medium text-slate-800">{item.tecnico}</strong>
                         </span>
                         <span className="font-mono text-[11px]">
-                          {formatMinutes(item.tempo_atendimento_min)}
+                          {formatMinutes(item.tempo_atendimento_min)} • SLA{' '}
+                          {formatSlaHoras(item.sla_horas)}
                         </span>
                       </div>
                       {(item.tipo_chamado || item.prioridade || item.departamento) && (

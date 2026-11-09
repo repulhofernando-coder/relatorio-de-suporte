@@ -80,9 +80,11 @@ export type Database = {
       }
       support_records: {
         Row: {
+          aberto_por: string | null
           cliente: string
           created_at: string
           data_chamado: string
+          departamento: string | null
           id: string
           import_id: string | null
           observacoes: string | null
@@ -94,9 +96,11 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          aberto_por?: string | null
           cliente: string
           created_at?: string
           data_chamado: string
+          departamento?: string | null
           id?: string
           import_id?: string | null
           observacoes?: string | null
@@ -108,9 +112,11 @@ export type Database = {
           user_id: string
         }
         Update: {
+          aberto_por?: string | null
           cliente?: string
           created_at?: string
           data_chamado?: string
+          departamento?: string | null
           id?: string
           import_id?: string | null
           observacoes?: string | null

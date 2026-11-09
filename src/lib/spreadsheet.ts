@@ -210,6 +210,59 @@ export function parseTimeToMinutes(value: unknown): number | null {
 }
 
 /**
+ * Converte o valor do campo "Tempo de SLA" para horas (number, decimais permitidos) ou null.
+ * Tolerante a formatos:
+ * - Decimal com vírgula ou ponto: "2,5" / "2.5" → 2.5
+ * - "2h30", "2h 30min", "2h", "45min", "150min" → 2.5 / 2 / 2.5 / 0.75
+ * - "01:30" (horas:minutos) → 1.5
+ * - Número puro sem unidade é assumido como horas
+ * Valor inválido/vazio → null (não quebra a importação).
+ */
+export function parseSlaHoras(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+
+  if (typeof value === 'number') {
+    if (isNaN(value) || value < 0) return null
+    return Math.round(value * 100) / 100
+  }
+
+  if (value instanceof Date) return null
+
+  const str = String(value).trim().toLowerCase()
+  if (!str) return null
+
+  // "01:30" ou "01:30:00" → horas:minutos (1,5h)
+  const timeMatch = str.match(/^(\d{1,3}):(\d{2})(?::\d{2})?$/)
+  if (timeMatch) {
+    const hours = parseInt(timeMatch[1], 10) || 0
+    const minutes = parseInt(timeMatch[2], 10) || 0
+    return Math.round((hours + minutes / 60) * 100) / 100
+  }
+
+  // "2h30", "2h 30min", "2h"
+  const hMatch = str.match(/(\d+)\s*h(?:oras?)?(?:\s*(\d{1,2})\s*(?:m|min|minutos?)?)?/)
+  if (hMatch) {
+    const hours = parseInt(hMatch[1], 10) || 0
+    const minutes = hMatch[2] ? parseInt(hMatch[2], 10) || 0 : 0
+    return Math.round((hours + minutes / 60) * 100) / 100
+  }
+
+  // Apenas minutos com unidade: "150min", "90 m", "45 minutos"
+  const mMatch = str.match(/^(\d+)\s*(?:m|min|minutos?)$/)
+  if (mMatch) {
+    const minutes = parseInt(mMatch[1], 10) || 0
+    return Math.round((minutes / 60) * 100) / 100
+  }
+
+  // Número puro ou decimal com vírgula: "2,5", "2.5", "3" (assumido em horas)
+  const cleanNum = str.replace(',', '.').replace(/[^\d.]/g, '')
+  if (!cleanNum) return null
+  const num = parseFloat(cleanNum)
+  if (isNaN(num) || num < 0) return null
+  return Math.round(num * 100) / 100
+}
+
+/**
  * Lê arquivo Excel ou CSV via SheetJS dinâmico (carregado via CDN ou window.XLSX)
  */
 let xlsxLoadingPromise: Promise<any> | null = null

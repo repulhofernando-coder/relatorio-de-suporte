@@ -11,6 +11,7 @@ export interface SupportRecord {
   origem_arquivo: string | null
   aberto_por: string | null
   departamento: string | null
+  sla_horas: number | null
   import_id: string | null
   created_at: string
 }
@@ -26,6 +27,7 @@ export interface SupportRecordInsert {
   origem_arquivo?: string | null
   aberto_por?: string | null
   departamento?: string | null
+  sla_horas?: number | null
   import_id?: string | null
   user_id?: string
 }
@@ -81,6 +83,7 @@ export type StandardFieldKey =
   | 'observacoes'
   | 'aberto_por'
   | 'departamento'
+  | 'sla_horas'
 
 export interface StandardFieldDef {
   key: StandardFieldKey
@@ -216,6 +219,31 @@ export const STANDARD_FIELDS: StandardFieldDef[] = [
     required: false,
     synonyms: ['departamento', 'setor', 'área', 'area', 'depto', 'department'],
     description: 'Setor que atendeu o chamado (ex.: Windows, Campo, Projetos)',
+  },
+  {
+    key: 'sla_horas',
+    label: 'Tempo de SLA',
+    required: false,
+    synonyms: [
+      'sla',
+      'tempo de sla',
+      'tempo sla',
+      'sla (h)',
+      'sla (horas)',
+      'sla horas',
+      'horas de sla',
+      'horas de sla utilizadas',
+      'tempo de atendimento sla',
+      'tempo de solucao',
+      'tempo de solução',
+      'tempo até a solução',
+      'tempo até a solucao',
+      'sla em horas',
+      'sla total',
+      'tempo total sla',
+      'tempo de resposta',
+    ],
+    description: 'Tempo de SLA do chamado, em horas (ex.: 2,5 ou "2h30")',
   },
 ]
 

@@ -5,6 +5,7 @@ import {
   autoDetectMapping,
   parseDateToISO,
   parseTimeToMinutes,
+  parseSlaHoras,
   ParsedSpreadsheet,
 } from '@/lib/spreadsheet'
 import {
@@ -72,6 +73,7 @@ export default function Importar() {
     observacoes: '',
     aberto_por: '',
     departamento: '',
+    sla_horas: '',
   })
   const [mappingName, setMappingName] = useState<string>('')
   const [saveMapping, setSaveMapping] = useState<boolean>(true)
@@ -165,6 +167,7 @@ export default function Importar() {
           observacoes: matchedSavedMapping.mapeamento['observacoes'] || '',
           aberto_por: matchedSavedMapping.mapeamento['aberto_por'] || '',
           departamento: matchedSavedMapping.mapeamento['departamento'] || '',
+          sla_horas: matchedSavedMapping.mapeamento['sla_horas'] || '',
         }
         setMapping(newMap)
         setSelectedMappingId(matchedSavedMapping.id)
@@ -232,6 +235,7 @@ export default function Importar() {
           observacoes: target.mapeamento['observacoes'] || '',
           aberto_por: target.mapeamento['aberto_por'] || '',
           departamento: target.mapeamento['departamento'] || '',
+          sla_horas: target.mapeamento['sla_horas'] || '',
         }
         setMapping(newMap)
         setAutoDetectedMessage(`Usando mapeamento salvo: ${target.nome}`)
@@ -323,6 +327,11 @@ export default function Importar() {
           departamento = normalizeDepartamento(val)
         }
 
+        let slaHoras: number | null = null
+        if (mapping.sla_horas && row[mapping.sla_horas] !== undefined) {
+          slaHoras = parseSlaHoras(row[mapping.sla_horas])
+        }
+
         validRecords.push({
           cliente,
           tecnico,
@@ -333,6 +342,7 @@ export default function Importar() {
           observacoes,
           aberto_por: abertoPor,
           departamento,
+          sla_horas: slaHoras,
           origem_arquivo: file.name,
         })
       })
@@ -868,6 +878,10 @@ export default function Importar() {
                     <p>
                       • Departamento será normalizado para os setores fixos (Windows, Campo, Windows
                       N2, Ativação, Projetos); valores fora da lista são mantidos como vieram.
+                    </p>
+                    <p>
+                      • Tempo de SLA aceita decimais ("2,5"), formatos como "2h30", "150min" ou
+                      "01:30"; valores sem unidade são tratados como horas.
                     </p>
                   </div>
                 </div>
