@@ -16,6 +16,8 @@ export type Database = {
           dias_uteis: number
           id: string
           limite_diario: number
+          meta_chamados_dia: number | null
+          meta_tma_min: number | null
           qtd_tecnicos: number
           updated_at: string
           user_id: string
@@ -26,6 +28,8 @@ export type Database = {
           dias_uteis?: number
           id?: string
           limite_diario?: number
+          meta_chamados_dia?: number | null
+          meta_tma_min?: number | null
           qtd_tecnicos?: number
           updated_at?: string
           user_id: string
@@ -36,6 +40,8 @@ export type Database = {
           dias_uteis?: number
           id?: string
           limite_diario?: number
+          meta_chamados_dia?: number | null
+          meta_tma_min?: number | null
           qtd_tecnicos?: number
           updated_at?: string
           user_id?: string

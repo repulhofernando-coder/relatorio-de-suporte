@@ -51,6 +51,12 @@ export interface DepartmentCapacityRecord {
   limite_diario: number
   meta_tma_min?: number | null
   meta_chamados_dia?: number | null
+  meta_tma_min_num?: number | null
+  meta_tma_max_num?: number | null
+  meta_chamados_dia_min?: number | null
+  meta_chamados_dia_max?: number | null
+  meta_ocupacao_min?: number | null
+  meta_ocupacao_max?: number | null
   created_at: string
   updated_at: string
 }
@@ -62,6 +68,12 @@ export interface DepartmentCapacityUpsert {
   limite_diario: number
   meta_tma_min?: number | null
   meta_chamados_dia?: number | null
+  meta_tma_min_num?: number | null
+  meta_tma_max_num?: number | null
+  meta_chamados_dia_min?: number | null
+  meta_chamados_dia_max?: number | null
+  meta_ocupacao_min?: number | null
+  meta_ocupacao_max?: number | null
   user_id?: string
 }
 

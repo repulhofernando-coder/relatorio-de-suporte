@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Users, Save, Trash2, Plus, Info } from 'lucide-react'
+import { Users, Save, Trash2, Plus, Info, Award, ShieldCheck } from 'lucide-react'
 import {
   fetchDepartmentCapacity,
   upsertDepartmentCapacity,
@@ -13,8 +13,29 @@ import { Badge } from '@/components/ui/badge'
 
 const DEFAULT_DIAS_UTEIS = 22
 const DEFAULT_LIMITE_DIARIO = 8
-const DEFAULT_META_TMA = 20 // min/chamado (faixa 15–25)
-const DEFAULT_META_CHAMADOS_DIA = 15 // chamados/dia/técnico (faixa 12–18)
+
+// Defaults N1 Remoto
+const DEFAULT_N1_TMA_MIN = 15
+const DEFAULT_N1_TMA_MAX = 25
+const DEFAULT_N1_CHAMADOS_MIN = 12
+const DEFAULT_N1_CHAMADOS_MAX = 18
+
+// Defaults N2 (metas fornecidas pela gestão)
+const DEFAULT_N2_TMA_MIN = 60
+const DEFAULT_N2_TMA_MAX = 90
+const DEFAULT_N2_CHAMADOS_MIN = 1.8
+const DEFAULT_N2_CHAMADOS_MAX = 2.7
+const DEFAULT_N2_OCUPACAO_MIN = 65
+const DEFAULT_N2_OCUPACAO_MAX = 75
+
+function isN2Department(depto: string): boolean {
+  const norm = depto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+  return norm === 'windows n2' || norm === 'n2' || norm === 'n2 remoto' || norm.includes('n2')
+}
 
 interface DraftRow {
   departamento: string
@@ -22,11 +43,32 @@ interface DraftRow {
   dias_uteis: string
   limite_diario: string
   meta_tma_min: string
-  meta_chamados_dia: string
+  meta_tma_max: string
+  meta_chamados_dia_min: string
+  meta_chamados_dia_max: string
   existing?: DepartmentCapacityRecord
 }
 
 function toDraft(departamento: string, existing?: DepartmentCapacityRecord): DraftRow {
+  const isN2 = isN2Department(departamento)
+
+  // TMA
+  const tmaMin =
+    existing?.meta_tma_min_num ??
+    existing?.meta_tma_min ??
+    (isN2 ? DEFAULT_N2_TMA_MIN : DEFAULT_N1_TMA_MIN)
+
+  const tmaMax = existing?.meta_tma_max_num ?? (isN2 ? DEFAULT_N2_TMA_MAX : DEFAULT_N1_TMA_MAX)
+
+  // Chamados/dia
+  const chamadosMin =
+    existing?.meta_chamados_dia_min ??
+    existing?.meta_chamados_dia ??
+    (isN2 ? DEFAULT_N2_CHAMADOS_MIN : DEFAULT_N1_CHAMADOS_MIN)
+
+  const chamadosMax =
+    existing?.meta_chamados_dia_max ?? (isN2 ? DEFAULT_N2_CHAMADOS_MAX : DEFAULT_N1_CHAMADOS_MAX)
+
   return {
     departamento,
     qtd_tecnicos: existing?.qtd_tecnicos != null ? String(existing.qtd_tecnicos) : '',
@@ -36,12 +78,10 @@ function toDraft(departamento: string, existing?: DepartmentCapacityRecord): Dra
       existing?.limite_diario != null
         ? String(existing.limite_diario)
         : String(DEFAULT_LIMITE_DIARIO),
-    meta_tma_min:
-      existing?.meta_tma_min != null ? String(existing.meta_tma_min) : String(DEFAULT_META_TMA),
-    meta_chamados_dia:
-      existing?.meta_chamados_dia != null
-        ? String(existing.meta_chamados_dia)
-        : String(DEFAULT_META_CHAMADOS_DIA),
+    meta_tma_min: String(tmaMin),
+    meta_tma_max: String(tmaMax),
+    meta_chamados_dia_min: String(chamadosMin).replace('.', ','),
+    meta_chamados_dia_max: String(chamadosMax).replace('.', ','),
     existing,
   }
 }
@@ -78,6 +118,12 @@ export default function Equipes() {
       caps.forEach((c) => {
         if (!map[c.departamento]) map[c.departamento] = toDraft(c.departamento, c)
       })
+
+      // Se N2 ainda não estiver mapeado nem salvo, garante presença para configuração fácil
+      if (!map['Windows N2']) {
+        map['Windows N2'] = toDraft('Windows N2')
+      }
+
       setDrafts(map)
     } catch (err) {
       console.error(err)
@@ -93,7 +139,14 @@ export default function Equipes() {
 
   const updateDraft = (
     depto: string,
-    field: 'qtd_tecnicos' | 'dias_uteis' | 'limite_diario' | 'meta_tma_min' | 'meta_chamados_dia',
+    field:
+      | 'qtd_tecnicos'
+      | 'dias_uteis'
+      | 'limite_diario'
+      | 'meta_tma_min'
+      | 'meta_tma_max'
+      | 'meta_chamados_dia_min'
+      | 'meta_chamados_dia_max',
     value: string,
   ) => {
     setDrafts((prev) => ({
@@ -112,8 +165,29 @@ export default function Equipes() {
     }
     const dias = parseInt(draft.dias_uteis, 10)
     const limite = parseFloat(draft.limite_diario.replace(',', '.'))
-    const metaTma = parseFloat(draft.meta_tma_min.replace(',', '.'))
-    const metaChamados = parseFloat(draft.meta_chamados_dia.replace(',', '.'))
+
+    const isN2 = isN2Department(depto)
+    const tmaMin = parseFloat(draft.meta_tma_min.replace(',', '.'))
+    const tmaMax = parseFloat(draft.meta_tma_max.replace(',', '.'))
+    const chMin = parseFloat(draft.meta_chamados_dia_min.replace(',', '.'))
+    const chMax = parseFloat(draft.meta_chamados_dia_max.replace(',', '.'))
+
+    const finalTmaMin =
+      !isNaN(tmaMin) && tmaMin > 0 ? tmaMin : isN2 ? DEFAULT_N2_TMA_MIN : DEFAULT_N1_TMA_MIN
+    const finalTmaMax =
+      !isNaN(tmaMax) && tmaMax >= finalTmaMin
+        ? tmaMax
+        : isN2
+          ? DEFAULT_N2_TMA_MAX
+          : DEFAULT_N1_TMA_MAX
+    const finalChMin =
+      !isNaN(chMin) && chMin > 0 ? chMin : isN2 ? DEFAULT_N2_CHAMADOS_MIN : DEFAULT_N1_CHAMADOS_MIN
+    const finalChMax =
+      !isNaN(chMax) && chMax >= finalChMin
+        ? chMax
+        : isN2
+          ? DEFAULT_N2_CHAMADOS_MAX
+          : DEFAULT_N1_CHAMADOS_MAX
 
     setSaving(depto)
     setError(null)
@@ -123,9 +197,14 @@ export default function Equipes() {
         qtd_tecnicos: qtd,
         dias_uteis: !isNaN(dias) && dias > 0 ? dias : DEFAULT_DIAS_UTEIS,
         limite_diario: !isNaN(limite) && limite > 0 ? limite : DEFAULT_LIMITE_DIARIO,
-        meta_tma_min: !isNaN(metaTma) && metaTma > 0 ? metaTma : DEFAULT_META_TMA,
-        meta_chamados_dia:
-          !isNaN(metaChamados) && metaChamados > 0 ? metaChamados : DEFAULT_META_CHAMADOS_DIA,
+        meta_tma_min: finalTmaMin,
+        meta_tma_min_num: finalTmaMin,
+        meta_tma_max_num: finalTmaMax,
+        meta_chamados_dia: finalChMin,
+        meta_chamados_dia_min: finalChMin,
+        meta_chamados_dia_max: finalChMax,
+        meta_ocupacao_min: isN2 ? DEFAULT_N2_OCUPACAO_MIN : 70,
+        meta_ocupacao_max: isN2 ? DEFAULT_N2_OCUPACAO_MAX : 85,
       })
       setCapacities((prev) => {
         const idx = prev.findIndex((c) => c.departamento === depto)
@@ -181,11 +260,11 @@ export default function Equipes() {
       {/* HEADER */}
       <div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-          Equipes
+          Equipes e Metas por Departamento
         </h1>
         <p className="text-sm text-slate-500 mt-0.5 font-medium">
-          Informe quantos técnicos cada departamento tem — o dashboard calcula chamados por técnico
-          e a média diária, avisando quando passar do limite
+          Cadastre quantos técnicos atuam em cada setor e configure as faixas de metas ideais (TMA e
+          chamados/dia) para alimentar a Visão Geral e o cálculo de capacidade
         </p>
       </div>
 
@@ -193,13 +272,13 @@ export default function Equipes() {
       <div className="flex items-start gap-2.5 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-xs text-sky-800">
         <Info className="w-4 h-4 shrink-0 mt-0.5" />
         <div>
-          <p className="font-semibold">Como funciona</p>
+          <p className="font-semibold">Como funciona o dimensionamento e benchmark</p>
           <p className="mt-0.5 leading-relaxed">
-            Cada departamento configurado aparece no painel <b>Capacidade por departamento</b> do
-            dashboard. O cálculo usa <b>dias úteis</b> (padrão {DEFAULT_DIAS_UTEIS}) e um{' '}
-            <b>limite diário por técnico</b> (padrão {DEFAULT_LIMITE_DIARIO} chamados/dia) — quando
-            a média passa desse limite, o painel mostra um aviso vermelho indicando a necessidade de
-            contratar mais técnicos. Tudo é editável por departamento abaixo.
+            Aqui você define a quantidade de técnicos ativos de cada departamento (ex.: Windows N1,
+            Campo, Windows N2). O sistema utiliza os <b>dias úteis</b> (padrão {DEFAULT_DIAS_UTEIS}
+            ), o <b>limite diário por técnico</b> e as <b>faixas de metas ideais</b> (mínima e
+            máxima) para avaliar produtividade, sobrecarga e dimensionamento ideal da equipe na{' '}
+            <b>Visão Geral</b>.
           </p>
         </div>
       </div>
@@ -220,7 +299,7 @@ export default function Equipes() {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleAddNovo()
               }}
-              placeholder="Departamento que não está na lista (ex.: Redes)"
+              placeholder="Departamento que não está na lista (ex.: Redes, N2, Ativação)"
               className="h-9 rounded-xl border-slate-200 text-xs bg-slate-50 focus:bg-white"
             />
           </div>
@@ -237,11 +316,16 @@ export default function Equipes() {
 
       {/* LISTA */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
-          <Users className="w-4 h-4 text-teal-600" />
-          <h2 className="text-sm font-bold text-slate-900">
-            Técnicos por departamento ({listaOrdenada.length})
-          </h2>
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-teal-600" />
+            <h2 className="text-sm font-bold text-slate-900">
+              Técnicos e metas por departamento ({listaOrdenada.length})
+            </h2>
+          </div>
+          <span className="text-[11px] text-slate-400 hidden sm:inline">
+            Valores são editáveis e salvos individualmente
+          </span>
         </div>
 
         {loading ? (
@@ -260,33 +344,50 @@ export default function Equipes() {
             {listaOrdenada.map((depto) => {
               const draft = drafts[depto]
               const isSalvo = salvos.has(depto)
+              const isN2 = isN2Department(depto)
+
               return (
                 <div
                   key={depto}
-                  className="p-4 sm:px-5 flex flex-col lg:flex-row lg:items-center gap-3"
+                  className="p-4 sm:px-5 flex flex-col xl:flex-row xl:items-center gap-3.5 hover:bg-slate-50/40 transition-colors"
                 >
-                  <div className="lg:w-56 shrink-0">
-                    <p className="text-sm font-semibold text-slate-800 truncate" title={depto}>
-                      {depto}
-                    </p>
-                    {isSalvo ? (
-                      <Badge
-                        variant="outline"
-                        className="mt-1 text-[10px] font-normal border-emerald-200 text-emerald-700 bg-emerald-50"
-                      >
-                        Configurado
-                      </Badge>
-                    ) : (
-                      <Badge
-                        variant="outline"
-                        className="mt-1 text-[10px] font-normal border-amber-200 text-amber-700 bg-amber-50"
-                      >
-                        Pendente
-                      </Badge>
-                    )}
+                  <div className="xl:w-56 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold text-slate-800 truncate" title={depto}>
+                        {depto}
+                      </p>
+                      {isN2 && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-semibold border-amber-200 text-amber-700 bg-amber-50 shrink-0"
+                        >
+                          N2
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      {isSalvo ? (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-normal border-emerald-200 text-emerald-700 bg-emerald-50"
+                        >
+                          Configurado
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-normal border-amber-200 text-amber-700 bg-amber-50"
+                        >
+                          Pendente
+                        </Badge>
+                      )}
+                      <span className="text-[10px] text-slate-400">
+                        {isN2 ? 'Metas de Gestão' : 'Padrão HDI N1'}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+                  <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
                     <label className="block">
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                         Qtd. de técnicos
@@ -296,10 +397,11 @@ export default function Equipes() {
                         min={0}
                         value={draft.qtd_tecnicos}
                         onChange={(e) => updateDraft(depto, 'qtd_tecnicos', e.target.value)}
-                        className="h-9 mt-1 rounded-xl border-slate-200 text-xs"
-                        placeholder="Ex.: 5"
+                        className="h-9 mt-1 rounded-xl border-slate-200 text-xs font-mono"
+                        placeholder="Ex.: 3"
                       />
                     </label>
+
                     <label className="block">
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                         Dias úteis/mês
@@ -310,9 +412,10 @@ export default function Equipes() {
                         max={31}
                         value={draft.dias_uteis}
                         onChange={(e) => updateDraft(depto, 'dias_uteis', e.target.value)}
-                        className="h-9 mt-1 rounded-xl border-slate-200 text-xs"
+                        className="h-9 mt-1 rounded-xl border-slate-200 text-xs font-mono"
                       />
                     </label>
+
                     <label className="block">
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                         Limite diário/técnico
@@ -322,44 +425,82 @@ export default function Equipes() {
                         inputMode="decimal"
                         value={draft.limite_diario}
                         onChange={(e) => updateDraft(depto, 'limite_diario', e.target.value)}
-                        className="h-9 mt-1 rounded-xl border-slate-200 text-xs"
+                        className="h-9 mt-1 rounded-xl border-slate-200 text-xs font-mono"
                         placeholder={String(DEFAULT_LIMITE_DIARIO)}
                       />
                     </label>
+
                     <label className="block">
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                        Meta TMA (min/cham.)
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 flex items-center justify-between">
+                        <span>Faixa TMA (min)</span>
+                        <span className="text-[9px] text-slate-400 lowercase font-normal">
+                          mín – máx
+                        </span>
                       </span>
-                      <Input
-                        type="text"
-                        inputMode="decimal"
-                        value={draft.meta_tma_min}
-                        onChange={(e) => updateDraft(depto, 'meta_tma_min', e.target.value)}
-                        className="h-9 mt-1 rounded-xl border-slate-200 text-xs"
-                        placeholder="15–25"
-                      />
+                      <div className="flex items-center gap-1 mt-1">
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={draft.meta_tma_min}
+                          onChange={(e) => updateDraft(depto, 'meta_tma_min', e.target.value)}
+                          className="h-9 rounded-xl border-slate-200 text-xs font-mono px-2 text-center"
+                          placeholder={isN2 ? '60' : '15'}
+                          title="TMA Mínimo (min)"
+                        />
+                        <span className="text-slate-400 text-xs">–</span>
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={draft.meta_tma_max}
+                          onChange={(e) => updateDraft(depto, 'meta_tma_max', e.target.value)}
+                          className="h-9 rounded-xl border-slate-200 text-xs font-mono px-2 text-center"
+                          placeholder={isN2 ? '90' : '25'}
+                          title="TMA Máximo (min)"
+                        />
+                      </div>
                     </label>
-                    <label className="block">
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                        Meta chamados/dia
+
+                    <label className="block col-span-2 sm:col-span-1">
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 flex items-center justify-between">
+                        <span>Chamados/dia</span>
+                        <span className="text-[9px] text-slate-400 lowercase font-normal">
+                          mín – máx
+                        </span>
                       </span>
-                      <Input
-                        type="text"
-                        inputMode="decimal"
-                        value={draft.meta_chamados_dia}
-                        onChange={(e) => updateDraft(depto, 'meta_chamados_dia', e.target.value)}
-                        className="h-9 mt-1 rounded-xl border-slate-200 text-xs"
-                        placeholder="12–18"
-                      />
+                      <div className="flex items-center gap-1 mt-1">
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={draft.meta_chamados_dia_min}
+                          onChange={(e) =>
+                            updateDraft(depto, 'meta_chamados_dia_min', e.target.value)
+                          }
+                          className="h-9 rounded-xl border-slate-200 text-xs font-mono px-2 text-center"
+                          placeholder={isN2 ? '1,8' : '12'}
+                          title="Chamados/dia Mínimo"
+                        />
+                        <span className="text-slate-400 text-xs">–</span>
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={draft.meta_chamados_dia_max}
+                          onChange={(e) =>
+                            updateDraft(depto, 'meta_chamados_dia_max', e.target.value)
+                          }
+                          className="h-9 rounded-xl border-slate-200 text-xs font-mono px-2 text-center"
+                          placeholder={isN2 ? '2,7' : '18'}
+                          title="Chamados/dia Máximo"
+                        />
+                      </div>
                     </label>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 self-end xl:self-center">
                     <Button
                       size="sm"
                       onClick={() => handleSave(depto)}
                       disabled={saving === depto}
-                      className="h-9 rounded-xl bg-teal-600 hover:bg-teal-700 text-white gap-1.5 text-xs"
+                      className="h-9 rounded-xl bg-teal-600 hover:bg-teal-700 text-white gap-1.5 text-xs font-medium"
                     >
                       <Save className="w-3.5 h-3.5" />
                       {saving === depto ? 'Salvando…' : 'Salvar'}
@@ -384,13 +525,52 @@ export default function Equipes() {
         )}
       </div>
 
-      {/* RODAPÉ FIXO COM NOTA DE FONTE BENCHMARK */}
-      <footer className="mt-8 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4 text-xs text-slate-600 leading-relaxed">
-        <p className="font-semibold text-slate-800">Nota sobre as metas e referências:</p>
-        <p className="mt-1 text-slate-600">
-          Metas de referência: benchmarks HDI (Help Desk Institute) e MetricNet para suporte remoto
-          N1 Windows (TMA 15–25 min/chamado; 12–18 chamados/dia/técnico). Metas de Campo e N2:
-          levantamento em andamento.
+      {/* RODAPÉ COM NOTAS DE FONTE BENCHMARK (N1 HDI + N2 GESTÃO) */}
+      <footer className="mt-8 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-5 text-xs text-slate-600 space-y-3">
+        <div className="flex items-center gap-2 text-slate-800 font-bold">
+          <Award className="w-4 h-4 text-teal-600" />
+          <span>Fontes de referência e metodologia das metas</span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-1">
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
+              <span>Suporte Remoto N1 (Windows / Atendimento Geral)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fonte:</b> Help Desk Institute (HDI) e MetricNet para centrais de atendimento N1
+              remoto.
+              <br />
+              <b>Metas padrão:</b> TMA entre <b>15 e 25 min/chamado</b> e produtividade de{' '}
+              <b>12 a 18 chamados/dia/técnico</b>. Operação com foco em alto giro, retenção de
+              rotina e atendimento ágil.
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+              <span>Suporte Técnico N2 (Windows N2 / Projetos / Infraestrutura)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fonte:</b> Metas fornecidas diretamente pelo gestor da operação (definidas pela
+              gestão interna).
+              <br />
+              <b>Metas padrão:</b> TMA alvo de <b>60 a 90 min/chamado</b> (cenário tolerado até
+              2h30min para chamados complexos), produtividade de{' '}
+              <b>1,8 a 2,7 chamados/dia/técnico</b> e ocupação direta em tickets de <b>65% a 75%</b>
+              .
+              <br />
+              <b>Contexto:</b> Operação de baixo volume; a maior parte do tempo da equipe é dedicada
+              a infraestrutura proativa, gestão de mudanças, backups, virtualização e projetos.
+            </p>
+          </div>
+        </div>
+
+        <p className="text-[11px] text-slate-400 pt-1">
+          Demais setores (ex.: Campo): metas sob levantamento; caso necessário, utilize os campos
+          acima para personalizar conforme a realidade da sua operação.
         </p>
       </footer>
     </div>

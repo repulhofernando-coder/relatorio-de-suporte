@@ -1493,8 +1493,13 @@ export default function Index() {
             </div>
           </div>
 
-          {/* PAINEL BENCHMARK: Comparativo de Desempenho (Sua Operação Real vs Cenário Ideal N1 Remoto vs Diagnóstico Gerencial) */}
-          <BenchmarkPanel records={records} capacities={capacities} loading={loading} />
+          {/* PAINEL BENCHMARK: Comparativo de Desempenho (Sua Operação Real vs Cenário Ideal N1 Remoto / N2 vs Diagnóstico Gerencial) */}
+          <BenchmarkPanel
+            records={records}
+            capacities={capacities}
+            loading={loading}
+            selectedDepartamento={departamentoFiltro}
+          />
 
           {/* Painel: Clientes que usam o suporte de forma errada (mais aberturas por técnicos do que pelo cliente) */}
           <ClientesUsoInadequadoPanel records={records} loading={loading} />

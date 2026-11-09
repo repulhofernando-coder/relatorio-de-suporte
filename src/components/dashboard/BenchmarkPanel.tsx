@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Award, TrendingUp, AlertCircle, CheckCircle2, Clock, Users, Info } from 'lucide-react'
+import { Award, AlertCircle, CheckCircle2, Info, Layers } from 'lucide-react'
 import { SupportRecord, DepartmentCapacityRecord } from '@/types/support'
 import { Badge } from '@/components/ui/badge'
 
@@ -7,6 +7,7 @@ interface BenchmarkPanelProps {
   records: SupportRecord[]
   capacities: DepartmentCapacityRecord[]
   loading?: boolean
+  selectedDepartamento?: string
 }
 
 interface BenchmarkRow {
@@ -20,7 +21,42 @@ interface BenchmarkRow {
   diagnostico: string
 }
 
-export function BenchmarkPanel({ records, capacities, loading }: BenchmarkPanelProps) {
+function isN2(depto?: string | null): boolean {
+  if (!depto) return false
+  const norm = depto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+  return norm === 'windows n2' || norm === 'n2' || norm === 'n2 remoto' || norm.includes('n2')
+}
+
+function formatMinutesToHours(min: number): string {
+  const h = Math.floor(min / 60)
+  const m = Math.round(min % 60)
+  if (h === 0) return `${m}min`
+  if (m === 0) return `${h}h`
+  return `${h}h ${m}min`
+}
+
+export function BenchmarkPanel({
+  records,
+  capacities,
+  loading,
+  selectedDepartamento,
+}: BenchmarkPanelProps) {
+  const isFilterN2 = useMemo(() => isN2(selectedDepartamento), [selectedDepartamento])
+
+  // Busca configuração específica do departamento filtrado se houver
+  const activeCapacity = useMemo(() => {
+    if (!selectedDepartamento || selectedDepartamento === 'todos') return null
+    return (
+      capacities.find(
+        (c) => c.departamento.toLowerCase().trim() === selectedDepartamento.toLowerCase().trim(),
+      ) || null
+    )
+  }, [capacities, selectedDepartamento])
+
   const dados = useMemo(() => {
     const totalChamados = records.length
 
@@ -33,42 +69,66 @@ export function BenchmarkPanel({ records, capacities, loading }: BenchmarkPanelP
     const tmaRealMin = validTempos.length > 0 ? (somaHoras / validTempos.length) * 60 : null
 
     // 2) Dias e Técnicos no período para produtividade diária
-    // Quantidade de dias distintos com atendimento nos registros
     const diasDistintosSet = new Set(
       records.map((r) => r.data_chamado).filter((d): d is string => Boolean(d)),
     )
     const diasAtendimento = Math.max(1, diasDistintosSet.size)
 
-    // Técnicos ativos com registros
     const tecnicosAtivosSet = new Set(
       records.map((r) => r.tecnico?.trim()).filter((t): t is string => Boolean(t)),
     )
-    const tecnicosAtivosCount = Math.max(1, tecnicosAtivosSet.size)
 
-    // Produtividade diária real por técnico: totalChamados / (diasAtendimento * tecnicosAtivosCount)
+    // Se temos capacidade cadastrada para o departamento, usa a qtd de técnicos configurada ou técnicos ativos
+    let tecnicosEquipe = tecnicosAtivosSet.size
+    if (activeCapacity && activeCapacity.qtd_tecnicos > 0) {
+      tecnicosEquipe = activeCapacity.qtd_tecnicos
+    } else if (tecnicosEquipe <= 0) {
+      tecnicosEquipe = 1
+    }
+
+    // Produtividade diária real por técnico: totalChamados / (diasAtendimento * tecnicosEquipe)
     const chamadosPorTecnicoDiaReal =
-      diasAtendimento > 0 && tecnicosAtivosCount > 0
-        ? totalChamados / (diasAtendimento * tecnicosAtivosCount)
+      diasAtendimento > 0 && tecnicosEquipe > 0
+        ? totalChamados / (diasAtendimento * tecnicosEquipe)
         : null
 
-    // 3) Capacidade total planejada vs real (ociosidade / folga)
-    // Se capacities configurado, soma (qtd_tecnicos * limite_diario * dias_uteis)
-    // Senão, usa padrão N1: tecnicosAtivos * 15 chamados/dia * diasAtendimento
+    // 3) Ocupação direta em tickets
+    // Horas totais trabalhadas / (tecnicosEquipe * diasAtendimento * 8h diárias) * 100
+    const horasTrabalhadasTotal = somaHoras
+    const horasDisponiveisEquipe = tecnicosEquipe * diasAtendimento * 8
+    const taxaOcupacaoPercent =
+      horasDisponiveisEquipe > 0 ? (horasTrabalhadasTotal / horasDisponiveisEquipe) * 100 : null
+
+    // 4) Capacidade total planejada vs real (ociosidade / folga)
     let capacidadePlanejadaChamados = 0
-    if (capacities && capacities.length > 0) {
+    if (activeCapacity) {
+      const qtd = activeCapacity.qtd_tecnicos || 1
+      const lim = Number(
+        activeCapacity.limite_diario ||
+          activeCapacity.meta_chamados_dia_max ||
+          activeCapacity.meta_chamados_dia ||
+          (isFilterN2 ? 2.7 : 15),
+      )
+      const dias = Number(activeCapacity.dias_uteis || 22)
+      const fatorDias = diasAtendimento < dias ? diasAtendimento / dias : 1
+      capacidadePlanejadaChamados = qtd * lim * dias * fatorDias
+    } else if (
+      capacities &&
+      capacities.length > 0 &&
+      (!selectedDepartamento || selectedDepartamento === 'todos')
+    ) {
       capacidadePlanejadaChamados = capacities.reduce((acc, c) => {
         const qtd = c.qtd_tecnicos || 0
         const lim = Number(c.limite_diario || c.meta_chamados_dia || 15)
         const dias = Number(c.dias_uteis || 22)
-        // proporcional ao número de dias do filtro se for menor que dias úteis
         const fatorDias = diasAtendimento < dias ? diasAtendimento / dias : 1
         return acc + qtd * lim * dias * fatorDias
       }, 0)
     }
 
     if (capacidadePlanejadaChamados <= 0) {
-      // Benchmark padrão N1: 15 chamados/dia/técnico no período
-      capacidadePlanejadaChamados = tecnicosAtivosCount * 15 * diasAtendimento
+      const padraoDia = isFilterN2 ? 2.25 : 15
+      capacidadePlanejadaChamados = tecnicosEquipe * padraoDia * diasAtendimento
     }
 
     const folgaPercent =
@@ -76,41 +136,239 @@ export function BenchmarkPanel({ records, capacities, loading }: BenchmarkPanelP
         ? ((capacidadePlanejadaChamados - totalChamados) / capacidadePlanejadaChamados) * 100
         : null
 
-    // 4) Equipe necessária para atender o volume com a meta ideal (ex.: meta média 15 chamados/dia/técnico)
-    const metaProdMedia = 15 // chamados/dia/técnico
+    // 5) Equipe necessária para atender o volume com a meta ideal
+    const metaProdMedia = isFilterN2
+      ? Number(activeCapacity?.meta_chamados_dia_max ?? activeCapacity?.meta_chamados_dia ?? 2.25)
+      : Number(activeCapacity?.meta_chamados_dia ?? 15)
+
     const chamadosPorTecnicoPeriodo = metaProdMedia * diasAtendimento
     const tecnicosNecessarios =
       chamadosPorTecnicoPeriodo > 0 ? Math.ceil(totalChamados / chamadosPorTecnicoPeriodo) : 1
-    const capacidadeComEquipeAtual = Math.round(tecnicosAtivosCount * metaProdMedia * 22)
+    const capacidadeComEquipeAtual = Math.round(tecnicosEquipe * metaProdMedia * 22)
 
     return {
       totalChamados,
       diasAtendimento,
-      tecnicosAtivosCount,
+      tecnicosEquipe,
+      tecnicosAtivosCount: tecnicosAtivosSet.size,
       tmaRealMin,
       chamadosPorTecnicoDiaReal,
+      taxaOcupacaoPercent,
+      horasTrabalhadasTotal,
       folgaPercent,
       tecnicosNecessarios,
       capacidadeComEquipeAtual,
     }
-  }, [records, capacities])
+  }, [records, capacities, activeCapacity, selectedDepartamento, isFilterN2])
 
   const rows: BenchmarkRow[] = useMemo(() => {
     const list: BenchmarkRow[] = []
 
+    if (isFilterN2) {
+      // =========================================================
+      // MODO N2: Baseado na tabela de benchmark N2 fornecida pela gestão
+      // =========================================================
+      const metaTmaMin = activeCapacity?.meta_tma_min_num ?? 60
+      const metaTmaMax = activeCapacity?.meta_tma_max_num ?? 90
+      const metaChMin = activeCapacity?.meta_chamados_dia_min ?? 1.8
+      const metaChMax = activeCapacity?.meta_chamados_dia_max ?? 2.7
+      const metaOcupMin = activeCapacity?.meta_ocupacao_min ?? 65
+      const metaOcupMax = activeCapacity?.meta_ocupacao_max ?? 75
+
+      // 1. Volume de Chamados / Mês
+      list.push({
+        indicador: 'Volume de Chamados no Período',
+        descricao: 'Demanda total recebida e atendida pelo N2 no recorte selecionado',
+        real: `${dados.totalChamados.toLocaleString('pt-BR')} chamados`,
+        realNum: dados.totalChamados,
+        ideal: `${dados.totalChamados.toLocaleString('pt-BR')} chamados (demanda real)`,
+        status: 'informativo',
+        statusTexto: 'Informativo',
+        diagnostico:
+          dados.totalChamados <= 100
+            ? 'Volume baixo e filtrado. Indica que o N1 está retendo bem a rotina operacional.'
+            : 'Volume recebido pelo N2. Monitorar se chamados de N1 não estão sendo escalados desnecessariamente.',
+      })
+
+      // 2. Tamanho da Equipe Necessária
+      const eqAtual = dados.tecnicosEquipe
+      const eqNec = dados.tecnicosNecessarios
+      list.push({
+        indicador: 'Tamanho da Equipe Necessária',
+        descricao: 'Dimensionamento da equipe N2 para absorver a demanda de tickets',
+        real: `${eqAtual} técnico${eqAtual > 1 ? 's' : ''}`,
+        realNum: eqAtual,
+        ideal: `${eqNec} técnico${eqNec > 1 ? 's' : ''} (para este volume)`,
+        status: eqAtual >= eqNec ? 'verde' : 'vermelho',
+        statusTexto: eqAtual >= eqNec ? 'Adequado' : 'Abaixo do ideal',
+        diagnostico:
+          eqAtual > eqNec
+            ? 'Equipe mantida estrategicamente para alta disponibilidade, redundância ou projetos/infraestrutura.'
+            : eqAtual === eqNec
+              ? 'Equipe exatamente dimensionada para o volume de chamados do período.'
+              : 'Demanda de chamados N2 acima da capacidade da equipe atual com foco misto.',
+      })
+
+      // 3. TMA (Tempo Médio de Atendimento)
+      if (dados.tmaRealMin !== null) {
+        const tmaRound = Math.round(dados.tmaRealMin)
+        const tmaFormat = formatMinutesToHours(tmaRound)
+
+        // Intervalo alvo N2 é 60-90 min (cenário tolerado até 150 min / 2h30)
+        const dentroAlvo = tmaRound >= metaTmaMin && tmaRound <= metaTmaMax
+        const dentroTolerado = tmaRound > metaTmaMax && tmaRound <= 150
+        const abaixo = tmaRound < metaTmaMin
+        const acima = tmaRound > 150
+
+        let status: 'verde' | 'vermelho' = dentroAlvo || dentroTolerado ? 'verde' : 'vermelho'
+        let statusTexto = dentroAlvo
+          ? 'Excelente / Na meta'
+          : dentroTolerado
+            ? 'Cenário complexo (aceitável)'
+            : abaixo
+              ? 'Abaixo da faixa N2'
+              : 'Acima do ideal'
+
+        let diagnostico = ''
+        if (dentroAlvo || dentroTolerado) {
+          diagnostico = `Excelente. Tempo de resolução maduro e ágil para a complexidade da função N2 (${tmaFormat} vs alvo ${metaTmaMin}–${metaTmaMax} min).`
+        } else if (abaixo) {
+          diagnostico = `Média de ${tmaFormat}, inferior ao esperado de N2 (60–90 min). Chamados rápidos podem ser demandas de N1 resolvidas no N2 ou falta de apontamento do tempo total.`
+        } else {
+          diagnostico = `Média de ${tmaFormat}, acima do limite de 2h30min. Indica incidentes de alta gravidade ou gargalos em aprovações/fornecedores.`
+        }
+
+        list.push({
+          indicador: 'Tempo Médio de Atendimento (TMA)',
+          descricao: 'Duração média dedicada por chamado de N2',
+          real: tmaFormat,
+          realNum: tmaRound,
+          ideal: '1h a 1h30min (alvo 60–90 min; até 2h30min em projetos)',
+          status,
+          statusTexto,
+          diagnostico,
+        })
+      } else {
+        list.push({
+          indicador: 'Tempo Médio de Atendimento (TMA)',
+          descricao: 'Duração média dedicada por chamado de N2',
+          real: 'Sem apontamento',
+          realNum: null,
+          ideal: '1h a 1h30min (alvo 60–90 min; até 2h30min em projetos)',
+          status: 'vermelho',
+          statusTexto: 'Sem dados',
+          diagnostico: 'Os chamados de N2 no período não possuem apontamento de tempo trabalhado.',
+        })
+      }
+
+      // 4. Produtividade Diária (Chamados/Técnico)
+      if (dados.chamadosPorTecnicoDiaReal !== null && dados.totalChamados > 0) {
+        const prod = Math.round(dados.chamadosPorTecnicoDiaReal * 100) / 100
+        const prodFormat = prod.toLocaleString('pt-BR', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+        const dentro = prod >= metaChMin && prod <= metaChMax
+        const abaixo = prod < metaChMin
+        const acima = prod > metaChMax
+
+        let status: 'verde' | 'vermelho' = dentro || abaixo ? 'verde' : 'vermelho'
+        let statusTexto = dentro
+          ? 'Dentro da meta N2'
+          : abaixo
+            ? 'Foco em infraestrutura'
+            : 'Volume alto para N2'
+
+        let diagnostico = ''
+        if (dentro) {
+          diagnostico = `Produtividade diária dentro do esperado para N2 (${prodFormat} chamados/dia/técnico vs meta ${metaChMin}–${metaChMax}).`
+        } else if (abaixo) {
+          diagnostico = `Equipe opera com foco principal em infraestrutura proativa, projetos e rotinas preventivas, não em volume de tickets (${prodFormat} chamados/dia).`
+        } else {
+          diagnostico = `Produtividade em tickets acima de ${metaChMax} chamados/dia (${prodFormat}). Risco de desviar tempo de projetos estruturantes e manutenções preventivas.`
+        }
+
+        list.push({
+          indicador: 'Produtividade Diária (Chamados/Técnico)',
+          descricao: 'Média de tickets concluídos por técnico em cada dia útil',
+          real: `${prodFormat} chamados/dia`,
+          realNum: prod,
+          ideal: `${metaChMin.toLocaleString('pt-BR')} a ${metaChMax.toLocaleString('pt-BR')} chamados/dia`,
+          status,
+          statusTexto,
+          diagnostico,
+        })
+      } else {
+        list.push({
+          indicador: 'Produtividade Diária (Chamados/Técnico)',
+          descricao: 'Média de tickets concluídos por técnico em cada dia útil',
+          real: '—',
+          realNum: null,
+          ideal: `${metaChMin.toLocaleString('pt-BR')} a ${metaChMax.toLocaleString('pt-BR')} chamados/dia`,
+          status: 'vermelho',
+          statusTexto: 'Sem dados',
+          diagnostico: 'Sem registros suficientes para calcular a produtividade do N2.',
+        })
+      }
+
+      // 5. Ocupação Direta em Tickets
+      if (dados.taxaOcupacaoPercent !== null) {
+        const ocup = Math.round(dados.taxaOcupacaoPercent * 10) / 10
+        const ocupFormat = `${ocup.toLocaleString('pt-BR')}%`
+        const dentro = ocup >= metaOcupMin && ocup <= metaOcupMax
+        const tempoLivre = Math.max(0, Math.round(100 - ocup))
+
+        let status: 'verde' | 'vermelho' = 'verde' // Para N2 ocupação baixa em tickets é esperada quando o foco é infra
+        let statusTexto = dentro
+          ? 'Dentro da meta N2'
+          : ocup < metaOcupMin
+            ? 'Tempo livre para infra'
+            : 'Foco excessivo em tickets'
+
+        let diagnostico = ''
+        if (dentro) {
+          diagnostico = `Ocupação equilibrada (${ocupFormat} do tempo em tickets). Restante dedicado a projetos e infraestrutura.`
+        } else if (ocup < metaOcupMin) {
+          diagnostico = `~${tempoLivre}% do tempo livre para gerenciar mudanças, backups, virtualização e projetos estratégicos (~${ocupFormat} em tickets).`
+        } else {
+          diagnostico = `A equipe está gastando ${ocupFormat} do expediente apenas com tickets, reduzindo a dedicação a infraestrutura e projetos.`
+        }
+
+        list.push({
+          indicador: 'Ocupação Direta em Tickets',
+          descricao: 'Percentual do expediente investido diretamente em chamados',
+          real: `~${ocupFormat} do tempo`,
+          realNum: ocup,
+          ideal: `${metaOcupMin}% a ${metaOcupMax}% do tempo`,
+          status,
+          statusTexto,
+          diagnostico,
+        })
+      }
+
+      return list
+    }
+
+    // =========================================================
+    // MODO N1 / CONSOLIDADO: Padrão HDI / MetricNet para N1 Remoto
+    // =========================================================
+    const metaTmaMin = activeCapacity?.meta_tma_min_num ?? 15
+    const metaTmaMax = activeCapacity?.meta_tma_max_num ?? 25
+    const metaChMin = activeCapacity?.meta_chamados_dia_min ?? 12
+    const metaChMax = activeCapacity?.meta_chamados_dia_max ?? 18
+
     // Indicador 1: TMA (Tempo Médio de Atendimento)
     if (dados.tmaRealMin !== null) {
       const tmaRound = Math.round(dados.tmaRealMin)
-      const dentro = tmaRound >= 15 && tmaRound <= 25
-      const abaixo = tmaRound < 15
-      const acima = tmaRound > 25
+      const dentro = tmaRound >= metaTmaMin && tmaRound <= metaTmaMax
+      const abaixo = tmaRound < metaTmaMin
 
       let status: 'verde' | 'vermelho' = dentro ? 'verde' : 'vermelho'
       let statusTexto = dentro ? 'Dentro da meta' : 'Fora da meta'
       let diagnostico = ''
 
       if (dentro) {
-        diagnostico = `Excelente. O tempo médio de ${tmaRound} min/chamado está alinhado ao padrão de N1 Remoto (15–25 min).`
+        diagnostico = `Excelente. O tempo médio de ${tmaRound} min/chamado está alinhado ao padrão de N1 Remoto (${metaTmaMin}–${metaTmaMax} min).`
       } else if (abaixo) {
         diagnostico = `Abaixo da faixa (${tmaRound} min/chamado). Atenção: chamados muito rápidos podem indicar baixa complexidade ou falta de apontamento correto do tempo trabalhado.`
       } else {
@@ -122,7 +380,7 @@ export function BenchmarkPanel({ records, capacities, loading }: BenchmarkPanelP
         descricao: 'Duração média do atendimento por chamado',
         real: `${tmaRound} min/chamado`,
         realNum: tmaRound,
-        ideal: '15 – 25 min/chamado',
+        ideal: `${metaTmaMin} – ${metaTmaMax} min/chamado`,
         status,
         statusTexto,
         diagnostico,
@@ -133,7 +391,7 @@ export function BenchmarkPanel({ records, capacities, loading }: BenchmarkPanelP
         descricao: 'Duração média do atendimento por chamado',
         real: 'Sem apontamento',
         realNum: null,
-        ideal: '15 – 25 min/chamado',
+        ideal: `${metaTmaMin} – ${metaTmaMax} min/chamado`,
         status: 'vermelho',
         statusTexto: 'Sem dados',
         diagnostico: 'A planilha do período não possui coluna de tempo trabalhado preenchida.',
@@ -143,9 +401,8 @@ export function BenchmarkPanel({ records, capacities, loading }: BenchmarkPanelP
     // Indicador 2: Produtividade diária por técnico
     if (dados.chamadosPorTecnicoDiaReal !== null && dados.totalChamados > 0) {
       const prod = Math.round(dados.chamadosPorTecnicoDiaReal * 10) / 10
-      const dentro = prod >= 12 && prod <= 18
-      const abaixo = prod < 12
-      const acima = prod > 18
+      const dentro = prod >= metaChMin && prod <= metaChMax
+      const abaixo = prod < metaChMin
 
       let status: 'verde' | 'vermelho' = dentro ? 'verde' : 'vermelho'
       let statusTexto = dentro ? 'Dentro da meta' : 'Fora da meta'
@@ -154,9 +411,9 @@ export function BenchmarkPanel({ records, capacities, loading }: BenchmarkPanelP
       if (dentro) {
         diagnostico = `Dentro da faixa ideal de produtividade (${prod} chamados/dia por técnico). Equipe com ritmo sustentável.`
       } else if (abaixo) {
-        diagnostico = `Abaixo da meta (${prod} chamados/dia/técnico vs 12–18). Indica ociosidade ou alto tempo gasto por chamado.`
+        diagnostico = `Abaixo da meta (${prod} chamados/dia/técnico vs ${metaChMin}–${metaChMax}). Indica ociosidade ou alto tempo gasto por chamado.`
       } else {
-        diagnostico = `Acima da meta (${prod} chamados/dia/técnico vs 12–18). Risco de sobrecarga da equipe e perda de qualidade no atendimento.`
+        diagnostico = `Acima da meta (${prod} chamados/dia/técnico vs ${metaChMin}–${metaChMax}). Risco de sobrecarga da equipe e perda de qualidade no atendimento.`
       }
 
       list.push({
@@ -164,7 +421,7 @@ export function BenchmarkPanel({ records, capacities, loading }: BenchmarkPanelP
         descricao: 'Média de chamados atendidos por técnico a cada dia útil',
         real: `${prod.toLocaleString('pt-BR')} chamados/dia`,
         realNum: prod,
-        ideal: '12 – 18 chamados/dia/técnico',
+        ideal: `${metaChMin} – ${metaChMax} chamados/dia/técnico`,
         status,
         statusTexto,
         diagnostico,
@@ -175,7 +432,7 @@ export function BenchmarkPanel({ records, capacities, loading }: BenchmarkPanelP
         descricao: 'Média de chamados atendidos por técnico a cada dia útil',
         real: '—',
         realNum: null,
-        ideal: '12 – 18 chamados/dia/técnico',
+        ideal: `${metaChMin} – ${metaChMax} chamados/dia/técnico`,
         status: 'vermelho',
         statusTexto: 'Sem dados',
         diagnostico: 'Sem registros suficientes para calcular a produtividade diária.',
@@ -199,7 +456,6 @@ export function BenchmarkPanel({ records, capacities, loading }: BenchmarkPanelP
       const folga = Math.round(dados.folgaPercent)
       const dentro = folga >= 15 && folga <= 25 // meta 15-20% com tolerância
       const sobrecarga = folga < 10
-      const ociosaDemais = folga > 25
 
       let status: 'verde' | 'vermelho' = dentro ? 'verde' : 'vermelho'
       let statusTexto = dentro ? 'Dentro da meta' : 'Fora da meta'
@@ -232,46 +488,78 @@ export function BenchmarkPanel({ records, capacities, loading }: BenchmarkPanelP
     list.push({
       indicador: 'Equipe Necessária / Dimensionamento',
       descricao: 'Projeção de técnicos para manter o volume dentro das metas',
-      real: `${dados.tecnicosAtivosCount} técnico(s) ativo(s)`,
-      realNum: dados.tecnicosAtivosCount,
-      ideal: `Com ${dados.tecnicosAtivosCount} técnicos a meta atinge ~${dados.capacidadeComEquipeAtual.toLocaleString('pt-BR')} chamados/mês`,
-      status: dados.tecnicosAtivosCount >= dados.tecnicosNecessarios ? 'verde' : 'vermelho',
+      real: `${dados.tecnicosEquipe} técnico(s) cadastrado(s)`,
+      realNum: dados.tecnicosEquipe,
+      ideal: `Com ${dados.tecnicosEquipe} técnicos a meta atinge ~${dados.capacidadeComEquipeAtual.toLocaleString('pt-BR')} chamados/mês`,
+      status: dados.tecnicosEquipe >= dados.tecnicosNecessarios ? 'verde' : 'vermelho',
       statusTexto:
-        dados.tecnicosAtivosCount >= dados.tecnicosNecessarios
-          ? 'Equipe suficiente'
-          : 'Abaixo do ideal',
+        dados.tecnicosEquipe >= dados.tecnicosNecessarios ? 'Equipe suficiente' : 'Abaixo do ideal',
       diagnostico:
-        dados.tecnicosAtivosCount >= dados.tecnicosNecessarios
-          ? `A equipe de ${dados.tecnicosAtivosCount} técnico(s) é suficiente para a demanda atual (mínimo calculado: ${dados.tecnicosNecessarios} técnico(s)).`
-          : `Para o volume do período com a meta de 15 chamados/dia/técnico, seriam necessários pelo menos ${dados.tecnicosNecessarios} técnico(s).`,
+        dados.tecnicosEquipe >= dados.tecnicosNecessarios
+          ? `A equipe de ${dados.tecnicosEquipe} técnico(s) é suficiente para a demanda atual (mínimo calculado: ${dados.tecnicosNecessarios} técnico(s)).`
+          : `Para o volume do período com a meta de ${metaChMin}–${metaChMax} chamados/dia/técnico, seriam necessários pelo menos ${dados.tecnicosNecessarios} técnico(s).`,
     })
 
     return list
-  }, [dados])
+  }, [dados, isFilterN2, activeCapacity])
+
+  // Título e cabeçalhos dinâmicos
+  const cenarioIdealTitulo = isFilterN2
+    ? 'Cenário Ideal (N2 Remoto)'
+    : selectedDepartamento && selectedDepartamento !== 'todos'
+      ? `Cenário Ideal (${selectedDepartamento})`
+      : 'Cenário Ideal (N1 Remoto)'
 
   return (
     <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80 flex flex-col">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
         <div>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
+            <div
+              className={`w-8 h-8 rounded-xl flex items-center justify-center ${isFilterN2 ? 'bg-amber-50 text-amber-600' : 'bg-teal-50 text-teal-600'}`}
+            >
               <Award className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 Comparativo de Desempenho (Benchmark)
+                {isFilterN2 && (
+                  <Badge
+                    variant="outline"
+                    className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] font-semibold"
+                  >
+                    Perfil N2 Ativo
+                  </Badge>
+                )}
               </h3>
               <p className="text-xs text-slate-500">
-                Comparação entre a operação real e as referências de mercado N1 Remoto
-                (HDI/MetricNet)
+                {isFilterN2
+                  ? 'Comparação com os benchmarks de gestão para operação N2 (baixo volume, infraestrutura e projetos)'
+                  : 'Comparação entre a operação real e as referências de mercado N1 Remoto (HDI/MetricNet)'}
               </p>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200/60 self-start sm:self-auto">
-          <Info className="w-3.5 h-3.5 text-slate-400" />
-          <span>Referência: N1 Remoto Windows</span>
+          {isFilterN2 ? (
+            <>
+              <Layers className="w-3.5 h-3.5 text-amber-600" />
+              <span className="font-medium text-slate-700">
+                Referência: N2 Gestão (Infra/Projetos)
+              </span>
+            </>
+          ) : (
+            <>
+              <Info className="w-3.5 h-3.5 text-slate-400" />
+              <span>
+                Referência:{' '}
+                {selectedDepartamento && selectedDepartamento !== 'todos'
+                  ? selectedDepartamento
+                  : 'N1 Remoto Windows'}
+              </span>
+            </>
+          )}
         </div>
       </div>
 
@@ -292,8 +580,8 @@ export function BenchmarkPanel({ records, capacities, loading }: BenchmarkPanelP
               <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
                 <th className="py-3 px-3.5 min-w-[200px]">Indicador</th>
                 <th className="py-3 px-3.5 min-w-[150px]">Sua Operação Real</th>
-                <th className="py-3 px-3.5 min-w-[190px]">Cenário Ideal (N1 Remoto)</th>
-                <th className="py-3 px-3.5 min-w-[280px]">Diagnóstico Gerencial</th>
+                <th className="py-3 px-3.5 min-w-[210px]">{cenarioIdealTitulo}</th>
+                <th className="py-3 px-3.5 min-w-[280px]">Diagnóstico Gerencial / Insights</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -351,10 +639,12 @@ export function BenchmarkPanel({ records, capacities, loading }: BenchmarkPanelP
         </div>
       )}
 
-      {/* Nota de rodapé da tabela com referências HDI / MetricNet */}
+      {/* Nota de rodapé da tabela com referências HDI / MetricNet ou N2 Gestão */}
       <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-400">
         <span>
-          Fonte de referência: Help Desk Institute (HDI) e MetricNet para suporte técnico remoto N1.
+          {isFilterN2
+            ? 'Fonte de referência N2: Metas fornecidas pela gestão interna (foco em infraestrutura proativa, projetos e baixo volume de tickets).'
+            : 'Fonte de referência N1: Help Desk Institute (HDI) e MetricNet para suporte técnico remoto.'}
         </span>
         <span className="font-medium text-slate-500">Metas customizáveis no menu Equipes</span>
       </div>
