@@ -428,7 +428,7 @@ export default function Chamados() {
                       )}
                     </td>
                     <td className="py-3 px-4 text-slate-600 truncate max-w-[220px]">
-                      {r.descricao || '—'}
+                      {r.observacoes || '—'}
                     </td>
                   </tr>
                 ))}

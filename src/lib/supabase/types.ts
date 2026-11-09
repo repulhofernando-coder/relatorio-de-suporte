@@ -9,6 +9,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      department_capacity: {
+        Row: {
+          created_at: string
+          departamento: string
+          dias_uteis: number
+          id: string
+          limite_diario: number
+          qtd_tecnicos: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          departamento: string
+          dias_uteis?: number
+          id?: string
+          limite_diario?: number
+          qtd_tecnicos?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          departamento?: string
+          dias_uteis?: number
+          id?: string
+          limite_diario?: number
+          qtd_tecnicos?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       imports: {
         Row: {
           created_at: string
@@ -87,7 +120,9 @@ export type Database = {
           departamento: string | null
           id: string
           import_id: string | null
+          numero: string | null
           observacoes: string | null
+          organizacao: string | null
           origem_arquivo: string | null
           prioridade: string | null
           sla_horas: number | null
@@ -104,7 +139,9 @@ export type Database = {
           departamento?: string | null
           id?: string
           import_id?: string | null
+          numero?: string | null
           observacoes?: string | null
+          organizacao?: string | null
           origem_arquivo?: string | null
           prioridade?: string | null
           sla_horas?: number | null
@@ -121,7 +158,9 @@ export type Database = {
           departamento?: string | null
           id?: string
           import_id?: string | null
+          numero?: string | null
           observacoes?: string | null
+          organizacao?: string | null
           origem_arquivo?: string | null
           prioridade?: string | null
           sla_horas?: number | null

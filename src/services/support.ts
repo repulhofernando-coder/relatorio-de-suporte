@@ -67,27 +67,43 @@ export interface FetchSupportRecordsParams {
 export async function fetchSupportRecords(
   params?: FetchSupportRecordsParams,
 ): Promise<SupportRecord[]> {
-  let query = (supabase as any)
-    .from('support_records')
-    .select('*')
-    .order('data_chamado', { ascending: false })
-    .order('created_at', { ascending: false })
+  const PAGE = 1000
+  const all: SupportRecord[] = []
+  let from = 0
 
-  if (params?.startDate) {
-    query = query.gte('data_chamado', params.startDate)
-  }
-  if (params?.endDate) {
-    query = query.lte('data_chamado', params.endDate)
-  }
-  if (params?.departamento) {
-    query = query.eq('departamento', params.departamento)
+  // PostgREST corta respostas em 1.000 linhas por padrão: busca em lotes
+  // acumulando até o lote voltar menor que o tamanho máximo.
+  for (;;) {
+    let query = (supabase as any)
+      .from('support_records')
+      .select('*')
+      .order('data_chamado', { ascending: false })
+      .order('created_at', { ascending: false })
+      .range(from, from + PAGE - 1)
+
+    if (params?.startDate) {
+      query = query.gte('data_chamado', params.startDate)
+    }
+    if (params?.endDate) {
+      query = query.lte('data_chamado', params.endDate)
+    }
+    if (params?.departamento) {
+      query = query.eq('departamento', params.departamento)
+    }
+
+    const { data, error } = await query
+    if (error) {
+      throw new Error(`Erro ao buscar registros de suporte: ${error.message}`)
+    }
+
+    const rows = (data as SupportRecord[]) || []
+    all.push(...rows)
+
+    if (rows.length < PAGE) break
+    from += PAGE
   }
 
-  const { data, error } = await query
-  if (error) {
-    throw new Error(`Erro ao buscar registros de suporte: ${error.message}`)
-  }
-  return (data as SupportRecord[]) || []
+  return all
 }
 
 export async function insertSupportRecordsBatch(
@@ -180,19 +196,43 @@ export async function deleteMapeamento(id: string): Promise<void> {
 /**
  * Lista apenas os departamentos que realmente existem nos registros do usuário
  * (usado no filtro e no gráfico "Chamados por departamento").
+ * Usa RPC no Postgres (SELECT DISTINCT) para não sofrer o corte de 1.000
+ * linhas do PostgREST em tabelas grandes. Se a RPC não existir (migration
+ * ainda não aplicada), cai para paginação client-side por lotes de 1.000.
  */
 export async function fetchDepartamentosEmUso(): Promise<string[]> {
-  const { data, error } = await (supabase as any)
-    .from('support_records')
-    .select('departamento')
-    .not('departamento', 'is', null)
+  const { data, error } = await (supabase as any).rpc('get_departamentos_em_uso')
 
-  if (error) {
-    throw new Error(`Erro ao buscar departamentos: ${error.message}`)
+  if (!error && Array.isArray(data)) {
+    const set = new Set<string>()
+    for (const dep of data as string[]) {
+      if (dep) set.add(dep)
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'))
   }
+
+  // Fallback: paginação em lotes até acabar (quando o lote volta menor que o
+  // tamanho máximo, não há mais páginas).
+  const PAGE = 1000
   const set = new Set<string>()
-  for (const row of data as Array<{ departamento: string | null }>) {
-    if (row.departamento) set.add(row.departamento)
+  let from = 0
+  for (;;) {
+    const { data: rows, error: pageError } = await (supabase as any)
+      .from('support_records')
+      .select('departamento')
+      .not('departamento', 'is', null)
+      .range(from, from + PAGE - 1)
+
+    if (pageError) {
+      throw new Error(`Erro ao buscar departamentos: ${pageError.message}`)
+    }
+
+    for (const row of (rows as Array<{ departamento: string | null }>) || []) {
+      if (row.departamento) set.add(row.departamento)
+    }
+
+    if (!rows || rows.length < PAGE) break
+    from += PAGE
   }
   return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'))
 }
