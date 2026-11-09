@@ -534,61 +534,89 @@ export default function Chamados() {
                   <th className="py-3 px-4">Cliente / Organização</th>
                   <th className="py-3 px-4">Criado por</th>
                   <th className="py-3 px-4">Departamento</th>
-                  <th className="py-3 px-4 max-w-[280px]">Assunto</th>
+                  <th className="py-3 px-4 max-w-[240px]">Assunto</th>
+                  <th className="py-3 px-4 whitespace-nowrap">SLA</th>
+                  <th className="py-3 px-4 whitespace-nowrap">Tempo Trab.</th>
                   <th className="py-3 px-4">Observações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {rows.map((r) => (
-                  <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3 px-4 font-mono font-semibold text-slate-800">
-                      {r.numero || '—'}
-                    </td>
-                    <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
-                      {formatDateBR(r.data_chamado)}
-                    </td>
-                    <td className="py-3 px-4 text-slate-800">
-                      <div className="font-medium truncate max-w-[220px]" title={r.cliente || ''}>
-                        {r.cliente || '—'}
-                      </div>
-                      {r.organizacao && (
-                        <div className="text-[10px] text-slate-400 truncate max-w-[220px]">
-                          {r.organizacao}
+                {rows.map((r) => {
+                  const sla = r.sla_status?.toLowerCase().trim()
+                  const isNoPrazo = sla === 'dentro' || sla === 'no prazo'
+                  const isForaPrazo = sla === 'fora' || sla === 'fora do prazo'
+
+                  return (
+                    <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 px-4 font-mono font-semibold text-slate-800">
+                        {r.numero || '—'}
+                      </td>
+                      <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
+                        {formatDateBR(r.data_chamado)}
+                      </td>
+                      <td className="py-3 px-4 text-slate-800">
+                        <div className="font-medium truncate max-w-[200px]" title={r.cliente || ''}>
+                          {r.cliente || '—'}
                         </div>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-slate-700 whitespace-nowrap">
-                      {r.aberto_por || '—'}
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      {r.departamento ? (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] font-normal border-slate-200 text-slate-600 bg-white"
-                        >
-                          {r.departamento}
-                        </Badge>
-                      ) : (
-                        <span className="text-slate-300">—</span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-slate-800 max-w-[280px]">
-                      {r.assunto ? (
-                        <div className="truncate font-medium" title={r.assunto}>
-                          {r.assunto}
-                        </div>
-                      ) : (
-                        <span className="text-slate-300">—</span>
-                      )}
-                    </td>
-                    <td
-                      className="py-3 px-4 text-slate-500 truncate max-w-[200px]"
-                      title={r.observacoes || ''}
-                    >
-                      {r.observacoes || '—'}
-                    </td>
-                  </tr>
-                ))}
+                        {r.organizacao && (
+                          <div className="text-[10px] text-slate-400 truncate max-w-[200px]">
+                            {r.organizacao}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-slate-700 whitespace-nowrap">
+                        {r.aberto_por || '—'}
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        {r.departamento ? (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] font-normal border-slate-200 text-slate-600 bg-white"
+                          >
+                            {r.departamento}
+                          </Badge>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-slate-800 max-w-[240px]">
+                        {r.assunto ? (
+                          <div className="truncate font-medium" title={r.assunto}>
+                            {r.assunto}
+                          </div>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        {isNoPrazo ? (
+                          <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200 text-[10px] font-semibold shadow-none">
+                            No prazo
+                          </Badge>
+                        ) : isForaPrazo ? (
+                          <Badge className="bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200 text-[10px] font-semibold shadow-none">
+                            Fora do prazo
+                          </Badge>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap font-mono text-[11px] text-slate-700">
+                        {r.tempo_trabalhado !== null && r.tempo_trabalhado !== undefined ? (
+                          <span>{Number(r.tempo_trabalhado).toFixed(1)}h</span>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                      <td
+                        className="py-3 px-4 text-slate-500 truncate max-w-[180px]"
+                        title={r.observacoes || ''}
+                      >
+                        {r.observacoes || '—'}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

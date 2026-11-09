@@ -120,13 +120,13 @@ export async function fetchSupportRecords(
 export async function insertSupportRecordsBatch(
   records: SupportRecordInsert[],
   onProgress?: (inserted: number, total: number) => void,
-): Promise<number> {
+): Promise<{ inserted: number; updated: number }> {
   const { data: userData } = await supabase.auth.getUser()
   const userId = userData?.user?.id
   if (!userId) throw new Error('Usuário não autenticado.')
 
   const batchSize = 100
-  let totalInserted = 0
+  let totalProcessed = 0
 
   for (let i = 0; i < records.length; i += batchSize) {
     const chunk = records.slice(i, i + batchSize).map((r) => ({
@@ -134,21 +134,25 @@ export async function insertSupportRecordsBatch(
       user_id: userId,
     }))
 
-    const { error } = await (supabase as any).from('support_records').insert(chunk)
+    // Upsert por (user_id, numero) para atualizar chamados existentes sem duplicar
+    const { error } = await (supabase as any).from('support_records').upsert(chunk, {
+      onConflict: 'user_id,numero',
+      ignoreDuplicates: false,
+    })
 
     if (error) {
       throw new Error(
-        `Erro ao inserir lote de registros (${i + 1}-${i + chunk.length}): ${error.message}`,
+        `Erro ao gravar lote de registros (${i + 1}-${i + chunk.length}): ${error.message}`,
       )
     }
 
-    totalInserted += chunk.length
+    totalProcessed += chunk.length
     if (onProgress) {
-      onProgress(totalInserted, records.length)
+      onProgress(totalProcessed, records.length)
     }
   }
 
-  return totalInserted
+  return { inserted: totalProcessed, updated: 0 }
 }
 
 /* ========================================================

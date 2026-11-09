@@ -6,6 +6,8 @@ import {
   parseDateToISO,
   parseTimeToMinutes,
   parseSlaHoras,
+  parseSlaStatus,
+  parseTempoTrabalhado,
   ParsedSpreadsheet,
 } from '@/lib/spreadsheet'
 import {
@@ -56,6 +58,8 @@ const EMPTY_MAPPING: Record<StandardFieldKey, string> = {
   numero: '',
   organizacao: '',
   assunto: '',
+  sla_status: '',
+  tempo_trabalhado: '',
 }
 
 export default function Importar() {
@@ -238,6 +242,43 @@ export default function Importar() {
     return Boolean(mapping.cliente && mapping.tecnico && mapping.data_chamado)
   }, [mapping])
 
+  // Analisa colunas mapeadas vazias para alertar o usuário no preview
+  const emptyMappedWarnings = useMemo(() => {
+    if (!parsedData || !parsedData.rows.length) return []
+    const sampleRows = parsedData.rows.slice(0, 50)
+    const sampleSize = sampleRows.length
+    const warnings: Array<{
+      key: StandardFieldKey
+      label: string
+      column: string
+      filled: number
+      total: number
+    }> = []
+
+    STANDARD_FIELDS.forEach((field) => {
+      const col = mapping[field.key]
+      if (!col) return
+      let filled = 0
+      sampleRows.forEach((row) => {
+        const val = row[col]
+        if (val !== null && val !== undefined && String(val).trim() !== '') {
+          filled++
+        }
+      })
+      if (filled === 0) {
+        warnings.push({
+          key: field.key,
+          label: field.label,
+          column: col,
+          filled,
+          total: sampleSize,
+        })
+      }
+    })
+
+    return warnings
+  }, [parsedData, mapping])
+
   // Executa a importação no Passo 3
   const handleExecuteImport = async () => {
     if (!file || !parsedData) return
@@ -339,6 +380,16 @@ export default function Importar() {
           assunto = val || null
         }
 
+        let slaStatus: string | null = null
+        if (mapping.sla_status && row[mapping.sla_status] !== undefined) {
+          slaStatus = parseSlaStatus(row[mapping.sla_status])
+        }
+
+        let tempoTrabalhado: number | null = null
+        if (mapping.tempo_trabalhado && row[mapping.tempo_trabalhado] !== undefined) {
+          tempoTrabalhado = parseTempoTrabalhado(row[mapping.tempo_trabalhado])
+        }
+
         validRecords.push({
           cliente,
           tecnico,
@@ -353,6 +404,8 @@ export default function Importar() {
           numero: numeroChamado,
           organizacao,
           assunto,
+          sla_status: slaStatus,
+          tempo_trabalhado: tempoTrabalhado,
           origem_arquivo: file.name,
         })
       })
@@ -649,6 +702,27 @@ export default function Importar() {
                 </span>
               </div>
 
+              {/* Alertas de campos mapeados 100% vazios na amostra */}
+              {emptyMappedWarnings.length > 0 && (
+                <div className="mb-3 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-1.5">
+                  <div className="flex items-center gap-2 font-bold text-amber-800">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Atenção: coluna(s) mapeada(s) vazias nas linhas analisadas</span>
+                  </div>
+                  <ul className="list-disc list-inside space-y-0.5 text-amber-700 pl-1">
+                    {emptyMappedWarnings.map((w) => (
+                      <li key={w.key}>
+                        <strong>{w.label}</strong> (coluna "{w.column}"): 0 de {w.total} linhas
+                        preenchidas na amostra.
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-[11px] text-amber-600">
+                    Verifique se selecionou a coluna correta antes de prosseguir com a gravação.
+                  </p>
+                </div>
+              )}
+
               <div className="border border-slate-200 rounded-xl overflow-x-auto bg-slate-50/50 max-h-48">
                 <table className="w-full text-left text-[11px]">
                   <thead>
@@ -848,21 +922,38 @@ export default function Importar() {
                     <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
                       Campos Mapeados
                     </h4>
+                    {emptyMappedWarnings.length > 0 && (
+                      <div className="mb-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-bold text-amber-800">Colunas vazias mapeadas:</p>
+                          <p className="text-amber-700 text-[11px]">
+                            {emptyMappedWarnings
+                              .map((w) => `${w.label} ("${w.column}"): 0 de ${w.total} preenchidas`)
+                              .join(', ')}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {STANDARD_FIELDS.map((f) => {
                         const col = mapping[f.key]
+                        const isWarn = emptyMappedWarnings.some((w) => w.key === f.key)
                         return (
                           <div
                             key={f.key}
                             className={`p-2.5 rounded-xl border text-xs flex items-center justify-between ${
-                              col
-                                ? 'bg-teal-50/40 border-teal-200 text-teal-900'
-                                : 'bg-slate-50 border-slate-200 text-slate-400'
+                              isWarn
+                                ? 'bg-amber-50/70 border-amber-300 text-amber-900'
+                                : col
+                                  ? 'bg-teal-50/40 border-teal-200 text-teal-900'
+                                  : 'bg-slate-50 border-slate-200 text-slate-400'
                             }`}
                           >
                             <span className="font-semibold">{f.label}:</span>
                             <span className="font-mono text-[11px] truncate max-w-[150px]">
-                              {col ? `"${col}"` : 'Não mapeado'}
+                              {col ? `"${col}"${isWarn ? ' (vazia)' : ''}` : 'Não mapeado'}
                             </span>
                           </div>
                         )
@@ -890,8 +981,16 @@ export default function Importar() {
                       N2, Ativação, Projetos); valores fora da lista são mantidos como vieram.
                     </p>
                     <p>
-                      • Tempo de SLA aceita decimais ("2,5"), formatos como "2h30", "150min" ou
-                      "01:30"; valores sem unidade são tratados como horas.
+                      • Indicador de SLA na resposta será normalizado para status binário: "dentro"
+                      (no prazo) ou "fora" (fora do prazo).
+                    </p>
+                    <p>
+                      • Tempo trabalhado será convertido em horas decimais (ex.: "04:32:12" ou
+                      "4h30" → 4.5h).
+                    </p>
+                    <p>
+                      • Chamados com o mesmo número já existentes no sistema serão atualizados com
+                      os novos dados sem duplicar.
                     </p>
                   </div>
                 </div>

@@ -11,6 +11,7 @@ import Importacoes from './pages/Importacoes'
 import Mapeamentos from './pages/Mapeamentos'
 import Chamados from './pages/Chamados'
 import Equipes from './pages/Equipes'
+import Usuarios from './pages/Usuarios'
 import NotFound from './pages/NotFound'
 
 const App = () => (
@@ -31,6 +32,7 @@ const App = () => (
             <Route path="/mapeamentos" element={<Mapeamentos />} />
             <Route path="/chamados" element={<Chamados />} />
             <Route path="/equipes" element={<Equipes />} />
+            <Route path="/usuarios" element={<Usuarios />} />
           </Route>
 
           {/* Fallback */}

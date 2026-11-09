@@ -147,6 +147,8 @@ export type Database = {
           origem_arquivo?: string | null
           prioridade?: string | null
           sla_horas?: number | null
+          sla_status?: string | null
+          tempo_trabalhado?: number | null
           tecnico: string
           tempo_atendimento_min?: number | null
           tipo_chamado?: string | null
@@ -167,6 +169,8 @@ export type Database = {
           origem_arquivo?: string | null
           prioridade?: string | null
           sla_horas?: number | null
+          sla_status?: string | null
+          tempo_trabalhado?: number | null
           tecnico?: string
           tempo_atendimento_min?: number | null
           tipo_chamado?: string | null
@@ -188,6 +192,28 @@ export type Database = {
     }
     Functions: {
       get_departamentos_em_uso: { Args: never; Returns: string[] }
+      list_system_users: {
+        Args: never
+        Returns: {
+          id: string
+          email: string
+          created_at: string
+          last_sign_in_at: string | null
+          nome: string | null
+        }[]
+      }
+      admin_create_user: {
+        Args: {
+          p_email: string
+          p_password: string
+          p_nome?: string | null
+        }
+        Returns: {
+          id: string
+          email: string
+          created_at: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

@@ -9,6 +9,7 @@ import {
   Sliders,
   Ticket,
   Users,
+  UserCog,
   LogOut,
   Menu,
   X,
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { label: 'Importar Planilha', path: '/importar', icon: Upload },
   { label: 'Importações', path: '/importacoes', icon: History },
   { label: 'Mapeamentos', path: '/mapeamentos', icon: Sliders },
+  { label: 'Usuários', path: '/usuarios', icon: UserCog },
 ]
 
 export default function Layout() {

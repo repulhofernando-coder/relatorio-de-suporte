@@ -218,6 +218,57 @@ export function parseTimeToMinutes(value: unknown): number | null {
  * - Número puro sem unidade é assumido como horas
  * Valor inválido/vazio → null (não quebra a importação).
  */
+/**
+ * Normaliza o indicador de SLA da resposta para status binário:
+ * - "dentro" (para "no prazo", "NO PRAZO", "dentro do prazo", "dentro", "sim", "ok", "cumprido", "1")
+ * - "fora" (para qualquer valor contendo "fora", "fora do prazo", "atrasado", "vencido", "não", "nao", "0")
+ * - null para vazio ou desconhecido
+ */
+export function parseSlaStatus(value: unknown): 'dentro' | 'fora' | null {
+  if (value === null || value === undefined || value === '') return null
+  const str = String(value)
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+
+  if (!str) return null
+
+  // Qualquer valor contendo "fora" ou indicando estouro de SLA
+  if (
+    str.includes('fora') ||
+    str.includes('atrasad') ||
+    str.includes('vencid') ||
+    str.includes('estourad') ||
+    str === 'nao' ||
+    str === '0'
+  ) {
+    return 'fora'
+  }
+
+  // Valores indicando cumprimento
+  if (
+    str.includes('prazo') ||
+    str.includes('dentro') ||
+    str === 'sim' ||
+    str === 'ok' ||
+    str === 'cumprido' ||
+    str === '1'
+  ) {
+    return 'dentro'
+  }
+
+  return null
+}
+
+/**
+ * Converte a coluna "Tempo trabalhado" para horas decimais.
+ * Reutiliza a lógica de duração de parseSlaHoras (aceita "4,5", "4h30", "04:32:12", Date com cellDates, etc.).
+ */
+export function parseTempoTrabalhado(value: unknown): number | null {
+  return parseSlaHoras(value)
+}
+
 export function parseSlaHoras(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null
 

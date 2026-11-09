@@ -26,6 +26,9 @@ import {
   UserPlus,
   Building2,
   Timer,
+  Printer,
+  CheckCircle2,
+  AlertTriangle,
 } from 'lucide-react'
 import { CapacityPanel } from '@/components/dashboard/CapacityPanel'
 import { TecnicoDrillDown } from '@/components/dashboard/TecnicoDrillDown'
@@ -367,14 +370,48 @@ export default function Index() {
     return Math.round(sum / validTimes.length)
   }, [records])
 
+  // SLA binário: % dentro e fora do prazo
+  const slaStatusMetrics = useMemo(() => {
+    let dentro = 0
+    let fora = 0
+    records.forEach((r) => {
+      const s = r.sla_status?.toLowerCase().trim()
+      if (s === 'dentro' || s === 'no prazo') dentro++
+      else if (s === 'fora' || s === 'fora do prazo') fora++
+    })
+    const totalComSla = dentro + fora
+    const percentDentro = totalComSla > 0 ? Math.round((dentro / totalComSla) * 1000) / 10 : null
+    const percentFora = totalComSla > 0 ? Math.round((fora / totalComSla) * 1000) / 10 : null
+    return { dentro, fora, totalComSla, percentDentro, percentFora }
+  }, [records])
+
+  // Tempo trabalhado total e médio (em horas decimais)
+  const tempoTrabalhadoMetrics = useMemo(() => {
+    const validHoras = records
+      .map((r) => r.tempo_trabalhado)
+      .filter((t): t is number => typeof t === 'number' && !isNaN(t) && t > 0)
+    const totalHoras = validHoras.reduce((acc, v) => acc + v, 0)
+    const count = validHoras.length
+    const mediaHoras = count > 0 ? totalHoras / count : null
+    return {
+      totalHoras: Math.round(totalHoras * 10) / 10,
+      mediaHoras: mediaHoras !== null ? Math.round(mediaHoras * 100) / 100 : null,
+      count,
+    }
+  }, [records])
+
   const slaMedioHoras = useMemo(() => {
+    // Se houver tempo trabalhado médio, prioriza ele como tempo médio de atendimento/chamado
+    if (tempoTrabalhadoMetrics.mediaHoras !== null) {
+      return tempoTrabalhadoMetrics.mediaHoras
+    }
     const valid = records
       .map((r) => r.sla_horas)
       .filter((s): s is number => typeof s === 'number' && !isNaN(s) && s > 0)
     if (valid.length === 0) return null
     const sum = valid.reduce((acc, v) => acc + v, 0)
     return sum / valid.length
-  }, [records])
+  }, [records, tempoTrabalhadoMetrics.mediaHoras])
 
   // Tendência do SLA médio vs período anterior (queda é boa → verde)
   const slaTrend = useMemo(() => {
@@ -485,22 +522,36 @@ export default function Index() {
     return records.filter((r) => !isAbertoPorTecnico(r, tecnicosConhecidos))
   }, [records])
 
-  // Gráfico 2: Ranking de técnicos
+  // Gráfico 2: Ranking de técnicos (incluindo horas trabalhadas e tempo médio por chamado)
   const rankingTecnicosData = useMemo(() => {
-    const counts: Record<string, number> = {}
+    const stats: Record<string, { chamados: number; horas: number; horasCount: number }> = {}
     records.forEach((r) => {
       const name = r.tecnico?.trim()
       if (!name) return
-      counts[name] = (counts[name] || 0) + 1
+      if (!stats[name]) stats[name] = { chamados: 0, horas: 0, horasCount: 0 }
+      stats[name].chamados += 1
+      if (
+        typeof r.tempo_trabalhado === 'number' &&
+        !isNaN(r.tempo_trabalhado) &&
+        r.tempo_trabalhado > 0
+      ) {
+        stats[name].horas += r.tempo_trabalhado
+        stats[name].horasCount += 1
+      }
     })
 
     const total = records.length || 1
-    return Object.entries(counts)
-      .map(([tecnico, chamados]) => ({
-        tecnico,
-        chamados,
-        porcentagem: ((chamados / total) * 100).toFixed(1),
-      }))
+    return Object.entries(stats)
+      .map(([tecnico, st]) => {
+        const mediaHoras = st.horasCount > 0 ? st.horas / st.horasCount : null
+        return {
+          tecnico,
+          chamados: st.chamados,
+          porcentagem: ((st.chamados / total) * 100).toFixed(1),
+          totalHoras: Math.round(st.horas * 10) / 10,
+          mediaHoras: mediaHoras !== null ? Math.round(mediaHoras * 10) / 10 : null,
+        }
+      })
       .sort((a, b) => b.chamados - a.chamados)
       .slice(0, 8)
   }, [records])
@@ -609,7 +660,26 @@ export default function Index() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 print:hidden">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const oldTitle = document.title
+              const dataFormatada = new Date().toISOString().slice(0, 10)
+              document.title = `relatorio-visao-geral-${dataFormatada}`
+              window.print()
+              setTimeout(() => {
+                document.title = oldTitle
+              }, 1000)
+            }}
+            className="h-9 rounded-xl bg-white border-slate-200 text-slate-700 hover:bg-slate-50 gap-2 shadow-sm"
+            title="Exportar este relatório para PDF"
+          >
+            <Printer className="w-3.5 h-3.5 text-teal-600" />
+            <span>Exportar PDF</span>
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
@@ -853,59 +923,90 @@ export default function Index() {
               </div>
             </div>
 
-            {/* KPI 5: Tempo Médio de SLA */}
+            {/* KPI 5: Indicador de SLA (% no prazo) */}
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between transition-all hover:shadow-md">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Tempo Médio de SLA
+                  SLA no Prazo
                 </span>
-                <div className="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center">
-                  <Timer className="w-5 h-5" />
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5" />
                 </div>
               </div>
               <div>
-                <div className="text-3xl font-extrabold text-slate-900 tracking-tight">
+                <div className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-baseline gap-1.5">
                   {loading ? (
                     <div className="h-9 w-24 bg-slate-100 rounded-lg animate-pulse" />
+                  ) : slaStatusMetrics.percentDentro !== null ? (
+                    <>
+                      <span>{slaStatusMetrics.percentDentro}%</span>
+                      <span className="text-xs font-medium text-slate-400">
+                        ({slaStatusMetrics.dentro}/{slaStatusMetrics.totalComSla})
+                      </span>
+                    </>
                   ) : (
                     formatSlaHoras(slaMedioHoras)
                   )}
                 </div>
-                <div className="mt-2 flex items-center gap-1.5 text-xs">
-                  {slaTrend ? (
-                    <>
-                      {slaTrend.direction !== 'neutral' && (
-                        <span
-                          className={`inline-flex items-center gap-0.5 font-semibold px-2 py-0.5 rounded-full ${
-                            slaTrend.positive
-                              ? 'text-emerald-600 bg-emerald-50'
-                              : 'text-rose-600 bg-rose-50'
-                          }`}
-                        >
-                          {slaTrend.direction === 'up' ? (
-                            <TrendingUp className="w-3.5 h-3.5" />
-                          ) : (
-                            <TrendingDown className="w-3.5 h-3.5" />
-                          )}
-                          {slaTrend.direction === 'up' ? '+' : '-'}
-                          {slaTrend.percent}%
-                        </span>
-                      )}
-                      {slaTrend.direction === 'neutral' && (
-                        <span className="inline-flex items-center gap-0.5 text-slate-500 font-semibold bg-slate-100 px-2 py-0.5 rounded-full">
-                          <Minus className="w-3.5 h-3.5" />
-                          0%
-                        </span>
-                      )}
-                      <span className="text-slate-400">vs período anterior</span>
-                    </>
+                <div className="mt-2 text-xs text-slate-400 flex items-center justify-between">
+                  {slaStatusMetrics.percentFora !== null ? (
+                    <span>
+                      Fora do prazo:{' '}
+                      <strong className="text-rose-600">{slaStatusMetrics.percentFora}%</strong> (
+                      {slaStatusMetrics.fora})
+                    </span>
                   ) : (
-                    <span className="text-slate-400">Média dos chamados com SLA</span>
+                    <span>Média SLA: {formatSlaHoras(slaMedioHoras)}</span>
                   )}
                 </div>
               </div>
             </div>
           </div>
+
+          {/* BANNER DE HORAS TRABALHADAS NO PERÍODO */}
+          {tempoTrabalhadoMetrics.totalHoras > 0 && (
+            <div className="bg-gradient-to-r from-teal-500/10 via-cyan-500/10 to-indigo-500/10 border border-teal-200/60 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center shadow-sm">
+                  <Timer className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    Total de Horas Trabalhadas no Período
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    Soma e média apuradas da coluna "Tempo trabalhado" da planilha
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-6">
+                <div>
+                  <span className="text-[11px] text-slate-500 font-medium block">Total</span>
+                  <span className="text-xl font-extrabold text-teal-800 font-mono">
+                    {tempoTrabalhadoMetrics.totalHoras}h
+                  </span>
+                </div>
+                {tempoTrabalhadoMetrics.mediaHoras !== null && (
+                  <div>
+                    <span className="text-[11px] text-slate-500 font-medium block">
+                      Média por chamado
+                    </span>
+                    <span className="text-xl font-extrabold text-teal-800 font-mono">
+                      {tempoTrabalhadoMetrics.mediaHoras}h
+                    </span>
+                  </div>
+                )}
+                <div>
+                  <span className="text-[11px] text-slate-500 font-medium block">
+                    Chamados apontados
+                  </span>
+                  <span className="text-xl font-extrabold text-slate-700 font-mono">
+                    {tempoTrabalhadoMetrics.count}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* GRÁFICOS SLA (50% / 50%) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -1201,11 +1302,19 @@ export default function Index() {
                           if (active && payload && payload.length) {
                             const data = payload[0].payload
                             return (
-                              <div className="bg-slate-900 text-white px-3 py-2 rounded-xl text-xs shadow-lg">
+                              <div className="bg-slate-900 text-white px-3 py-2 rounded-xl text-xs shadow-lg space-y-0.5">
                                 <p className="font-semibold">{data.tecnico}</p>
-                                <p className="text-teal-300 font-mono mt-0.5">
+                                <p className="text-teal-300 font-mono">
                                   {data.chamados} chamados ({data.porcentagem}%)
                                 </p>
+                                {data.totalHoras > 0 && (
+                                  <p className="text-amber-300 font-mono text-[11px]">
+                                    Total: {data.totalHoras}h{' '}
+                                    {data.mediaHoras !== null
+                                      ? `· Média: ${data.mediaHoras}h/ch`
+                                      : ''}
+                                  </p>
+                                )}
                               </div>
                             )
                           }
@@ -1248,6 +1357,11 @@ export default function Index() {
                         <span className="font-mono text-[11px] text-slate-500">
                           {item.chamados}
                         </span>
+                        {item.totalHoras > 0 && (
+                          <span className="font-mono text-[10px] text-teal-700 bg-teal-100/80 px-1 rounded">
+                            {item.totalHoras}h
+                          </span>
+                        )}
                       </button>
                     ))}
                   </div>

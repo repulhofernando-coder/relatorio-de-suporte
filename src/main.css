@@ -288,3 +288,38 @@
     animation: spotlight 2s ease forwards;
   }
 }
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+  body {
+    background: white !important;
+    color: #0f172a !important;
+    font-size: 11pt !important;
+  }
+  header,
+  nav,
+  aside,
+  .print\:hidden,
+  button,
+  [role='button'] {
+    display: none !important;
+  }
+  .print\:block {
+    display: block !important;
+  }
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .bg-white {
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

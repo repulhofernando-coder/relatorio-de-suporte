@@ -15,6 +15,8 @@ export interface SupportRecord {
   numero: string | null
   organizacao: string | null
   assunto: string | null
+  sla_status: string | null
+  tempo_trabalhado: number | null
   import_id: string | null
   created_at: string
 }
@@ -34,6 +36,8 @@ export interface SupportRecordInsert {
   numero?: string | null
   organizacao?: string | null
   assunto?: string | null
+  sla_status?: string | null
+  tempo_trabalhado?: number | null
   import_id?: string | null
   user_id?: string
 }
@@ -112,6 +116,8 @@ export type StandardFieldKey =
   | 'numero'
   | 'organizacao'
   | 'assunto'
+  | 'sla_status'
+  | 'tempo_trabalhado'
 
 export interface StandardFieldDef {
   key: StandardFieldKey
@@ -335,6 +341,40 @@ export const STANDARD_FIELDS: StandardFieldDef[] = [
       'tema',
     ],
     description: 'Título ou resumo do chamado (ex.: assunto, subject, descrição breve)',
+  },
+  {
+    key: 'sla_status',
+    label: 'Indicador de SLA na resposta',
+    required: false,
+    synonyms: [
+      'indicador de sla na resposta',
+      'indicador de sla',
+      'indicador sla na resposta',
+      'indicador sla',
+      'sla resposta',
+      'status do sla',
+      'status sla',
+      'sla status',
+      'sla no prazo',
+      'sla cumprido',
+    ],
+    description: 'Status binário de SLA de resposta ("dentro" ou "fora" do prazo)',
+  },
+  {
+    key: 'tempo_trabalhado',
+    label: 'Tempo trabalhado',
+    required: false,
+    synonyms: [
+      'tempo trabalhado',
+      'horas trabalhadas',
+      'tempo gasto',
+      'duracao trabalhada',
+      'tempo total trabalhado',
+      'tempo de trabalho',
+      'tempo apontado',
+      'worked time',
+    ],
+    description: 'Tempo total dedicado ao chamado (convertido para horas decimais)',
   },
 ]
 
