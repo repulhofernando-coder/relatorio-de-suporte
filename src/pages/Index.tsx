@@ -54,6 +54,7 @@ import {
 } from '@/components/ui/dialog'
 import { CapacityPanel } from '@/components/dashboard/CapacityPanel'
 import { TecnicoDrillDown } from '@/components/dashboard/TecnicoDrillDown'
+import { ClienteDrillDown } from '@/components/dashboard/ClienteDrillDown'
 import { ClientesUsoInadequadoPanel } from '@/components/dashboard/ClientesUsoInadequadoPanel'
 import { SlaStatusPanel } from '@/components/dashboard/SlaStatusPanel'
 import { BenchmarkPanel } from '@/components/dashboard/BenchmarkPanel'
@@ -239,6 +240,7 @@ export default function Index() {
   const [departamentosEmUso, setDepartamentosEmUso] = useState<string[]>([])
   const [capacities, setCapacities] = useState<DepartmentCapacityRecord[]>([])
   const [tecnicoSelecionado, setTecnicoSelecionado] = useState<string | null>(null)
+  const [clienteSelecionado, setClienteSelecionado] = useState<string | null>(null)
 
   // Modal Salvar Visão
   const [modalSalvarVisao, setModalSalvarVisao] = useState(false)
@@ -1200,6 +1202,11 @@ export default function Index() {
                         fill="#0D9488"
                         radius={[0, 0, 0, 0]}
                         animationDuration={600}
+                        cursor="pointer"
+                        onClick={(entry: { payload?: { cliente?: string } }) => {
+                          const nome = entry?.payload?.cliente
+                          if (nome) setClienteSelecionado(nome)
+                        }}
                       />
                       <Bar
                         dataKey="abertoPorTecnico"
@@ -1208,6 +1215,11 @@ export default function Index() {
                         fill="#F59E0B"
                         radius={[0, 8, 8, 0]}
                         animationDuration={600}
+                        cursor="pointer"
+                        onClick={(entry: { payload?: { cliente?: string } }) => {
+                          const nome = entry?.payload?.cliente
+                          if (nome) setClienteSelecionado(nome)
+                        }}
                       />
                       <Legend
                         wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
@@ -1220,13 +1232,20 @@ export default function Index() {
                 {!loading && topClientesData.length > 0 && (
                   <div className="mt-3 space-y-1.5">
                     {topClientesData.map((item) => (
-                      <div key={item.cliente} className="flex items-center justify-between text-xs">
-                        <span className="text-slate-600 truncate pr-2">{item.cliente}</span>
-                        <span className="font-semibold text-slate-800 whitespace-nowrap shrink-0">
-                          {item.cliente} — {item.chamados}{' '}
-                          {item.chamados === 1 ? 'chamado' : 'chamados'}
+                      <button
+                        key={item.cliente}
+                        type="button"
+                        onClick={() => setClienteSelecionado(item.cliente)}
+                        className="w-full flex items-center justify-between text-xs p-1 rounded-lg hover:bg-slate-50 transition-colors text-left group cursor-pointer"
+                        title={`Ver técnicos que atenderam ${item.cliente}`}
+                      >
+                        <span className="text-slate-700 truncate pr-2 group-hover:text-indigo-600 font-medium">
+                          {item.cliente}
                         </span>
-                      </div>
+                        <span className="font-semibold text-slate-800 whitespace-nowrap shrink-0 font-mono text-[11px] group-hover:text-indigo-700">
+                          {item.chamados} {item.chamados === 1 ? 'chamado' : 'chamados'} →
+                        </span>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -1652,7 +1671,11 @@ export default function Index() {
           />
 
           {/* Painel: Clientes que usam o suporte de forma errada (mais aberturas por técnicos do que pelo cliente) */}
-          <ClientesUsoInadequadoPanel records={records} loading={loading} />
+          <ClientesUsoInadequadoPanel
+            records={records}
+            loading={loading}
+            onSelectCliente={(c) => setClienteSelecionado(c)}
+          />
 
           {/* Capacidade por departamento (chamados ÷ técnicos, média/dia, aviso de limite) */}
           <CapacityPanel
@@ -1819,6 +1842,17 @@ export default function Index() {
           tecnico={tecnicoSelecionado}
           records={records}
           onClose={() => setTecnicoSelecionado(null)}
+          periodoFiltro={preset || undefined}
+        />
+      )}
+
+      {/* Drill-down de cliente (abre ao clicar num cliente da Visão Geral) */}
+      {clienteSelecionado && (
+        <ClienteDrillDown
+          cliente={clienteSelecionado}
+          records={records}
+          onClose={() => setClienteSelecionado(null)}
+          periodoFiltro={preset || undefined}
         />
       )}
 

@@ -15,11 +15,13 @@ import {
 import { SupportRecord } from '@/types/support'
 import { classificarTempoTrabalhado, formatarMinutosLegivel } from '@/lib/duracao'
 import { Button } from '@/components/ui/button'
+import { TecnicoClientesTable } from '@/components/dashboard/TecnicoClientesTable'
 
 interface TecnicoDrillDownProps {
   tecnico: string
   records: SupportRecord[] // já filtrados pelo período ativo
   onClose: () => void
+  periodoFiltro?: string // para repassar aos links de /chamados
 }
 
 function formatShortDate(dateStr: string): string {
@@ -35,7 +37,12 @@ function formatPercent(part: number, total: number): string {
   return `${pct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
 }
 
-export function TecnicoDrillDown({ tecnico, records, onClose }: TecnicoDrillDownProps) {
+export function TecnicoDrillDown({
+  tecnico,
+  records,
+  onClose,
+  periodoFiltro,
+}: TecnicoDrillDownProps) {
   const stats = useMemo(() => {
     const doTecnico = records.filter((r) => r.tecnico?.trim() === tecnico)
 
@@ -386,27 +393,8 @@ export function TecnicoDrillDown({ tecnico, records, onClose }: TecnicoDrillDown
             )}
           </div>
 
-          {/* Top clientes */}
-          <div>
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5 text-slate-400" /> Top clientes atendidos
-            </h3>
-            {stats.topClientes.length === 0 ? (
-              <p className="text-xs text-slate-400">Sem cliente nos registros.</p>
-            ) : (
-              <ul className="space-y-1.5">
-                {stats.topClientes.map(([cliente, count]) => (
-                  <li
-                    key={cliente}
-                    className="flex items-center justify-between text-xs text-slate-700"
-                  >
-                    <span className="truncate pr-2">{cliente}</span>
-                    <span className="font-mono font-semibold">{count}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          {/* Atendimentos por cliente — estilo Tabela Dinâmica do Excel */}
+          <TecnicoClientesTable tecnico={tecnico} records={records} periodoFiltro={periodoFiltro} />
         </div>
       </aside>
     </div>

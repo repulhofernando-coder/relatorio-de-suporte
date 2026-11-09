@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 interface ClientesUsoInadequadoPanelProps {
   records: SupportRecord[]
   loading?: boolean
+  onSelectCliente?: (cliente: string) => void
 }
 
 export interface ClienteUsoInadequadoItem {
@@ -37,7 +38,11 @@ function isAbertoPorTecnico(r: SupportRecord, tecnicosConhecidos: Set<string>): 
   return Boolean(abertoPor) && tecnicosConhecidos.has(normalizeHeader(abertoPor))
 }
 
-export function ClientesUsoInadequadoPanel({ records, loading }: ClientesUsoInadequadoPanelProps) {
+export function ClientesUsoInadequadoPanel({
+  records,
+  loading,
+  onSelectCliente,
+}: ClientesUsoInadequadoPanelProps) {
   const [mostrarTodos, setMostrarTodos] = useState(false)
 
   const clientesInadequados = useMemo<ClienteUsoInadequadoItem[]>(() => {
@@ -150,7 +155,17 @@ export function ClientesUsoInadequadoPanel({ records, loading }: ClientesUsoInad
             return (
               <div
                 key={item.cliente}
-                className="p-3 sm:p-3.5 rounded-xl border border-slate-200/80 bg-white hover:border-amber-300 transition-colors shadow-xs"
+                onClick={() => onSelectCliente && onSelectCliente(item.cliente)}
+                className={`p-3 sm:p-3.5 rounded-xl border border-slate-200/80 bg-white transition-all shadow-xs ${
+                  onSelectCliente
+                    ? 'hover:border-amber-400 hover:shadow-sm cursor-pointer'
+                    : 'hover:border-amber-300'
+                }`}
+                title={
+                  onSelectCliente
+                    ? `Clique para ver os técnicos que atenderam ${item.cliente}`
+                    : undefined
+                }
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-2.5 min-w-0">

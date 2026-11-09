@@ -65,6 +65,7 @@ export interface FetchSupportRecordsParams {
   endDate?: string // YYYY-MM-DD
   departamento?: string
   tecnico?: string // nome exato do técnico que atendeu
+  cliente?: string // nome exato do cliente/organização
   busca?: string // número do chamado, cliente ou organização
 }
 
@@ -96,6 +97,9 @@ export async function fetchSupportRecords(
     }
     if (params?.tecnico) {
       query = query.eq('tecnico', params.tecnico)
+    }
+    if (params?.cliente) {
+      query = query.eq('cliente', params.cliente)
     }
     if (params?.busca && params.busca.trim()) {
       const termo = params.busca.trim()
@@ -265,6 +269,7 @@ export interface FetchChamadosParams {
   endDate?: string // YYYY-MM-DD
   departamento?: string
   tecnico?: string // nome exato do técnico que atendeu
+  cliente?: string // nome exato do cliente/organização
   abertoPorProprioTecnico?: boolean // filtra somente chamados abertos pelo próprio técnico atendente
   busca?: string // número do chamado ou cliente
   ordenarPor?: 'data_chamado' | 'numero'
@@ -294,6 +299,9 @@ export async function fetchChamados(params?: FetchChamadosParams): Promise<Fetch
   }
   if (params?.tecnico) {
     query = query.eq('tecnico', params.tecnico)
+  }
+  if (params?.cliente) {
+    query = query.eq('cliente', params.cliente)
   }
   if (params?.abertoPorProprioTecnico && params?.tecnico) {
     query = query.ilike('aberto_por', params.tecnico.trim())

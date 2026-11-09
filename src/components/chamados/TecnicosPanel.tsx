@@ -2,6 +2,7 @@ import { Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SupportRecord } from '@/types/support'
 import { classificarTempoTrabalhado } from '@/lib/duracao'
+import { TecnicoClientesTable } from '@/components/dashboard/TecnicoClientesTable'
 
 export interface TecnicoResumo {
   nome: string
@@ -35,6 +36,8 @@ interface TecnicosPanelProps {
   selecionado: string | null
   onSelecionar: (nome: string | null) => void
   loading: boolean
+  records?: SupportRecord[]
+  onSelectCliente?: (cliente: string) => void
 }
 
 export function TecnicosPanel({
@@ -42,6 +45,8 @@ export function TecnicosPanel({
   selecionado,
   onSelecionar,
   loading,
+  records,
+  onSelectCliente,
 }: TecnicosPanelProps) {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden h-full">
@@ -79,47 +84,60 @@ export function TecnicosPanel({
             Nenhum técnico atendeu chamados com os filtros atuais.
           </p>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2">
-            {tecnicos.map((t) => {
-              const ativo = selecionado === t.nome
-              return (
-                <button
-                  key={t.nome}
-                  type="button"
-                  aria-pressed={ativo}
-                  title={ativo ? `Mostrar todos os chamados` : `Ver chamados de ${t.nome}`}
-                  onClick={() => onSelecionar(ativo ? null : t.nome)}
-                  className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left transition-all ${
-                    ativo
-                      ? 'border-teal-500 bg-teal-50 ring-2 ring-teal-600/20'
-                      : 'border-slate-200 bg-white hover:border-teal-300 hover:bg-slate-50'
-                  }`}
-                >
-                  <span
-                    className={`text-xs font-semibold truncate ${ativo ? 'text-teal-900' : 'text-slate-800'}`}
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2">
+              {tecnicos.map((t) => {
+                const ativo = selecionado === t.nome
+                return (
+                  <button
+                    key={t.nome}
+                    type="button"
+                    aria-pressed={ativo}
+                    title={ativo ? `Mostrar todos os chamados` : `Ver chamados de ${t.nome}`}
+                    onClick={() => onSelecionar(ativo ? null : t.nome)}
+                    className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left transition-all ${
+                      ativo
+                        ? 'border-teal-500 bg-teal-50 ring-2 ring-teal-600/20 shadow-xs'
+                        : 'border-slate-200 bg-white hover:border-teal-300 hover:bg-slate-50'
+                    }`}
                   >
-                    {t.nome}
-                  </span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {t.chamadosMenor5Min > 0 && (
-                      <span
-                        className="rounded-full px-1.5 py-0.2 text-[10px] font-bold bg-rose-100 text-rose-800"
-                        title={`${t.chamadosMenor5Min} chamados com menos de 5 min`}
-                      >
-                        ⚠ {t.chamadosMenor5Min}
-                      </span>
-                    )}
                     <span
-                      className={`rounded-full px-2 py-0.5 text-[11px] font-mono font-bold ${
-                        ativo ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-600'
-                      }`}
+                      className={`text-xs font-semibold truncate ${ativo ? 'text-teal-900' : 'text-slate-800'}`}
                     >
-                      {t.total}
+                      {t.nome}
                     </span>
-                  </div>
-                </button>
-              )
-            })}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {t.chamadosMenor5Min > 0 && (
+                        <span
+                          className="rounded-full px-1.5 py-0.2 text-[10px] font-bold bg-rose-100 text-rose-800"
+                          title={`${t.chamadosMenor5Min} chamados com menos de 5 min`}
+                        >
+                          ⚠ {t.chamadosMenor5Min}
+                        </span>
+                      )}
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-mono font-bold ${
+                          ativo ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {t.total}
+                      </span>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Tabela de atendimentos por cliente quando há técnico selecionado */}
+            {selecionado && records && records.length > 0 && (
+              <div className="pt-3 border-t border-slate-100">
+                <TecnicoClientesTable
+                  tecnico={selecionado}
+                  records={records}
+                  onSelectCliente={onSelectCliente}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>

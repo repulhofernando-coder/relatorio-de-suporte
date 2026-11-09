@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Ticket,
   Search,
@@ -9,6 +9,8 @@ import {
   Inbox,
   Clock,
   AlertTriangle,
+  Building2,
+  X,
 } from 'lucide-react'
 import {
   fetchChamados,
@@ -84,6 +86,7 @@ function formatDateBR(dateStr?: string | null): string {
 
 export default function Chamados() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [rows, setRows] = useState<SupportRecord[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -105,6 +108,8 @@ export default function Chamados() {
   const [inicializado, setInicializado] = useState(false)
   // Técnico selecionado no quadro de responsáveis (filtra a tabela; combina com os demais filtros)
   const [tecnicoFiltro, setTecnicoFiltro] = useState<string | null>(null)
+  // Cliente selecionado (via URL query param ou filtro direto)
+  const [clienteFiltro, setClienteFiltro] = useState<string | null>(null)
   // Subfiltro da pizza: quando ativo, mostra apenas chamados abertos pelo próprio técnico
   const [somenteProprioFiltro, setSomenteProprioFiltro] = useState(false)
   // Todos os registros do filtro atual (sem o filtro de técnico), paginados por fetchSupportRecords
@@ -133,6 +138,7 @@ export default function Chamados() {
         if (range.startDate) params.startDate = range.startDate
         if (range.endDate) params.endDate = range.endDate
         if (departamentoFiltro !== 'todos') params.departamento = departamentoFiltro
+        if (clienteFiltro) params.cliente = clienteFiltro
         if (buscaAplicada.trim()) params.busca = buscaAplicada.trim()
         if (tecnicoFiltro) {
           params.tecnico = tecnicoFiltro
@@ -155,6 +161,7 @@ export default function Chamados() {
     [
       range,
       departamentoFiltro,
+      clienteFiltro,
       buscaAplicada,
       ordenarPor,
       ordem,
@@ -170,6 +177,7 @@ export default function Chamados() {
       if (range.startDate) params.startDate = range.startDate
       if (range.endDate) params.endDate = range.endDate
       if (departamentoFiltro !== 'todos') params.departamento = departamentoFiltro
+      if (clienteFiltro) params.cliente = clienteFiltro
       if (buscaAplicada.trim()) params.busca = buscaAplicada.trim()
       setRegistrosFiltro(await fetchSupportRecords(params))
     } catch (err) {
@@ -177,26 +185,75 @@ export default function Chamados() {
     } finally {
       setLoadingRegistros(false)
     }
-  }, [range, departamentoFiltro, buscaAplicada])
+  }, [range, departamentoFiltro, clienteFiltro, buscaAplicada])
 
-  // Primeiro load: se o mês atual não tem registros, o padrão é "Tudo"
+  // Primeiro load: se vier com searchParams na URL, priorizar os filtros da URL
   useEffect(() => {
     const inicializar = async () => {
       try {
-        const now = new Date()
-        const y = now.getFullYear()
-        const m = now.getMonth()
-        const mesAtual = await fetchChamados({
-          startDate: `${y}-${String(m + 1).padStart(2, '0')}-01`,
-          endDate: `${y}-${String(m + 1).padStart(2, '0')}-${String(new Date(y, m + 1, 0).getDate()).padStart(2, '0')}`,
-          pageSize: 1,
-        })
-        if (mesAtual.total === 0) {
-          setPreset('tudo')
-          setRange(getPresetDates('tudo'))
+        const pPeriodo = searchParams.get('periodo')
+        const pStartDate = searchParams.get('startDate')
+        const pEndDate = searchParams.get('endDate')
+        const pDepto = searchParams.get('departamento')
+        const pTecnico = searchParams.get('tecnico')
+        const pCliente = searchParams.get('cliente')
+        const pBusca = searchParams.get('busca')
+
+        if (pTecnico) setTecnicoFiltro(pTecnico)
+        if (pCliente) setClienteFiltro(pCliente)
+        if (pDepto) setDepartamentoFiltro(pDepto)
+        if (pBusca) {
+          setBusca(pBusca)
+          setBuscaAplicada(pBusca)
+        }
+
+        if (pPeriodo) {
+          if (pPeriodo === 'personalizado' && pStartDate && pEndDate) {
+            setPreset('personalizado')
+            setCustomStart(pStartDate)
+            setCustomEnd(pEndDate)
+            setRange({
+              startDate: pStartDate,
+              endDate: pEndDate,
+              label: `${pStartDate} → ${pEndDate}`,
+            })
+          } else {
+            const validPresets: PeriodPreset[] = [
+              'este-mes',
+              'mes-passado',
+              'ultimos-3-meses',
+              'este-ano',
+              'tudo',
+            ]
+            const matched = validPresets.find((vp) => vp === pPeriodo) || 'tudo'
+            setPreset(matched)
+            setRange(getPresetDates(matched))
+          }
+        } else if (pStartDate && pEndDate) {
+          setPreset('personalizado')
+          setCustomStart(pStartDate)
+          setCustomEnd(pEndDate)
+          setRange({
+            startDate: pStartDate,
+            endDate: pEndDate,
+            label: `${pStartDate} → ${pEndDate}`,
+          })
         } else {
-          setPreset('este-mes')
-          setRange(getPresetDates('este-mes'))
+          const now = new Date()
+          const y = now.getFullYear()
+          const m = now.getMonth()
+          const mesAtual = await fetchChamados({
+            startDate: `${y}-${String(m + 1).padStart(2, '0')}-01`,
+            endDate: `${y}-${String(m + 1).padStart(2, '0')}-${String(new Date(y, m + 1, 0).getDate()).padStart(2, '0')}`,
+            pageSize: 1,
+          })
+          if (mesAtual.total === 0) {
+            setPreset('tudo')
+            setRange(getPresetDates('tudo'))
+          } else {
+            setPreset('este-mes')
+            setRange(getPresetDates('este-mes'))
+          }
         }
       } catch (err) {
         console.error('Erro ao definir período inicial:', err)
@@ -257,6 +314,13 @@ export default function Chamados() {
   const handleSelecionarTecnico = (nome: string | null) => {
     setTecnicoFiltro(nome)
     setSomenteProprioFiltro(false)
+    if (page !== 1) {
+      setPage(1)
+    }
+  }
+
+  const handleLimparCliente = () => {
+    setClienteFiltro(null)
     if (page !== 1) {
       setPage(1)
     }
@@ -445,6 +509,11 @@ export default function Chamados() {
             selecionado={tecnicoFiltro}
             onSelecionar={handleSelecionarTecnico}
             loading={loadingRegistros}
+            records={registrosFiltro}
+            onSelectCliente={(cliente) => {
+              setClienteFiltro(cliente)
+              setPage(1)
+            }}
           />
         </div>
         {tecnicoFiltro && (
@@ -461,26 +530,55 @@ export default function Chamados() {
 
       {/* TABELA */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
-        {tecnicoFiltro && (
+        {(tecnicoFiltro || clienteFiltro) && (
           <div className="px-5 py-3 bg-teal-50/60 border-b border-teal-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-sm font-bold text-teal-900">
-                {somenteProprioFiltro ? (
-                  <>
-                    {total} {total === 1 ? 'chamado aberto' : 'chamados abertos'} por ele mesmo (de{' '}
-                    {registrosDoTecnico.length} no período)
-                  </>
-                ) : (
-                  <>
-                    {clientesDoTecnico} {clientesDoTecnico === 1 ? 'cliente' : 'clientes'} ·{' '}
-                    {registrosDoTecnico.length}{' '}
-                    {registrosDoTecnico.length === 1 ? 'chamado' : 'chamados'}
-                  </>
-                )}
-              </p>
+              {tecnicoFiltro && (
+                <Badge className="bg-teal-600 text-white text-[11px] gap-1.5 px-2.5 py-1">
+                  <span>Técnico: {tecnicoFiltro}</span>
+                  <button
+                    onClick={() => handleSelecionarTecnico(null)}
+                    className="ml-1 hover:text-teal-200 text-xs font-bold leading-none inline-flex items-center"
+                    title="Remover filtro de técnico"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              )}
+              {clienteFiltro && (
+                <Badge className="bg-indigo-600 text-white text-[11px] gap-1.5 px-2.5 py-1 inline-flex items-center">
+                  <Building2 className="w-3 h-3" />
+                  <span className="truncate max-w-[260px]" title={clienteFiltro}>
+                    Cliente: {clienteFiltro}
+                  </span>
+                  <button
+                    onClick={handleLimparCliente}
+                    className="ml-1 hover:text-indigo-200 text-xs font-bold leading-none inline-flex items-center"
+                    title="Remover filtro de cliente"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              )}
+              {tecnicoFiltro && (
+                <p className="text-xs font-semibold text-teal-900 ml-1">
+                  {somenteProprioFiltro ? (
+                    <>
+                      {total} {total === 1 ? 'chamado aberto' : 'chamados abertos'} por ele mesmo
+                      (de {registrosDoTecnico.length} no período)
+                    </>
+                  ) : (
+                    <>
+                      {clientesDoTecnico} {clientesDoTecnico === 1 ? 'cliente' : 'clientes'} ·{' '}
+                      {registrosDoTecnico.length}{' '}
+                      {registrosDoTecnico.length === 1 ? 'chamado' : 'chamados'}
+                    </>
+                  )}
+                </p>
+              )}
               {somenteProprioFiltro && (
-                <Badge className="bg-teal-600 text-white text-[11px] gap-1 px-2 py-0.5">
-                  Filtro: abertos por ele mesmo ({total})
+                <Badge className="bg-teal-700 text-white text-[11px] gap-1 px-2 py-0.5">
+                  Abertos por ele mesmo ({total})
                   <button
                     onClick={handleToggleSomenteProprio}
                     className="ml-1 hover:text-teal-200 text-xs font-bold leading-none"
@@ -493,14 +591,30 @@ export default function Chamados() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => handleSelecionarTecnico(null)}
+                onClick={() => {
+                  handleSelecionarTecnico(null)
+                  handleLimparCliente()
+                }}
                 className="h-6 px-2 text-[11px] text-teal-700 hover:text-teal-900 hover:bg-teal-100/60 font-medium"
               >
-                Limpar técnico
+                Limpar filtros ativos
               </Button>
             </div>
             <p className="text-xs text-teal-800">
-              Atendidos por <span className="font-semibold">{tecnicoFiltro}</span>
+              {tecnicoFiltro && clienteFiltro ? (
+                <>
+                  <span className="font-semibold">{tecnicoFiltro}</span> ×{' '}
+                  <span className="font-semibold">{clienteFiltro}</span>
+                </>
+              ) : tecnicoFiltro ? (
+                <>
+                  Atendidos por <span className="font-semibold">{tecnicoFiltro}</span>
+                </>
+              ) : (
+                <>
+                  Chamados de <span className="font-semibold">{clienteFiltro}</span>
+                </>
+              )}
             </p>
           </div>
         )}
