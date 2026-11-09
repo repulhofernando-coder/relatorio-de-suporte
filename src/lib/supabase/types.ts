@@ -114,6 +114,7 @@ export type Database = {
       support_records: {
         Row: {
           aberto_por: string | null
+          assunto: string | null
           cliente: string
           created_at: string
           data_chamado: string
@@ -133,6 +134,7 @@ export type Database = {
         }
         Insert: {
           aberto_por?: string | null
+          assunto?: string | null
           cliente: string
           created_at?: string
           data_chamado: string
@@ -152,6 +154,7 @@ export type Database = {
         }
         Update: {
           aberto_por?: string | null
+          assunto?: string | null
           cliente?: string
           created_at?: string
           data_chamado?: string
