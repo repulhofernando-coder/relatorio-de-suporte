@@ -632,6 +632,9 @@ export default function Equipes() {
                       </label>
                     </div>
 
+                  {/* Linha informativa de SLA por complexidade para Linux */}
+                  {isLinux && (
+=======
                     <div className="flex items-center gap-2 shrink-0 self-end xl:self-center">
                       <Button
                         size="sm"
@@ -657,6 +660,102 @@ export default function Equipes() {
                     </div>
                   </div>
 
+                  {/* Linha informativa de SLA por complexidade para Linux */}
+                  {isLinux && (
+=======
+                      {isSalvo && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(depto)}
+                          disabled={saving === depto}
+                          className="h-9 rounded-xl border-slate-200 text-rose-600 hover:bg-rose-50 gap-1.5 text-xs"
+                          title="Remover configuração deste departamento"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Linha informativa de SLA por complexidade para Linux */}
+=======
+                  {/* Linha informativa de SLA por complexidade para Linux */}
+                  {isLinux && (
+=======
+                    <div className="flex items-center gap-2 shrink-0 self-end xl:self-center">
+                      <Button
+                        size="sm"
+                        onClick={() => handleSave(depto)}
+                        disabled={saving === depto}
+                        className="h-9 rounded-xl bg-teal-600 hover:bg-teal-700 text-white gap-1.5 text-xs font-medium"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        {saving === depto ? 'Salvando…' : 'Salvar'}
+                      </Button>
+                      {isSalvo && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(depto)}
+                          disabled={saving === depto}
+                          className="h-9 rounded-xl border-slate-200 text-rose-600 hover:bg-rose-50 gap-1.5 text-xs"
+                          title="Remover configuração deste departamento"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+=======
+                  {/* Linha informativa de SLA por complexidade para Linux */}
+                  {isLinux && (
+=======
+                    <div className="flex items-center gap-2 shrink-0 self-end xl:self-center">
+                      <Button
+                        size="sm"
+                        onClick={() => handleSave(depto)}
+                        disabled={saving === depto}
+                        className="h-9 rounded-xl bg-teal-600 hover:bg-teal-700 text-white gap-1.5 text-xs font-medium"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        {saving === depto ? 'Salvando…' : 'Salvar'}
+                      </Button>
+                      {isSalvo && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(depto)}
+                          disabled={saving === depto}
+                          className="h-9 rounded-xl border-slate-200 text-rose-600 hover:bg-rose-50 gap-1.5 text-xs"
+                          title="Remover configuração deste departamento"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Linha informativa de SLA por complexidade para Linux */}
+                  {isLinux && (
+=======
+                      {isSalvo && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(depto)}
+                          disabled={saving === depto}
+                          className="h-9 rounded-xl border-slate-200 text-rose-600 hover:bg-rose-50 gap-1.5 text-xs"
+                          title="Remover configuração deste departamento"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Linha informativa de SLA por complexidade para Linux */}
+=======
                   {/* Linha informativa de SLA por complexidade para Linux */}
                   {isLinux && (
                     <div className="rounded-xl border border-purple-100 bg-purple-50/60 px-3.5 py-2.5 text-xs text-purple-900 flex flex-col md:flex-row md:items-center justify-between gap-2">
@@ -685,7 +784,7 @@ export default function Equipes() {
         )}
       </div>
 
-      {/* RODAPÉ COM NOTAS DE FONTE BENCHMARK (N1 HDI + METRICNET | N2 AXELOS/ITIL 4 + GARTNER | CAMPO METRICNET + COMPTIA) */}
+      {/* RODAPÉ COM NOTAS DE FONTE BENCHMARK (N1 HDI + METRICNET | N2 AXELOS/ITIL 4 + GARTNER | LINUX CONSORTIUM/HDI/METRICNET | CAMPO METRICNET + COMPTIA) */}
       <footer className="mt-8 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-5 text-xs text-slate-600 space-y-3">
         <div className="flex items-center gap-2 text-slate-800 font-bold">
           <Award className="w-4 h-4 text-teal-600" />
@@ -708,6 +807,28 @@ export default function Equipes() {
               <b>Metas padrão:</b> TMA entre <b>15 e 25 min/chamado</b> e produtividade de{' '}
               <b>12 a 18 chamados/dia/técnico</b>. Foco em alto giro, retenção de rotina e
               atendimento ágil.
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+              <span>Suporte N2 (Remoto / Servidores e Infraestrutura)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fontes oficiais:</b>
+              <br />• <b>AXELOS/PeopleCert (ITIL 4 Framework)</b> — Practice Guide: Incident
+              Management & Service Desk (TMA 1h–2h30 saudável para causa raiz; medido por capacidade
+              de investigação técnica, não por volume).
+              <br />• <b>Gartner</b> — IT Service Management Research Reports (eficiência por
+              disponibilidade vs. incidentes recorrentes, justificando modo proativo/preventivo).
+              <br />
+              <b>Metas padrão:</b> TMA alvo de <b>60 a 90 min/chamado</b> (até 2h30min em
+              projetos/investigações), produtividade de <b>1,8 a 2,7 chamados/dia/técnico</b> e
+              ocupação direta em tickets de <b>65% a 75%</b>.
+              <br />
+              <b>Contexto:</b> Equipe focada em infraestrutura proativa, gestão de mudanças,
+              backups, virtualização e projetos.
             </p>
           </div>
 
@@ -754,6 +875,389 @@ export default function Equipes() {
           </div>
         </div>
 
+        <p className="text-[11px] text-slate-400 pt-1">
+          Todos os departamentos aceitam personalização de limites e metas individuais através dos
+          campos acima conforme a necessidade da operação.
+        </p>
+      </footer>
+    </div>
+  )
+}
+=======
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-1">
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
+              <span>Suporte N1 (Remoto / Básico)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fontes oficiais:</b>
+              <br />• <b>HDI (Help Desk Institute)</b> — Service Desk Benchmarking Report (TMA 15–25
+              min para incidentes de baixa complexidade resolvidos remotamente).
+              <br />• <b>MetricNet</b> — Desktop Support and Service Desk Benchmarks (produtividade
+              12–18 chamados/dia, custo por ticket).
+              <br />
+              <b>Metas padrão:</b> TMA entre <b>15 e 25 min/chamado</b> e produtividade de{' '}
+              <b>12 a 18 chamados/dia/técnico</b>. Foco em alto giro, retenção de rotina e
+              atendimento ágil.
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+              <span>Suporte N2 (Remoto / Servidores e Infraestrutura)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fontes oficiais:</b>
+              <br />• <b>AXELOS/PeopleCert (ITIL 4 Framework)</b> — Practice Guide: Incident
+              Management & Service Desk (TMA 1h–2h30 saudável para causa raiz; medido por capacidade
+              de investigação técnica, não por volume).
+              <br />• <b>Gartner</b> — IT Service Management Research Reports (eficiência por
+              disponibilidade vs. incidentes recorrentes, justificando modo proativo/preventivo).
+              <br />
+              <b>Metas padrão:</b> TMA alvo de <b>60 a 90 min/chamado</b> (até 2h30min em
+              projetos/investigações), produtividade de <b>1,8 a 2,7 chamados/dia/técnico</b> e
+              ocupação direta em tickets de <b>65% a 75%</b>.
+              <br />
+              <b>Contexto:</b> Equipe focada em infraestrutura proativa, gestão de mudanças,
+              backups, virtualização e projetos.
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
+              <span>Linux (Infraestrutura Mista)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fontes oficiais:</b>
+              <br />• <b>Consortium for Service Innovation</b> — Intelligent Swarming℠ (validação de
+              modelo sem filas rígidas de N1/N2 em equipes especializadas, reduzindo transferências de tickets).
+              <br />• <b>HDI</b> — Support Center Practices & Salary Report (resolução por tópico:
+              30–45 min cPanel/PHP; 1h30–3h Fortigate/UniFi).
+              <br />• <b>MetricNet</b> — Infrastructure and Network Support Benchmarks (TMA geral
+              misto de 30–50 min).
+              <br />
+              <b>Metas padrão:</b> TMA geral de <b>30 a 50 min/chamado</b> (referência 42 min / 0,71h),
+              produtividade de <b>4 a 7 chamados/dia/técnico</b> e ocupação direta em tickets de{' '}
+              <b>65% a 75%</b> (referência: <b>7 especialistas</b> para ~351 chamados/mês).
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+              <span>Field Service (Campo Presencial)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fontes oficiais:</b>
+              <br />• <b>MetricNet</b> — Field Service Benchmarks (produtividade 1,2–1,8
+              chamados/dia; ocupação ideal 70–80% do dia incluindo trânsito/deslocamento).
+              <br />• <b>CompTIA</b> — Workforce & Tech Support Trends (alerta para ineficiência de
+              formatações in loco com TMA de 5h–6h; recomendação de metodologia de laboratório e
+              swap de máquinas).
+              <br />
+              <b>Metas padrão:</b> TMA entre <b>3h e 4h30min</b> (180–270 min), produtividade de{' '}
+              <b>1,2 a 1,8 chamados/dia/técnico</b> e ocupação direta em tickets de <b>70% a 80%</b>{' '}
+              (equipe necessária estimada: <b>3 a 4 técnicos</b> para ~75 chamados/mês).
+              <br />
+              <b>Contexto:</b> Atendimentos presenciais corporativos/PMEs com deslocamento, antenas,
+              relatórios técnicos e rotinas de laboratório.
+            </p>
+          </div>
+        </div>
+
+        <p className="text-[11px] text-slate-400 pt-1">
+          Todos os departamentos aceitam personalização de limites e metas individuais através dos
+          campos acima conforme a necessidade da operação.
+        </p>
+      </footer>
+    </div>
+  )
+}
+=======
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-1">
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
+              <span>Suporte N1 (Remoto / Básico)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fontes oficiais:</b>
+              <br />• <b>HDI (Help Desk Institute)</b> — Service Desk Benchmarking Report (TMA 15–25
+              min para incidentes de baixa complexidade resolvidos remotamente).
+              <br />• <b>MetricNet</b> — Desktop Support and Service Desk Benchmarks (produtividade
+              12–18 chamados/dia, custo por ticket).
+              <br />
+              <b>Metas padrão:</b> TMA entre <b>15 e 25 min/chamado</b> e produtividade de{' '}
+              <b>12 a 18 chamados/dia/técnico</b>. Foco em alto giro, retenção de rotina e
+              atendimento ágil.
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+              <span>Suporte N2 (Remoto / Servidores e Infraestrutura)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fontes oficiais:</b>
+              <br />• <b>AXELOS/PeopleCert (ITIL 4 Framework)</b> — Practice Guide: Incident
+              Management & Service Desk (TMA 1h–2h30 saudável para causa raiz; medido por capacidade
+              de investigação técnica, não por volume).
+              <br />• <b>Gartner</b> — IT Service Management Research Reports (eficiência por
+              disponibilidade vs. incidentes recorrentes, justificando modo proativo/preventivo).
+              <br />
+              <b>Metas padrão:</b> TMA alvo de <b>60 a 90 min/chamado</b> (até 2h30min em
+              projetos/investigações), produtividade de <b>1,8 a 2,7 chamados/dia/técnico</b> e
+              ocupação direta em tickets de <b>65% a 75%</b>.
+              <br />
+              <b>Contexto:</b> Equipe focada em infraestrutura proativa, gestão de mudanças,
+              backups, virtualização e projetos.
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
+              <span>Linux (Infraestrutura Mista)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fontes oficiais:</b>
+              <br />• <b>Consortium for Service Innovation</b> — Intelligent Swarming℠ (validação de
+              modelo sem filas rígidas de N1/N2 em equipes especializadas, reduzindo transferências de tickets).
+              <br />• <b>HDI</b> — Support Center Practices & Salary Report (resolução por tópico:
+              30–45 min cPanel/PHP; 1h30–3h Fortigate/UniFi).
+              <br />• <b>MetricNet</b> — Infrastructure and Network Support Benchmarks (TMA geral
+              misto de 30–50 min).
+              <br />
+              <b>Metas padrão:</b> TMA geral de <b>30 a 50 min/chamado</b> (referência 42 min / 0,71h),
+              produtividade de <b>4 a 7 chamados/dia/técnico</b> e ocupação direta em tickets de{' '}
+              <b>65% a 75%</b> (referência: <b>7 especialistas</b> para ~351 chamados/mês).
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+              <span>Field Service (Campo Presencial)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fontes oficiais:</b>
+              <br />• <b>MetricNet</b> — Field Service Benchmarks (produtividade 1,2–1,8
+              chamados/dia; ocupação ideal 70–80% do dia incluindo trânsito/deslocamento).
+              <br />• <b>CompTIA</b> — Workforce & Tech Support Trends (alerta para ineficiência de
+              formatações in loco com TMA de 5h–6h; recomendação de metodologia de laboratório e
+              swap de máquinas).
+              <br />
+              <b>Metas padrão:</b> TMA entre <b>3h e 4h30min</b> (180–270 min), produtividade de{' '}
+              <b>1,2 a 1,8 chamados/dia/técnico</b> e ocupação direta em tickets de <b>70% a 80%</b>{' '}
+              (equipe necessária estimada: <b>3 a 4 técnicos</b> para ~75 chamados/mês).
+              <br />
+              <b>Contexto:</b> Atendimentos presenciais corporativos/PMEs com deslocamento, antenas,
+              relatórios técnicos e rotinas de laboratório.
+            </p>
+          </div>
+        </div>
+
+        <p className="text-[11px] text-slate-400 pt-1">
+          Todos os departamentos aceitam personalização de limites e metas individuais através dos
+          campos acima conforme a necessidade da operação.
+        </p>
+      </footer>
+    </div>
+  )
+}
+=======
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-1">
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
+              <span>Suporte N1 (Remoto / Básico)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fontes oficiais:</b>
+              <br />• <b>HDI (Help Desk Institute)</b> — Service Desk Benchmarking Report (TMA 15–25
+              min para incidentes de baixa complexidade resolvidos remotamente).
+              <br />• <b>MetricNet</b> — Desktop Support and Service Desk Benchmarks (produtividade
+              12–18 chamados/dia, custo por ticket).
+              <br />
+              <b>Metas padrão:</b> TMA entre <b>15 e 25 min/chamado</b> e produtividade de{' '}
+              <b>12 a 18 chamados/dia/técnico</b>. Foco em alto giro, retenção de rotina e
+              atendimento ágil.
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+              <span>Suporte N2 (Remoto / Servidores e Infraestrutura)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fontes oficiais:</b>
+              <br />• <b>AXELOS/PeopleCert (ITIL 4 Framework)</b> — Practice Guide: Incident
+              Management & Service Desk (TMA 1h–2h30 saudável para causa raiz; medido por capacidade
+              de investigação técnica, não por volume).
+              <br />• <b>Gartner</b> — IT Service Management Research Reports (eficiência por
+              disponibilidade vs. incidentes recorrentes, justificando modo proativo/preventivo).
+              <br />
+              <b>Metas padrão:</b> TMA alvo de <b>60 a 90 min/chamado</b> (até 2h30min em
+              projetos/investigações), produtividade de <b>1,8 a 2,7 chamados/dia/técnico</b> e
+              ocupação direta em tickets de <b>65% a 75%</b>.
+              <br />
+              <b>Contexto:</b> Equipe focada em infraestrutura proativa, gestão de mudanças,
+              backups, virtualização e projetos.
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
+              <span>Linux (Infraestrutura Mista)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fontes oficiais:</b>
+              <br />• <b>Consortium for Service Innovation</b> — Intelligent Swarming℠ (validação de
+              modelo sem filas rígidas de N1/N2 em equipes especializadas, reduzindo transferências de tickets).
+              <br />• <b>HDI</b> — Support Center Practices & Salary Report (resolução por tópico:
+              30–45 min cPanel/PHP; 1h30–3h Fortigate/UniFi).
+              <br />• <b>MetricNet</b> — Infrastructure and Network Support Benchmarks (TMA geral
+              misto de 30–50 min).
+              <br />
+              <b>Metas padrão:</b> TMA geral de <b>30 a 50 min/chamado</b> (referência 42 min / 0,71h),
+              produtividade de <b>4 a 7 chamados/dia/técnico</b> e ocupação direta em tickets de{' '}
+              <b>65% a 75%</b> (referência: <b>7 especialistas</b> para ~351 chamados/mês).
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+              <span>Field Service (Campo Presencial)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fontes oficiais:</b>
+              <br />• <b>MetricNet</b> — Field Service Benchmarks (produtividade 1,2–1,8
+              chamados/dia; ocupação ideal 70–80% do dia incluindo trânsito/deslocamento).
+              <br />• <b>CompTIA</b> — Workforce & Tech Support Trends (alerta para ineficiência de
+              formatações in loco com TMA de 5h–6h; recomendação de metodologia de laboratório e
+              swap de máquinas).
+              <br />
+              <b>Metas padrão:</b> TMA entre <b>3h e 4h30min</b> (180–270 min), produtividade de{' '}
+              <b>1,2 a 1,8 chamados/dia/técnico</b> e ocupação direta em tickets de <b>70% a 80%</b>{' '}
+              (equipe necessária estimada: <b>3 a 4 técnicos</b> para ~75 chamados/mês).
+              <br />
+              <b>Contexto:</b> Atendimentos presenciais corporativos/PMEs com deslocamento, antenas,
+              relatórios técnicos e rotinas de laboratório.
+            </p>
+          </div>
+        </div>
+
+        <p className="text-[11px] text-slate-400 pt-1">
+          Todos os departamentos aceitam personalização de limites e metas individuais através dos
+          campos acima conforme a necessidade da operação.
+        </p>
+      </footer>
+    </div>
+  )
+}
+=======
+                    <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+=======
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-1">
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
+              <span>Suporte N1 (Remoto / Básico)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fontes oficiais:</b>
+              <br />• <b>HDI (Help Desk Institute)</b> — Service Desk Benchmarking Report (TMA 15–25
+              min para incidentes de baixa complexidade resolvidos remotamente).
+              <br />• <b>MetricNet</b> — Desktop Support and Service Desk Benchmarks (produtividade
+              12–18 chamados/dia, custo por ticket).
+              <br />
+              <b>Metas padrão:</b> TMA entre <b>15 e 25 min/chamado</b> e produtividade de{' '}
+              <b>12 a 18 chamados/dia/técnico</b>. Foco em alto giro, retenção de rotina e
+              atendimento ágil.
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+              <span>Suporte N2 (Remoto / Servidores e Infraestrutura)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fontes oficiais:</b>
+              <br />• <b>AXELOS/PeopleCert (ITIL 4 Framework)</b> — Practice Guide: Incident
+              Management & Service Desk (TMA 1h–2h30 saudável para causa raiz; medido por capacidade
+              de investigação técnica, não por volume).
+              <br />• <b>Gartner</b> — IT Service Management Research Reports (eficiência por
+              disponibilidade vs. incidentes recorrentes, justificando modo proativo/preventivo).
+              <br />
+              <b>Metas padrão:</b> TMA alvo de <b>60 a 90 min/chamado</b> (até 2h30min em
+              projetos/investigações), produtividade de <b>1,8 a 2,7 chamados/dia/técnico</b> e
+              ocupação direta em tickets de <b>65% a 75%</b>.
+              <br />
+              <b>Contexto:</b> Equipe focada em infraestrutura proativa, gestão de mudanças,
+              backups, virtualização e projetos.
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
+              <span>Linux (Infraestrutura Mista)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fontes oficiais:</b>
+              <br />• <b>Consortium for Service Innovation</b> — Intelligent Swarming℠ (validação de
+              modelo sem filas rígidas de N1/N2 em equipes especializadas, reduzindo transferências de tickets).
+              <br />• <b>HDI</b> — Support Center Practices & Salary Report (resolução por tópico:
+              30–45 min cPanel/PHP; 1h30–3h Fortigate/UniFi).
+              <br />• <b>MetricNet</b> — Infrastructure and Network Support Benchmarks (TMA geral
+              misto de 30–50 min).
+              <br />
+              <b>Metas padrão:</b> TMA geral de <b>30 a 50 min/chamado</b> (referência 42 min / 0,71h),
+              produtividade de <b>4 a 7 chamados/dia/técnico</b> e ocupação direta em tickets de{' '}
+              <b>65% a 75%</b> (referência: <b>7 especialistas</b> para ~351 chamados/mês).
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+              <span>Field Service (Campo Presencial)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fontes oficiais:</b>
+              <br />• <b>MetricNet</b> — Field Service Benchmarks (produtividade 1,2–1,8
+              chamados/dia; ocupação ideal 70–80% do dia incluindo trânsito/deslocamento).
+              <br />• <b>CompTIA</b> — Workforce & Tech Support Trends (alerta para ineficiência de
+              formatações in loco com TMA de 5h–6h; recomendação de metodologia de laboratório e
+              swap de máquinas).
+              <br />
+              <b>Metas padrão:</b> TMA entre <b>3h e 4h30min</b> (180–270 min), produtividade de{' '}
+              <b>1,2 a 1,8 chamados/dia/técnico</b> e ocupação direta em tickets de <b>70% a 80%</b>{' '}
+              (equipe necessária estimada: <b>3 a 4 técnicos</b> para ~75 chamados/mês).
+              <br />
+              <b>Contexto:</b> Atendimentos presenciais corporativos/PMEs com deslocamento, antenas,
+              relatórios técnicos e rotinas de laboratório.
+            </p>
+          </div>
+        </div>
+
+        <p className="text-[11px] text-slate-400 pt-1">
+          Todos os departamentos aceitam personalização de limites e metas individuais através dos
+          campos acima conforme a necessidade da operação.
+        </p>
+      </footer>
+    </div>
+  )
+}
+=======
         <p className="text-[11px] text-slate-400 pt-1">
           Todos os departamentos aceitam personalização de limites e metas individuais através dos
           campos acima conforme a necessidade da operação.
