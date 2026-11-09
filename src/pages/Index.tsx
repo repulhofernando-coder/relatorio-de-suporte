@@ -192,6 +192,12 @@ function buildTecnicoNameSet(records: SupportRecord[]): Set<string> {
   return set
 }
 
+/** Verdadeiro quando o "aberto por" do registro é um técnico (chamado interno). */
+function isAbertoPorTecnico(r: SupportRecord, tecnicosConhecidos: Set<string>): boolean {
+  const abertoPor = r.aberto_por?.trim() || ''
+  return Boolean(abertoPor) && tecnicosConhecidos.has(normalizeHeader(abertoPor))
+}
+
 export default function Index() {
   const navigate = useNavigate()
   const [records, setRecords] = useState<SupportRecord[]>([])
@@ -451,10 +457,7 @@ export default function Index() {
       if (!cliente) return
       if (!counts[cliente]) counts[cliente] = { porCliente: 0, porTecnico: 0 }
 
-      const abertoPor = r.aberto_por?.trim() || ''
-      const isTecnico = Boolean(abertoPor) && tecnicosConhecidos.has(normalizeHeader(abertoPor))
-
-      if (isTecnico) {
+      if (isAbertoPorTecnico(r, tecnicosConhecidos)) {
         counts[cliente].porTecnico += 1
       } else {
         counts[cliente].porCliente += 1
@@ -473,6 +476,12 @@ export default function Index() {
       }))
       .sort((a, b) => b.chamados - a.chamados)
       .slice(0, 8)
+  }, [records])
+
+  // Capacidade: exclui chamados internos (aberto por técnico da Mundo Open)
+  const recordsCapacidade = useMemo(() => {
+    const tecnicosConhecidos = buildTecnicoNameSet(records)
+    return records.filter((r) => !isAbertoPorTecnico(r, tecnicosConhecidos))
   }, [records])
 
   // Gráfico 2: Ranking de técnicos
@@ -1538,7 +1547,7 @@ export default function Index() {
 
           {/* NOVO: Capacidade por departamento (chamados ÷ técnicos, média/dia, aviso de limite) */}
           <CapacityPanel
-            records={records}
+            records={recordsCapacidade}
             capacities={capacities}
             loading={loading}
             onGoToConfig={() => navigate('/equipes')}

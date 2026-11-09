@@ -80,6 +80,9 @@ export function CapacityPanel({ records, capacities, loading, onGoToConfig }: Ca
             Chamados no período ÷ técnicos cadastrados = carga por técnico (média diária por técnico
             em dias úteis)
           </p>
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            Exclui chamados internos abertos por técnicos (Mundo Open).
+          </p>
         </div>
         <Button
           variant="outline"

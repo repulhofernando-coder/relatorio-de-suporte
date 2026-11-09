@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
-import { X, User, CalendarDays, Building2, Timer, Users, Hash } from 'lucide-react'
+import { X, User, CalendarDays, Building2, Timer, Users, Hash, UserCheck } from 'lucide-react'
 import { SupportRecord } from '@/types/support'
 import { Button } from '@/components/ui/button'
+import { normalizeHeader } from '@/lib/spreadsheet'
 
 interface TecnicoDrillDownProps {
   tecnico: string
@@ -27,6 +28,11 @@ function formatSlaHoras(horas: number | null | undefined): string {
   return `${(horas + Number.EPSILON).toFixed(2).replace('.', ',').replace(/,?0+$/, '')}h`
 }
 
+function formatPercent(part: number, total: number): string {
+  const pct = (part / total) * 100
+  return `${pct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
+}
+
 export function TecnicoDrillDown({ tecnico, records, onClose }: TecnicoDrillDownProps) {
   const stats = useMemo(() => {
     const doTecnico = records.filter((r) => r.tecnico?.trim() === tecnico)
@@ -39,8 +45,13 @@ export function TecnicoDrillDown({ tecnico, records, onClose }: TecnicoDrillDown
     const porAno: Record<string, number> = {}
     const deptos: Record<string, number> = {}
     const clientes: Record<string, number> = {}
+    const nomeNormalizado = normalizeHeader(tecnico)
+    let abertosPorEleMesmo = 0
 
     doTecnico.forEach((r) => {
+      if (r.aberto_por?.trim() && normalizeHeader(r.aberto_por) === nomeNormalizado) {
+        abertosPorEleMesmo += 1
+      }
       if (r.data_chamado) {
         const [y, m] = r.data_chamado.split('-')
         if (y && m) {
@@ -69,6 +80,7 @@ export function TecnicoDrillDown({ tecnico, records, onClose }: TecnicoDrillDown
 
     return {
       total: doTecnico.length,
+      abertosPorEleMesmo,
       slaMedio: slaValues.length
         ? slaValues.reduce((acc, v) => acc + v, 0) / slaValues.length
         : null,
@@ -119,12 +131,25 @@ export function TecnicoDrillDown({ tecnico, records, onClose }: TecnicoDrillDown
 
         <div className="p-5 space-y-5">
           {/* KPIs principais */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3">
               <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                 <Hash className="w-3 h-3" /> Chamados
               </div>
               <p className="text-2xl font-extrabold text-slate-900 mt-1">{stats.total}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3">
+              <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                <UserCheck className="w-3 h-3" /> Abertos por ele mesmo
+              </div>
+              <p className="text-2xl font-extrabold text-slate-900 mt-1">
+                {stats.abertosPorEleMesmo}
+              </p>
+              <p className="text-[10px] text-slate-400">
+                {stats.total > 0
+                  ? `${formatPercent(stats.abertosPorEleMesmo, stats.total)} do total`
+                  : 'sem chamados'}
+              </p>
             </div>
             <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3">
               <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
