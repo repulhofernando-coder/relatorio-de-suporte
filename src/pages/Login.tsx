@@ -296,16 +296,6 @@ export default function Login() {
                 </p>
               )}
             </div>
-
-            <div className="mt-6 p-3 rounded-lg bg-slate-50 border border-slate-100 text-center">
-              <p className="text-xs text-slate-500">
-                Acesso de demonstração:{' '}
-                <span className="font-mono text-slate-700 font-semibold">
-                  projetos@mundoopen.com.br
-                </span>{' '}
-                / senha: <span className="font-mono text-slate-700 font-semibold">Skip@Pass</span>
-              </p>
-            </div>
           </div>
         </div>
       </div>

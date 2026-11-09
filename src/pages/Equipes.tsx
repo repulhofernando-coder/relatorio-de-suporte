@@ -442,7 +442,11 @@ export default function Equipes() {
                         </Badge>
                       )}
                       <span className="text-[10px] text-slate-400">
-                        {isCampo || isN2 ? 'Metas de Gestão' : 'Padrão HDI N1'}
+                        {isCampo
+                          ? 'Fontes: MetricNet / CompTIA'
+                          : isN2
+                            ? 'Fontes: ITIL 4 / Gartner'
+                            : 'Fontes: HDI / MetricNet'}
                       </span>
                     </div>
                   </div>
@@ -585,62 +589,72 @@ export default function Equipes() {
         )}
       </div>
 
-      {/* RODAPÉ COM NOTAS DE FONTE BENCHMARK (N1 HDI + N2 GESTÃO + CAMPO GESTÃO) */}
+      {/* RODAPÉ COM NOTAS DE FONTE BENCHMARK (N1 HDI + METRICNET | N2 AXELOS/ITIL 4 + GARTNER | CAMPO METRICNET + COMPTIA) */}
       <footer className="mt-8 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-5 text-xs text-slate-600 space-y-3">
         <div className="flex items-center gap-2 text-slate-800 font-bold">
           <Award className="w-4 h-4 text-teal-600" />
-          <span>Fontes de referência e metodologia das metas</span>
+          <span>Fontes oficiais de referência e metodologia das metas</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 pt-1">
           <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
             <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
               <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
-              <span>Suporte Remoto N1 (Windows)</span>
+              <span>Suporte N1 (Remoto / Básico)</span>
             </div>
             <p className="text-[11px] text-slate-500 leading-relaxed">
-              <b>Fonte:</b> Help Desk Institute (HDI) e MetricNet para centrais de atendimento N1
-              remoto.
+              <b>Fontes oficiais:</b>
+              <br />• <b>HDI (Help Desk Institute)</b> — Service Desk Benchmarking Report (TMA 15–25
+              min para incidentes de baixa complexidade resolvidos remotamente).
+              <br />• <b>MetricNet</b> — Desktop Support and Service Desk Benchmarks (produtividade
+              12–18 chamados/dia, custo por ticket).
               <br />
               <b>Metas padrão:</b> TMA entre <b>15 e 25 min/chamado</b> e produtividade de{' '}
-              <b>12 a 18 chamados/dia/técnico</b>. Operação com foco em alto giro, retenção de
-              rotina e atendimento ágil.
+              <b>12 a 18 chamados/dia/técnico</b>. Foco em alto giro, retenção de rotina e
+              atendimento ágil.
             </p>
           </div>
 
           <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
             <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
               <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
-              <span>Suporte Técnico N2 (Infra/Projetos)</span>
+              <span>Suporte N2 (Remoto / Servidores e Infraestrutura)</span>
             </div>
             <p className="text-[11px] text-slate-500 leading-relaxed">
-              <b>Fonte:</b> Metas fornecidas diretamente pelo gestor da operação (definidas pela
-              gestão interna).
+              <b>Fontes oficiais:</b>
+              <br />• <b>AXELOS/PeopleCert (ITIL 4 Framework)</b> — Practice Guide: Incident
+              Management & Service Desk (TMA 1h–2h30 saudável para causa raiz; medido por capacidade
+              de investigação técnica, não por volume).
+              <br />• <b>Gartner</b> — IT Service Management Research Reports (eficiência por
+              disponibilidade vs. incidentes recorrentes, justificando modo proativo/preventivo).
               <br />
-              <b>Metas padrão:</b> TMA alvo de <b>60 a 90 min/chamado</b> (cenário tolerado até
-              2h30min para chamados complexos), produtividade de{' '}
-              <b>1,8 a 2,7 chamados/dia/técnico</b> e ocupação direta em tickets de <b>65% a 75%</b>
-              .
+              <b>Metas padrão:</b> TMA alvo de <b>60 a 90 min/chamado</b> (até 2h30min em
+              projetos/investigações), produtividade de <b>1,8 a 2,7 chamados/dia/técnico</b> e
+              ocupação direta em tickets de <b>65% a 75%</b>.
               <br />
-              <b>Contexto:</b> Operação de baixo volume; a maior parte do tempo da equipe é dedicada
-              a infraestrutura proativa, gestão de mudanças, backups, virtualização e projetos.
+              <b>Contexto:</b> Equipe focada em infraestrutura proativa, gestão de mudanças,
+              backups, virtualização e projetos.
             </p>
           </div>
 
           <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
             <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
               <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
-              <span>Campo / Field Service (Presencial)</span>
+              <span>Field Service (Campo Presencial)</span>
             </div>
             <p className="text-[11px] text-slate-500 leading-relaxed">
-              <b>Fonte:</b> Metas fornecidas pela gestão da operação (tabela de referência Field
-              Service).
+              <b>Fontes oficiais:</b>
+              <br />• <b>MetricNet</b> — Field Service Benchmarks (produtividade 1,2–1,8
+              chamados/dia; ocupação ideal 70–80% do dia incluindo trânsito/deslocamento).
+              <br />• <b>CompTIA</b> — Workforce & Tech Support Trends (alerta para ineficiência de
+              formatações in loco com TMA de 5h–6h; recomendação de metodologia de laboratório e
+              swap de máquinas).
               <br />
               <b>Metas padrão:</b> TMA entre <b>3h e 4h30min</b> (180–270 min), produtividade de{' '}
               <b>1,2 a 1,8 chamados/dia/técnico</b> e ocupação direta em tickets de <b>70% a 80%</b>{' '}
-              (equipe necessária ideal: <b>3 a 4 técnicos</b> para ~75 chamados/mês).
+              (equipe necessária estimada: <b>3 a 4 técnicos</b> para ~75 chamados/mês).
               <br />
-              <b>Contexto:</b> Atendimentos presenciais com deslocamento, formatação, antenas,
+              <b>Contexto:</b> Atendimentos presenciais corporativos/PMEs com deslocamento, antenas,
               relatórios técnicos e rotinas de laboratório.
             </p>
           </div>

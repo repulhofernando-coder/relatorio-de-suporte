@@ -771,25 +771,20 @@ export function BenchmarkPanel({
             <>
               <Layers className="w-3.5 h-3.5 text-blue-600" />
               <span className="font-medium text-slate-700">
-                Referência: Campo Gestão (Field Service)
+                Fontes: MetricNet & CompTIA (Field Service)
               </span>
             </>
           ) : isFilterN2 ? (
             <>
               <Layers className="w-3.5 h-3.5 text-amber-600" />
               <span className="font-medium text-slate-700">
-                Referência: N2 Gestão (Infra/Projetos)
+                Fontes: ITIL 4 (AXELOS) & Gartner (N2)
               </span>
             </>
           ) : (
             <>
               <Info className="w-3.5 h-3.5 text-slate-400" />
-              <span>
-                Referência:{' '}
-                {selectedDepartamento && selectedDepartamento !== 'todos'
-                  ? selectedDepartamento
-                  : 'N1 Remoto Windows'}
-              </span>
+              <span>Fontes: HDI & MetricNet (N1 Remoto)</span>
             </>
           )}
         </div>
@@ -871,16 +866,18 @@ export function BenchmarkPanel({
         </div>
       )}
 
-      {/* Nota de rodapé da tabela com referências HDI / MetricNet ou N2 Gestão */}
+      {/* Nota de rodapé da tabela com referências oficiais por departamento */}
       <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-400">
-        <span>
+        <span className="leading-relaxed">
           {isFilterCampo
-            ? 'Fonte de referência Campo: Metas fornecidas pela gestão interna (deslocamento, formatação/antenas, relatórios e laboratório).'
+            ? 'Fontes oficiais de Campo (Field Service): MetricNet — Field Service Benchmarks (1,2–1,8 ch/dia; 70–80% ocupação com trânsito) e CompTIA — Workforce & Tech Support Trends (metodologia de laboratório e swap de máquinas vs ineficiência de formatações in loco de 5h–6h).'
             : isFilterN2
-              ? 'Fonte de referência N2: Metas fornecidas pela gestão interna (foco em infraestrutura proativa, projetos e baixo volume de tickets).'
-              : 'Fonte de referência N1: Help Desk Institute (HDI) e MetricNet para suporte técnico remoto.'}
+              ? 'Fontes oficiais de N2: AXELOS/PeopleCert — ITIL 4 Framework (Incident Management: TMA 1h–2h30 para diagnóstico de causa raiz e investigação técnica) e Gartner — ITSM Research Reports (disponibilidade vs incidentes recorrentes; modo proativo/preventivo).'
+              : 'Fontes oficiais de N1: HDI (Help Desk Institute) — Service Desk Benchmarking Report (TMA 15–25 min para resolução remota rápida) e MetricNet — Desktop Support and Service Desk Benchmarks (produtividade 12–18 chamados/dia).'}
         </span>
-        <span className="font-medium text-slate-500">Metas customizáveis no menu Equipes</span>
+        <span className="font-medium text-slate-500 shrink-0">
+          Metas customizáveis no menu Equipes
+        </span>
       </div>
     </div>
   )
