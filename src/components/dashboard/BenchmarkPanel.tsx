@@ -31,6 +31,16 @@ function isN2(depto?: string | null): boolean {
   return norm === 'windows n2' || norm === 'n2' || norm === 'n2 remoto' || norm.includes('n2')
 }
 
+function isLinux(depto?: string | null): boolean {
+  if (!depto) return false
+  const norm = depto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+  return norm === 'linux' || norm.includes('linux')
+}
+
 function isCampo(depto?: string | null): boolean {
   if (!depto) return false
   const norm = depto
@@ -61,6 +71,7 @@ export function BenchmarkPanel({
   loading,
   selectedDepartamento,
 }: BenchmarkPanelProps) {
+  const isFilterLinux = useMemo(() => isLinux(selectedDepartamento), [selectedDepartamento])
   const isFilterN2 = useMemo(() => isN2(selectedDepartamento), [selectedDepartamento])
   const isFilterCampo = useMemo(() => isCampo(selectedDepartamento), [selectedDepartamento])
 
@@ -121,7 +132,7 @@ export function BenchmarkPanel({
     let capacidadePlanejadaChamados = 0
     if (activeCapacity) {
       const qtd = activeCapacity.qtd_tecnicos || 1
-      const fallbackLim = isFilterCampo ? 1.8 : isFilterN2 ? 2.7 : 15
+      const fallbackLim = isFilterLinux ? 5.5 : isFilterCampo ? 1.8 : isFilterN2 ? 2.7 : 15
       const lim = Number(
         activeCapacity.limite_diario ||
           activeCapacity.meta_chamados_dia_max ||
@@ -142,7 +153,7 @@ export function BenchmarkPanel({
     }
 
     if (capacidadePlanejadaChamados <= 0) {
-      const padraoDia = isFilterCampo ? 1.5 : isFilterN2 ? 2.25 : 15
+      const padraoDia = isFilterLinux ? 5.5 : isFilterCampo ? 1.5 : isFilterN2 ? 2.25 : 15
       capacidadePlanejadaChamados = tecnicosEquipe * padraoDia * diasAtendimento
     }
 
@@ -152,11 +163,15 @@ export function BenchmarkPanel({
         : null
 
     // 5) Equipe necessária para atender o volume com a meta ideal
-    const metaProdMedia = isFilterCampo
-      ? Number(activeCapacity?.meta_chamados_dia_max ?? activeCapacity?.meta_chamados_dia ?? 1.5)
-      : isFilterN2
-        ? Number(activeCapacity?.meta_chamados_dia_max ?? activeCapacity?.meta_chamados_dia ?? 2.25)
-        : Number(activeCapacity?.meta_chamados_dia ?? 15)
+    const metaProdMedia = isFilterLinux
+      ? Number(activeCapacity?.meta_chamados_dia_max ?? activeCapacity?.meta_chamados_dia ?? 5.5)
+      : isFilterCampo
+        ? Number(activeCapacity?.meta_chamados_dia_max ?? activeCapacity?.meta_chamados_dia ?? 1.5)
+        : isFilterN2
+          ? Number(
+              activeCapacity?.meta_chamados_dia_max ?? activeCapacity?.meta_chamados_dia ?? 2.25,
+            )
+          : Number(activeCapacity?.meta_chamados_dia ?? 15)
 
     const chamadosPorTecnicoPeriodo = metaProdMedia * diasAtendimento
     const tecnicosNecessarios =
@@ -176,10 +191,201 @@ export function BenchmarkPanel({
       tecnicosNecessarios,
       capacidadeComEquipeAtual,
     }
-  }, [records, capacities, activeCapacity, selectedDepartamento, isFilterN2, isFilterCampo])
+  }, [
+    records,
+    capacities,
+    activeCapacity,
+    selectedDepartamento,
+    isFilterLinux,
+    isFilterN2,
+    isFilterCampo,
+  ])
 
   const rows: BenchmarkRow[] = useMemo(() => {
     const list: BenchmarkRow[] = []
+
+    if (isFilterLinux) {
+      // =========================================================
+      // MODO LINUX (INFRAESTRUTURA MISTA / INTELLIGENT SWARMING)
+      // =========================================================
+      const metaTmaMin = activeCapacity?.meta_tma_min_num ?? 30
+      const metaTmaMax = activeCapacity?.meta_tma_max_num ?? 50
+      const metaChMin = activeCapacity?.meta_chamados_dia_min ?? 4
+      const metaChMax = activeCapacity?.meta_chamados_dia_max ?? 7
+      const metaOcupMin = activeCapacity?.meta_ocupacao_min ?? 65
+      const metaOcupMax = activeCapacity?.meta_ocupacao_max ?? 75
+
+      // 1. Volume de Chamados / Mês
+      list.push({
+        indicador: 'Volume de Chamados no Período',
+        descricao: 'Demanda de chamados do departamento Linux absorvida pela equipe',
+        real: `${dados.totalChamados.toLocaleString('pt-BR')} chamados`,
+        realNum: dados.totalChamados,
+        ideal: '~350 a 400 chamados/mês (referência: ~351 chamados)',
+        status: 'informativo',
+        statusTexto: 'Informativo',
+        diagnostico:
+          'Operação mista (Intelligent Swarming): rotinas ágeis de cPanel/PHP convivendo com investigações aprofundadas de redes e infraestrutura (Fortigate/UniFi).',
+      })
+
+      // 2. Tamanho da Equipe e Dimensionamento
+      const eqAtual = dados.tecnicosEquipe
+      const eqIdeal = 7
+      const eqDentro = eqAtual >= 6 && eqAtual <= 8
+      list.push({
+        indicador: 'Tamanho da Equipe / Especialistas',
+        descricao: 'Dimensionamento da equipe Linux para cobrir a operação especializada mista',
+        real: `${eqAtual} especialista${eqAtual > 1 ? 's' : ''}`,
+        realNum: eqAtual,
+        ideal: `${eqIdeal} especialistas (equipe de referência)`,
+        status: eqDentro || eqAtual >= eqIdeal ? 'verde' : 'vermelho',
+        statusTexto: eqDentro || eqAtual >= eqIdeal ? 'Equipe adequada' : 'Abaixo do ideal',
+        diagnostico:
+          eqAtual >= eqIdeal
+            ? `Equipe de ${eqAtual} especialistas atende a demanda especializada e permite rotatividade sem filas de escalonamento.`
+            : `Equipe atual com ${eqAtual} especialista(s) está abaixo da referência de 7 técnicos, gerando gargalo em chamados de maior complexidade.`,
+      })
+
+      // 3. Tempo Médio de Atendimento (TMA)
+      if (dados.tmaRealMin !== null) {
+        const tmaRound = Math.round(dados.tmaRealMin)
+        const tmaFormat = formatMinutesToHours(tmaRound)
+
+        const dentroFaixa = tmaRound >= metaTmaMin && tmaRound <= metaTmaMax
+        const abaixo = tmaRound < metaTmaMin
+        const acima = tmaRound > metaTmaMax
+
+        let status: 'verde' | 'vermelho' = dentroFaixa ? 'verde' : 'vermelho'
+        let statusTexto = dentroFaixa
+          ? 'Dentro da meta'
+          : abaixo
+            ? 'Abaixo da faixa'
+            : 'Acima da meta'
+
+        let diagnostico = ''
+        if (dentroFaixa) {
+          diagnostico = `Excelente. TMA em ${tmaFormat}, dentro da faixa alvo mista (30–50 min). Reflete equilíbrio entre rotinas ágeis de cPanel/PHP e análises de redes.`
+        } else if (abaixo) {
+          diagnostico = `Média de ${tmaFormat}, abaixo de 30 min. Predomínio de tickets rápidos de cPanel/PHP ou falta de registro de tempo em manutenções profundas.`
+        } else {
+          diagnostico = `Média de ${tmaFormat}, acima de 50 min. Maior concentração de chamados complexos de redes (Fortigate/UniFi) ou gargalo de investigação técnica.`
+        }
+
+        list.push({
+          indicador: 'Tempo Médio de Atendimento (TMA Geral)',
+          descricao: 'Duração média dedicada por chamado na esteira mista Linux',
+          real: tmaFormat,
+          realNum: tmaRound,
+          ideal: `${metaTmaMin} a ${metaTmaMax} min (referência ~42 min / 0,71h)`,
+          status,
+          statusTexto,
+          diagnostico,
+        })
+      } else {
+        list.push({
+          indicador: 'Tempo Médio de Atendimento (TMA Geral)',
+          descricao: 'Duração média dedicada por chamado na esteira mista Linux',
+          real: 'Sem apontamento',
+          realNum: null,
+          ideal: `${metaTmaMin} a ${metaTmaMax} min (referência ~42 min / 0,71h)`,
+          status: 'vermelho',
+          statusTexto: 'Sem dados',
+          diagnostico:
+            'Os chamados de Linux no período não possuem apontamento de tempo trabalhado.',
+        })
+      }
+
+      // 4. SLA por Complexidade (cPanel/PHP vs Fortigate/UniFi)
+      list.push({
+        indicador: 'SLA Alvo por Complexidade',
+        descricao: 'Referência por categoria: rotinas de painel vs redes e firewalls',
+        real: 'cPanel: 30–45 min | UniFi: 1h30–3h',
+        realNum: null,
+        ideal: 'Quebra por tópico (Consortium / HDI)',
+        status: 'informativo',
+        statusTexto: 'Referência',
+        diagnostico:
+          'Operação mista sem filas rígidas de N1/N2: tickets de cPanel/PHP devem fechar entre 30 e 45 min; chamados de Fortigate/UniFi têm tolerância entre 1h30 e 3h para causa raiz.',
+      })
+
+      // 5. Produtividade Diária (Chamados/Técnico)
+      if (dados.chamadosPorTecnicoDiaReal !== null && dados.totalChamados > 0) {
+        const prod = Math.round(dados.chamadosPorTecnicoDiaReal * 100) / 100
+        const prodFormat = prod.toLocaleString('pt-BR', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+        const dentro = prod >= metaChMin && prod <= metaChMax
+        const abaixo = prod < metaChMin
+
+        let status: 'verde' | 'vermelho' = dentro ? 'verde' : 'vermelho'
+        let statusTexto = dentro ? 'Dentro da meta' : abaixo ? 'Abaixo da meta' : 'Acima da meta'
+
+        let diagnostico = ''
+        if (dentro) {
+          diagnostico = `Produtividade equilibrada para o perfil misto (${prodFormat} chamados/dia vs meta ${metaChMin} a ${metaChMax} chamados/dia).`
+        } else if (abaixo) {
+          diagnostico = `Média de ${prodFormat} chamados/dia abaixo de 4. Indica dedicação a projetos de infraestrutura ou resolução de poucos incidentes de alta complexidade.`
+        } else {
+          diagnostico = `Produtividade acima de 7 chamados/dia (${prodFormat}). Volume elevado: monitorar se a equipe não está sobrecarregada ou focada apenas em tarefas rápidas.`
+        }
+
+        list.push({
+          indicador: 'Produtividade Diária (Chamados/Técnico)',
+          descricao: 'Média de tickets concluídos por especialista em cada dia útil',
+          real: `${prodFormat} chamados/dia`,
+          realNum: prod,
+          ideal: `${metaChMin.toLocaleString('pt-BR')} a ${metaChMax.toLocaleString('pt-BR')} chamados/dia`,
+          status,
+          statusTexto,
+          diagnostico,
+        })
+      } else {
+        list.push({
+          indicador: 'Produtividade Diária (Chamados/Técnico)',
+          descricao: 'Média de tickets concluídos por especialista em cada dia útil',
+          real: '—',
+          realNum: null,
+          ideal: `${metaChMin.toLocaleString('pt-BR')} a ${metaChMax.toLocaleString('pt-BR')} chamados/dia`,
+          status: 'vermelho',
+          statusTexto: 'Sem dados',
+          diagnostico: 'Sem registros suficientes para calcular a produtividade diária do Linux.',
+        })
+      }
+
+      // 6. Ocupação Direta em Tickets
+      if (dados.taxaOcupacaoPercent !== null) {
+        const ocup = Math.round(dados.taxaOcupacaoPercent * 10) / 10
+        const ocupFormat = `${ocup.toLocaleString('pt-BR')}%`
+        const dentro = ocup >= metaOcupMin && ocup <= metaOcupMax
+        const abaixo = ocup < metaOcupMin
+
+        let status: 'verde' | 'vermelho' = dentro ? 'verde' : 'vermelho'
+        let statusTexto = dentro ? 'Dentro da meta' : abaixo ? 'Abaixo da meta' : 'Acima da meta'
+
+        let diagnostico = ''
+        if (dentro) {
+          diagnostico = `Ocupação saudável (${ocupFormat} do tempo em tickets). Restante (~25% a 35%) preservado para manutenções, scripts e automação de servidores.`
+        } else if (abaixo) {
+          diagnostico = `Ocupação em tickets de ${ocupFormat}. Mais de um terço do tempo disponível para projetos de datacenter, infraestrutura e hardening.`
+        } else {
+          diagnostico = `A equipe está gastando ${ocupFormat} do expediente em tickets. Risco de negligenciar atualizações preventivas e automações de infra.`
+        }
+
+        list.push({
+          indicador: 'Ocupação Direta em Tickets',
+          descricao: 'Percentual do expediente investido diretamente na resolução dos chamados',
+          real: `~${ocupFormat} do tempo`,
+          realNum: ocup,
+          ideal: `${metaOcupMin}% a ${metaOcupMax}% do tempo`,
+          status,
+          statusTexto,
+          diagnostico,
+        })
+      }
+
+      return list
+    }
 
     if (isFilterCampo) {
       // =========================================================
@@ -705,16 +911,18 @@ export function BenchmarkPanel({
     })
 
     return list
-  }, [dados, isFilterN2, isFilterCampo, activeCapacity])
+  }, [dados, isFilterLinux, isFilterN2, isFilterCampo, activeCapacity])
 
   // Título e cabeçalhos dinâmicos
-  const cenarioIdealTitulo = isFilterCampo
-    ? 'Cenário Ideal (Field Service)'
-    : isFilterN2
-      ? 'Cenário Ideal (N2 Remoto)'
-      : selectedDepartamento && selectedDepartamento !== 'todos'
-        ? `Cenário Ideal (${selectedDepartamento})`
-        : 'Cenário Ideal (N1 Remoto)'
+  const cenarioIdealTitulo = isFilterLinux
+    ? 'Cenário Ideal (Linux Misto)'
+    : isFilterCampo
+      ? 'Cenário Ideal (Field Service)'
+      : isFilterN2
+        ? 'Cenário Ideal (N2 Remoto)'
+        : selectedDepartamento && selectedDepartamento !== 'todos'
+          ? `Cenário Ideal (${selectedDepartamento})`
+          : 'Cenário Ideal (N1 Remoto)'
 
   return (
     <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80 flex flex-col">
@@ -723,11 +931,13 @@ export function BenchmarkPanel({
           <div className="flex items-center gap-2">
             <div
               className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                isFilterCampo
-                  ? 'bg-blue-50 text-blue-600'
-                  : isFilterN2
-                    ? 'bg-amber-50 text-amber-600'
-                    : 'bg-teal-50 text-teal-600'
+                isFilterLinux
+                  ? 'bg-purple-50 text-purple-600'
+                  : isFilterCampo
+                    ? 'bg-blue-50 text-blue-600'
+                    : isFilterN2
+                      ? 'bg-amber-50 text-amber-600'
+                      : 'bg-teal-50 text-teal-600'
               }`}
             >
               <Award className="w-4 h-4" />
@@ -735,6 +945,14 @@ export function BenchmarkPanel({
             <div>
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 Comparativo de Desempenho (Benchmark)
+                {isFilterLinux && (
+                  <Badge
+                    variant="outline"
+                    className="bg-purple-50 text-purple-700 border-purple-200 text-[10px] font-semibold"
+                  >
+                    Perfil Linux Misto
+                  </Badge>
+                )}
                 {isFilterCampo && (
                   <Badge
                     variant="outline"
@@ -753,18 +971,27 @@ export function BenchmarkPanel({
                 )}
               </h3>
               <p className="text-xs text-slate-500">
-                {isFilterCampo
-                  ? 'Comparação com os benchmarks de gestão para operação Campo (deslocamento, laboratório e atendimento presencial)'
-                  : isFilterN2
-                    ? 'Comparação com os benchmarks de gestão para operação N2 (baixo volume, infraestrutura e projetos)'
-                    : 'Comparação entre a operação real e as referências de mercado N1 Remoto (HDI/MetricNet)'}
+                {isFilterLinux
+                  ? 'Comparação com os benchmarks para operação mista Linux (Intelligent Swarming: cPanel/PHP vs redes Fortigate/UniFi)'
+                  : isFilterCampo
+                    ? 'Comparação com os benchmarks de gestão para operação Campo (deslocamento, laboratório e atendimento presencial)'
+                    : isFilterN2
+                      ? 'Comparação com os benchmarks de gestão para operação N2 (baixo volume, infraestrutura e projetos)'
+                      : 'Comparação entre a operação real e as referências de mercado N1 Remoto (HDI/MetricNet)'}
               </p>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200/60 self-start sm:self-auto">
-          {isFilterCampo ? (
+          {isFilterLinux ? (
+            <>
+              <Layers className="w-3.5 h-3.5 text-purple-600" />
+              <span className="font-medium text-slate-700">
+                Fontes: Swarming℠, HDI & MetricNet (Linux)
+              </span>
+            </>
+          ) : isFilterCampo ? (
             <>
               <Layers className="w-3.5 h-3.5 text-blue-600" />
               <span className="font-medium text-slate-700">
@@ -866,11 +1093,13 @@ export function BenchmarkPanel({
       {/* Nota de rodapé da tabela com referências oficiais por departamento */}
       <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-400">
         <span className="leading-relaxed">
-          {isFilterCampo
-            ? 'Fontes oficiais de Campo (Field Service): MetricNet — Field Service Benchmarks (1,2–1,8 ch/dia; 70–80% ocupação com trânsito) e CompTIA — Workforce & Tech Support Trends (metodologia de laboratório e swap de máquinas vs ineficiência de formatações in loco de 5h–6h).'
-            : isFilterN2
-              ? 'Fontes oficiais de N2: AXELOS/PeopleCert — ITIL 4 Framework (Incident Management: TMA 1h–2h30 para diagnóstico de causa raiz e investigação técnica) e Gartner — ITSM Research Reports (disponibilidade vs incidentes recorrentes; modo proativo/preventivo).'
-              : 'Fontes oficiais de N1: HDI (Help Desk Institute) — Service Desk Benchmarking Report (TMA 15–25 min para resolução remota rápida) e MetricNet — Desktop Support and Service Desk Benchmarks (produtividade 12–18 chamados/dia).'}
+          {isFilterLinux
+            ? 'Fontes oficiais de Linux: Consortium for Service Innovation — Intelligent Swarming℠ (operação sem filas rígidas); HDI — Support Center Practices & Salary Report (resolução por complexidade: 30–45 min cPanel/PHP; 1h30–3h Fortigate/UniFi); MetricNet — Infrastructure and Network Support Benchmarks (TMA misto 30–50 min).'
+            : isFilterCampo
+              ? 'Fontes oficiais de Campo (Field Service): MetricNet — Field Service Benchmarks (1,2–1,8 ch/dia; 70–80% ocupação com trânsito) e CompTIA — Workforce & Tech Support Trends (metodologia de laboratório e swap de máquinas vs ineficiência de formatações in loco de 5h–6h).'
+              : isFilterN2
+                ? 'Fontes oficiais de N2: AXELOS/PeopleCert — ITIL 4 Framework (Incident Management: TMA 1h–2h30 para diagnóstico de causa raiz e investigação técnica) e Gartner — ITSM Research Reports (disponibilidade vs incidentes recorrentes; modo proativo/preventivo).'
+                : 'Fontes oficiais de N1: HDI (Help Desk Institute) — Service Desk Benchmarking Report (TMA 15–25 min para resolução remota rápida) e MetricNet — Desktop Support and Service Desk Benchmarks (produtividade 12–18 chamados/dia).'}
         </span>
         <span className="font-medium text-slate-500 shrink-0">
           Metas customizáveis no menu Equipes
