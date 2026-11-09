@@ -8,6 +8,8 @@ import {
   MapeamentoInsert,
   DepartmentCapacityRecord,
   DepartmentCapacityUpsert,
+  SavedReportRecord,
+  SavedReportInsert,
 } from '@/types/support'
 
 /* ========================================================
@@ -134,9 +136,9 @@ export async function insertSupportRecordsBatch(
       user_id: userId,
     }))
 
-    // Upsert por (user_id, numero) para atualizar chamados existentes sem duplicar
+    // Upsert por numero único para atualizar chamados existentes em toda a equipe sem duplicar
     const { error } = await (supabase as any).from('support_records').upsert(chunk, {
-      onConflict: 'user_id,numero',
+      onConflict: 'numero',
       ignoreDuplicates: false,
     })
 
@@ -185,7 +187,7 @@ export async function upsertMapeamento(record: MapeamentoInsert): Promise<Mapeam
         mapeamento: record.mapeamento,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: 'user_id,nome' },
+      { onConflict: 'nome' },
     )
     .select()
     .single()
@@ -218,7 +220,7 @@ export async function deleteMapeamento(id: string): Promise<void> {
 export async function fetchDepartamentosEmUso(): Promise<string[]> {
   const { data, error } = await (supabase as any).rpc('get_departamentos_em_uso')
 
-  if (!error && Array.isArray(data)) {
+  if (!error && Array.isArray(data) && data.length > 0) {
     const set = new Set<string>()
     for (const dep of data as string[]) {
       if (dep) set.add(dep)
@@ -357,7 +359,7 @@ export async function upsertDepartmentCapacity(
         meta_ocupacao_max: record.meta_ocupacao_max ?? null,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: 'user_id,departamento' },
+      { onConflict: 'departamento' },
     )
     .select()
     .single()
@@ -376,5 +378,84 @@ export async function deleteDepartmentCapacity(departamento: string): Promise<vo
 
   if (error) {
     throw new Error(`Erro ao remover capacidade do departamento: ${error.message}`)
+  }
+}
+
+/* ========================================================
+   SAVED REPORTS SERVICE
+   ======================================================== */
+
+export async function fetchSavedReports(): Promise<SavedReportRecord[]> {
+  const { data, error } = await (supabase as any)
+    .from('saved_reports')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    throw new Error(`Erro ao buscar relatórios salvos: ${error.message}`)
+  }
+  return (data as SavedReportRecord[]) || []
+}
+
+/**
+ * Busca a lista de nomes de técnicos distintos presentes na base de atendimentos.
+ */
+export async function fetchTecnicosEmUso(): Promise<string[]> {
+  const PAGE = 1000
+  const set = new Set<string>()
+  let from = 0
+
+  for (;;) {
+    const { data: rows, error: pageError } = await (supabase as any)
+      .from('support_records')
+      .select('tecnico')
+      .not('tecnico', 'is', null)
+      .range(from, from + PAGE - 1)
+
+    if (pageError) {
+      throw new Error(`Erro ao buscar técnicos: ${pageError.message}`)
+    }
+
+    for (const row of (rows as Array<{ tecnico: string | null }>) || []) {
+      const t = row.tecnico?.trim()
+      if (t) set.add(t)
+    }
+
+    if (!rows || rows.length < PAGE) break
+    from += PAGE
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+}
+
+export async function createSavedReport(record: SavedReportInsert): Promise<SavedReportRecord> {
+  const { data: userData } = await supabase.auth.getUser()
+  const user = userData?.user
+  if (!user) throw new Error('Usuário não autenticado.')
+
+  const creatorName =
+    record.created_by_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Usuário'
+
+  const { data, error } = await (supabase as any)
+    .from('saved_reports')
+    .insert({
+      name: record.name,
+      filters: record.filters,
+      created_by: user.id,
+      created_by_name: creatorName,
+    })
+    .select()
+    .single()
+
+  if (error) {
+    throw new Error(`Erro ao salvar relatório: ${error.message}`)
+  }
+  return data as SavedReportRecord
+}
+
+export async function deleteSavedReport(id: string): Promise<void> {
+  const { error } = await (supabase as any).from('saved_reports').delete().eq('id', id)
+
+  if (error) {
+    throw new Error(`Erro ao excluir relatório salvo: ${error.message}`)
   }
 }

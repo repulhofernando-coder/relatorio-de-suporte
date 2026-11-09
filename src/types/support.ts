@@ -118,6 +118,38 @@ export interface MapeamentoInsert {
   user_id?: string
 }
 
+export type SavedReportPeriodChip =
+  | 'este_mes'
+  | 'mes_passado'
+  | 'ultimos_3_meses'
+  | 'este_ano'
+  | 'tudo'
+  | 'personalizado'
+
+export interface SavedReportFilters {
+  periodo: SavedReportPeriodChip
+  startDate?: string
+  endDate?: string
+  departamento?: string
+  tecnico?: string
+}
+
+export interface SavedReportRecord {
+  id: string
+  name: string
+  filters: SavedReportFilters
+  created_by: string | null
+  created_by_name: string | null
+  created_at: string
+}
+
+export interface SavedReportInsert {
+  name: string
+  filters: SavedReportFilters
+  created_by?: string | null
+  created_by_name?: string | null
+}
+
 export type StandardFieldKey =
   | 'cliente'
   | 'tecnico'

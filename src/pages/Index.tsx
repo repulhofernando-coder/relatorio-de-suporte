@@ -1,12 +1,18 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   fetchSupportRecords,
   fetchDepartamentosEmUso,
   fetchDepartmentCapacity,
+  createSavedReport,
   FetchSupportRecordsParams,
 } from '@/services/support'
-import { SupportRecord, DepartmentCapacityRecord } from '@/types/support'
+import {
+  SupportRecord,
+  DepartmentCapacityRecord,
+  SavedReportPeriodChip,
+  SavedReportFilters,
+} from '@/types/support'
 import { normalizeHeader } from '@/lib/spreadsheet'
 import { CountUp } from '@/components/dashboard/CountUp'
 import {
@@ -29,7 +35,18 @@ import {
   Printer,
   CheckCircle2,
   AlertTriangle,
+  BookmarkPlus,
+  Loader2,
 } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { CapacityPanel } from '@/components/dashboard/CapacityPanel'
 import { TecnicoDrillDown } from '@/components/dashboard/TecnicoDrillDown'
 import { ClientesUsoInadequadoPanel } from '@/components/dashboard/ClientesUsoInadequadoPanel'
@@ -206,6 +223,9 @@ function isAbertoPorTecnico(r: SupportRecord, tecnicosConhecidos: Set<string>): 
 
 export default function Index() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const { toast } = useToast()
+
   const [records, setRecords] = useState<SupportRecord[]>([])
   const [previousPeriodRecordsCount, setPreviousPeriodRecordsCount] = useState<number | null>(null)
   const [previousPeriodSlaMedia, setPreviousPeriodSlaMedia] = useState<number | null>(null)
@@ -215,7 +235,12 @@ export default function Index() {
   const [capacities, setCapacities] = useState<DepartmentCapacityRecord[]>([])
   const [tecnicoSelecionado, setTecnicoSelecionado] = useState<string | null>(null)
 
-  // Filtros — o preset inicial é resolvido no primeiro load (mês atual vazio → "Tudo")
+  // Modal Salvar Visão
+  const [modalSalvarVisao, setModalSalvarVisao] = useState(false)
+  const [nomeVisao, setNomeVisao] = useState('')
+  const [salvandoVisao, setSalvandoVisao] = useState(false)
+
+  // Filtros — o preset inicial é resolvido no primeiro load (ou via query params de relatório)
   const [preset, setPreset] = useState<PeriodPreset | null>(null)
   const [customStart, setCustomStart] = useState<string>('')
   const [customEnd, setCustomEnd] = useState<string>('')
@@ -280,8 +305,44 @@ export default function Index() {
     [activeDateRange, departamentoFiltro],
   )
 
-  // Primeiro load: se o mês atual não tem nenhum registro, o padrão é "Tudo"
+  // Primeiro load: verifica query params de relatórios salvos ou detecta período padrão
   useEffect(() => {
+    const paramPeriodo = searchParams.get('periodo')
+    const paramStart = searchParams.get('startDate')
+    const paramEnd = searchParams.get('endDate')
+    const paramDepto = searchParams.get('departamento')
+    const paramTecnico = searchParams.get('tecnico')
+
+    if (paramDepto) {
+      setDepartamentoFiltro(paramDepto)
+    }
+    if (paramTecnico) {
+      setTecnicoSelecionado(paramTecnico)
+    }
+
+    if (paramPeriodo) {
+      // Normalização: se o param veio como 'este_mes' ou 'este-mes'
+      const normalizedPreset = paramPeriodo.replace('_', '-') as PeriodPreset
+      if (normalizedPreset === 'personalizado') {
+        setPreset('personalizado')
+        const s = paramStart || ''
+        const e = paramEnd || ''
+        setCustomStart(s)
+        setCustomEnd(e)
+        const label = `${s ? formatShortDate(s) : 'Início'} — ${e ? formatShortDate(e) : 'Fim'}`
+        setActiveDateRange({
+          startDate: s || undefined,
+          endDate: e || undefined,
+          label,
+        })
+      } else {
+        setPreset(normalizedPreset)
+        setActiveDateRange(getPresetDates(normalizedPreset))
+      }
+      setInicializado(true)
+      return
+    }
+
     const inicializar = async () => {
       try {
         const now = new Date()
@@ -308,7 +369,7 @@ export default function Index() {
     }
     inicializar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [searchParams])
 
   useEffect(() => {
     if (inicializado) loadData()
@@ -349,6 +410,73 @@ export default function Index() {
       endDate: customEnd || undefined,
       label,
     })
+  }
+
+  // Prepara sugestão de nome para o modal "Salvar visão"
+  const handleAbrirModalSalvarVisao = () => {
+    const defaultName = `Visão — ${activeDateRange.label}${
+      departamentoFiltro !== 'todos' ? ` · ${departamentoFiltro}` : ''
+    }${tecnicoSelecionado ? ` · ${tecnicoSelecionado}` : ''}`
+    setNomeVisao(defaultName)
+    setModalSalvarVisao(true)
+  }
+
+  // Salva a visão atual em saved_reports
+  const handleConfirmarSalvarVisao = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const trimmed = nomeVisao.trim()
+    if (!trimmed) {
+      toast({
+        variant: 'destructive',
+        title: 'Nome obrigatório',
+        description: 'Informe um nome para a visão salva.',
+      })
+      return
+    }
+
+    setSalvandoVisao(true)
+    try {
+      const periodoChip: SavedReportPeriodChip =
+        preset === 'este-mes'
+          ? 'este_mes'
+          : preset === 'mes-passado'
+            ? 'mes_passado'
+            : preset === 'ultimos-3-meses'
+              ? 'ultimos_3_meses'
+              : preset === 'este-ano'
+                ? 'este_ano'
+                : preset === 'personalizado'
+                  ? 'personalizado'
+                  : 'tudo'
+
+      const filters: SavedReportFilters = {
+        periodo: periodoChip,
+        startDate: activeDateRange.startDate,
+        endDate: activeDateRange.endDate,
+        departamento: departamentoFiltro !== 'todos' ? departamentoFiltro : undefined,
+        tecnico: tecnicoSelecionado || undefined,
+      }
+
+      await createSavedReport({
+        name: trimmed,
+        filters,
+      })
+
+      setModalSalvarVisao(false)
+      toast({
+        title: 'Visão salva em Relatórios!',
+        description: `O relatório "${trimmed}" foi salvo e pode ser acessado no menu Relatórios por toda a equipe.`,
+      })
+    } catch (err: any) {
+      console.error('Erro ao salvar visão:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao salvar visão',
+        description: err.message || 'Não foi possível salvar a visão atual.',
+      })
+    } finally {
+      setSalvandoVisao(false)
+    }
   }
 
   // KPIs
@@ -626,6 +754,17 @@ export default function Index() {
         </div>
 
         <div className="flex items-center gap-2 print:hidden">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleAbrirModalSalvarVisao}
+            className="h-9 rounded-xl bg-white border-slate-200 text-slate-700 hover:bg-slate-50 gap-2 shadow-sm"
+            title="Salvar esta visão nos Relatórios da equipe"
+          >
+            <BookmarkPlus className="w-3.5 h-3.5 text-teal-600" />
+            <span>Salvar visão</span>
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
@@ -1668,6 +1807,86 @@ export default function Index() {
           onClose={() => setTecnicoSelecionado(null)}
         />
       )}
+
+      {/* MODAL SALVAR VISÃO */}
+      <Dialog open={modalSalvarVisao} onOpenChange={setModalSalvarVisao}>
+        <DialogContent className="rounded-2xl max-w-md">
+          <form onSubmit={handleConfirmarSalvarVisao} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <BookmarkPlus className="w-5 h-5 text-teal-600" />
+                <span>Salvar visão atual</span>
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-500">
+                Esta visão ficará gravada no menu <b>Relatórios</b> com os filtros ativos e estará
+                visível para toda a equipe.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 pt-1 text-xs">
+              <div className="space-y-1">
+                <label className="font-semibold text-slate-700">Nome da visão / relatório *</label>
+                <Input
+                  type="text"
+                  value={nomeVisao}
+                  onChange={(e) => setNomeVisao(e.target.value)}
+                  placeholder="Ex.: Análise de SLA — Fevereiro 2026"
+                  className="h-9 text-xs rounded-xl border-slate-200"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              {/* Prévia dos filtros que serão salvos */}
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-1.5 text-xs text-slate-600">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Filtros que serão aplicados
+                </span>
+                <p className="font-medium text-slate-800">
+                  <b>Período:</b> {activeDateRange.label}
+                </p>
+                <p className="font-medium text-slate-800">
+                  <b>Departamento:</b>{' '}
+                  {departamentoFiltro === 'todos' ? 'Todos os departamentos' : departamentoFiltro}
+                </p>
+                {tecnicoSelecionado && (
+                  <p className="font-medium text-slate-800">
+                    <b>Técnico selecionado:</b> {tecnicoSelecionado}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setModalSalvarVisao(false)}
+                disabled={salvandoVisao}
+                className="rounded-xl text-xs h-9"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={salvandoVisao}
+                className="rounded-xl text-xs h-9 bg-teal-600 hover:bg-teal-700 text-white font-semibold gap-1.5"
+              >
+                {salvandoVisao ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Salvando...</span>
+                  </>
+                ) : (
+                  <span>Salvar nos Relatórios</span>
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -10,6 +10,7 @@ import {
   Ticket,
   Users,
   UserCog,
+  FileText,
   LogOut,
   Menu,
   X,
@@ -20,6 +21,7 @@ import { Button } from '@/components/ui/button'
 
 const NAV_ITEMS = [
   { label: 'Visão Geral', path: '/', icon: LineChart },
+  { label: 'Relatórios', path: '/relatorios', icon: FileText },
   { label: 'Chamados', path: '/chamados', icon: Ticket },
   { label: 'Equipes', path: '/equipes', icon: Users },
   { label: 'Importar Planilha', path: '/importar', icon: Upload },
