@@ -28,6 +28,14 @@ const DEFAULT_N2_CHAMADOS_MAX = 2.7
 const DEFAULT_N2_OCUPACAO_MIN = 65
 const DEFAULT_N2_OCUPACAO_MAX = 75
 
+// Defaults Campo / Field Service (metas fornecidas pela gestão)
+const DEFAULT_CAMPO_TMA_MIN = 180
+const DEFAULT_CAMPO_TMA_MAX = 270
+const DEFAULT_CAMPO_CHAMADOS_MIN = 1.2
+const DEFAULT_CAMPO_CHAMADOS_MAX = 1.8
+const DEFAULT_CAMPO_OCUPACAO_MIN = 70
+const DEFAULT_CAMPO_OCUPACAO_MAX = 80
+
 function isN2Department(depto: string): boolean {
   const norm = depto
     .toLowerCase()
@@ -35,6 +43,21 @@ function isN2Department(depto: string): boolean {
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
   return norm === 'windows n2' || norm === 'n2' || norm === 'n2 remoto' || norm.includes('n2')
+}
+
+function isCampoDepartment(depto: string): boolean {
+  const norm = depto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+  return (
+    norm === 'campo' ||
+    norm === 'field service' ||
+    norm === 'field' ||
+    norm.includes('campo') ||
+    norm.includes('field')
+  )
 }
 
 interface DraftRow {
@@ -51,23 +74,27 @@ interface DraftRow {
 
 function toDraft(departamento: string, existing?: DepartmentCapacityRecord): DraftRow {
   const isN2 = isN2Department(departamento)
+  const isCampo = isCampoDepartment(departamento)
 
   // TMA
   const tmaMin =
     existing?.meta_tma_min_num ??
     existing?.meta_tma_min ??
-    (isN2 ? DEFAULT_N2_TMA_MIN : DEFAULT_N1_TMA_MIN)
+    (isCampo ? DEFAULT_CAMPO_TMA_MIN : isN2 ? DEFAULT_N2_TMA_MIN : DEFAULT_N1_TMA_MIN)
 
-  const tmaMax = existing?.meta_tma_max_num ?? (isN2 ? DEFAULT_N2_TMA_MAX : DEFAULT_N1_TMA_MAX)
+  const tmaMax =
+    existing?.meta_tma_max_num ??
+    (isCampo ? DEFAULT_CAMPO_TMA_MAX : isN2 ? DEFAULT_N2_TMA_MAX : DEFAULT_N1_TMA_MAX)
 
   // Chamados/dia
   const chamadosMin =
     existing?.meta_chamados_dia_min ??
     existing?.meta_chamados_dia ??
-    (isN2 ? DEFAULT_N2_CHAMADOS_MIN : DEFAULT_N1_CHAMADOS_MIN)
+    (isCampo ? DEFAULT_CAMPO_CHAMADOS_MIN : isN2 ? DEFAULT_N2_CHAMADOS_MIN : DEFAULT_N1_CHAMADOS_MIN)
 
   const chamadosMax =
-    existing?.meta_chamados_dia_max ?? (isN2 ? DEFAULT_N2_CHAMADOS_MAX : DEFAULT_N1_CHAMADOS_MAX)
+    existing?.meta_chamados_dia_max ??
+    (isCampo ? DEFAULT_CAMPO_CHAMADOS_MAX : isN2 ? DEFAULT_N2_CHAMADOS_MAX : DEFAULT_N1_CHAMADOS_MAX)
 
   return {
     departamento,
@@ -119,9 +146,12 @@ export default function Equipes() {
         if (!map[c.departamento]) map[c.departamento] = toDraft(c.departamento, c)
       })
 
-      // Se N2 ainda não estiver mapeado nem salvo, garante presença para configuração fácil
+      // Se N2 ou Campo ainda não estiverem mapeados nem salvos, garante presença para configuração fácil
       if (!map['Windows N2']) {
         map['Windows N2'] = toDraft('Windows N2')
+      }
+      if (!map['Campo']) {
+        map['Campo'] = toDraft('Campo')
       }
 
       setDrafts(map)
@@ -167,27 +197,40 @@ export default function Equipes() {
     const limite = parseFloat(draft.limite_diario.replace(',', '.'))
 
     const isN2 = isN2Department(depto)
+    const isCampo = isCampoDepartment(depto)
     const tmaMin = parseFloat(draft.meta_tma_min.replace(',', '.'))
     const tmaMax = parseFloat(draft.meta_tma_max.replace(',', '.'))
     const chMin = parseFloat(draft.meta_chamados_dia_min.replace(',', '.'))
     const chMax = parseFloat(draft.meta_chamados_dia_max.replace(',', '.'))
 
-    const finalTmaMin =
-      !isNaN(tmaMin) && tmaMin > 0 ? tmaMin : isN2 ? DEFAULT_N2_TMA_MIN : DEFAULT_N1_TMA_MIN
-    const finalTmaMax =
-      !isNaN(tmaMax) && tmaMax >= finalTmaMin
-        ? tmaMax
-        : isN2
-          ? DEFAULT_N2_TMA_MAX
-          : DEFAULT_N1_TMA_MAX
-    const finalChMin =
-      !isNaN(chMin) && chMin > 0 ? chMin : isN2 ? DEFAULT_N2_CHAMADOS_MIN : DEFAULT_N1_CHAMADOS_MIN
-    const finalChMax =
-      !isNaN(chMax) && chMax >= finalChMin
-        ? chMax
-        : isN2
-          ? DEFAULT_N2_CHAMADOS_MAX
-          : DEFAULT_N1_CHAMADOS_MAX
+    const defaultTmaMin = isCampo
+      ? DEFAULT_CAMPO_TMA_MIN
+      : isN2
+        ? DEFAULT_N2_TMA_MIN
+        : DEFAULT_N1_TMA_MIN
+    const defaultTmaMax = isCampo
+      ? DEFAULT_CAMPO_TMA_MAX
+      : isN2
+        ? DEFAULT_N2_TMA_MAX
+        : DEFAULT_N1_TMA_MAX
+    const defaultChMin = isCampo
+      ? DEFAULT_CAMPO_CHAMADOS_MIN
+      : isN2
+        ? DEFAULT_N2_CHAMADOS_MIN
+        : DEFAULT_N1_CHAMADOS_MIN
+    const defaultChMax = isCampo
+      ? DEFAULT_CAMPO_CHAMADOS_MAX
+      : isN2
+        ? DEFAULT_N2_CHAMADOS_MAX
+        : DEFAULT_N1_CHAMADOS_MAX
+
+    const finalTmaMin = !isNaN(tmaMin) && tmaMin > 0 ? tmaMin : defaultTmaMin
+    const finalTmaMax = !isNaN(tmaMax) && tmaMax >= finalTmaMin ? tmaMax : defaultTmaMax
+    const finalChMin = !isNaN(chMin) && chMin > 0 ? chMin : defaultChMin
+    const finalChMax = !isNaN(chMax) && chMax >= finalChMin ? chMax : defaultChMax
+
+    const ocupMin = isCampo ? DEFAULT_CAMPO_OCUPACAO_MIN : isN2 ? DEFAULT_N2_OCUPACAO_MIN : 70
+    const ocupMax = isCampo ? DEFAULT_CAMPO_OCUPACAO_MAX : isN2 ? DEFAULT_N2_OCUPACAO_MAX : 85
 
     setSaving(depto)
     setError(null)
@@ -203,8 +246,8 @@ export default function Equipes() {
         meta_chamados_dia: finalChMin,
         meta_chamados_dia_min: finalChMin,
         meta_chamados_dia_max: finalChMax,
-        meta_ocupacao_min: isN2 ? DEFAULT_N2_OCUPACAO_MIN : 70,
-        meta_ocupacao_max: isN2 ? DEFAULT_N2_OCUPACAO_MAX : 85,
+        meta_ocupacao_min: ocupMin,
+        meta_ocupacao_max: ocupMax,
       })
       setCapacities((prev) => {
         const idx = prev.findIndex((c) => c.departamento === depto)
@@ -345,6 +388,7 @@ export default function Equipes() {
               const draft = drafts[depto]
               const isSalvo = salvos.has(depto)
               const isN2 = isN2Department(depto)
+              const isCampo = isCampoDepartment(depto)
 
               return (
                 <div
@@ -356,6 +400,14 @@ export default function Equipes() {
                       <p className="text-sm font-bold text-slate-800 truncate" title={depto}>
                         {depto}
                       </p>
+                      {isCampo && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-semibold border-blue-200 text-blue-700 bg-blue-50 shrink-0"
+                        >
+                          Campo
+                        </Badge>
+                      )}
                       {isN2 && (
                         <Badge
                           variant="outline"
@@ -382,7 +434,7 @@ export default function Equipes() {
                         </Badge>
                       )}
                       <span className="text-[10px] text-slate-400">
-                        {isN2 ? 'Metas de Gestão' : 'Padrão HDI N1'}
+                        {isCampo || isN2 ? 'Metas de Gestão' : 'Padrão HDI N1'}
                       </span>
                     </div>
                   </div>
@@ -444,7 +496,7 @@ export default function Equipes() {
                           value={draft.meta_tma_min}
                           onChange={(e) => updateDraft(depto, 'meta_tma_min', e.target.value)}
                           className="h-9 rounded-xl border-slate-200 text-xs font-mono px-2 text-center"
-                          placeholder={isN2 ? '60' : '15'}
+                          placeholder={isCampo ? '180' : isN2 ? '60' : '15'}
                           title="TMA Mínimo (min)"
                         />
                         <span className="text-slate-400 text-xs">–</span>
@@ -454,7 +506,7 @@ export default function Equipes() {
                           value={draft.meta_tma_max}
                           onChange={(e) => updateDraft(depto, 'meta_tma_max', e.target.value)}
                           className="h-9 rounded-xl border-slate-200 text-xs font-mono px-2 text-center"
-                          placeholder={isN2 ? '90' : '25'}
+                          placeholder={isCampo ? '270' : isN2 ? '90' : '25'}
                           title="TMA Máximo (min)"
                         />
                       </div>
@@ -476,7 +528,7 @@ export default function Equipes() {
                             updateDraft(depto, 'meta_chamados_dia_min', e.target.value)
                           }
                           className="h-9 rounded-xl border-slate-200 text-xs font-mono px-2 text-center"
-                          placeholder={isN2 ? '1,8' : '12'}
+                          placeholder={isCampo ? '1,2' : isN2 ? '1,8' : '12'}
                           title="Chamados/dia Mínimo"
                         />
                         <span className="text-slate-400 text-xs">–</span>
@@ -488,7 +540,7 @@ export default function Equipes() {
                             updateDraft(depto, 'meta_chamados_dia_max', e.target.value)
                           }
                           className="h-9 rounded-xl border-slate-200 text-xs font-mono px-2 text-center"
-                          placeholder={isN2 ? '2,7' : '18'}
+                          placeholder={isCampo ? '1,8' : isN2 ? '2,7' : '18'}
                           title="Chamados/dia Máximo"
                         />
                       </div>
@@ -525,18 +577,18 @@ export default function Equipes() {
         )}
       </div>
 
-      {/* RODAPÉ COM NOTAS DE FONTE BENCHMARK (N1 HDI + N2 GESTÃO) */}
+      {/* RODAPÉ COM NOTAS DE FONTE BENCHMARK (N1 HDI + N2 GESTÃO + CAMPO GESTÃO) */}
       <footer className="mt-8 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-5 text-xs text-slate-600 space-y-3">
         <div className="flex items-center gap-2 text-slate-800 font-bold">
           <Award className="w-4 h-4 text-teal-600" />
           <span>Fontes de referência e metodologia das metas</span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-1">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 pt-1">
           <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
             <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
               <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
-              <span>Suporte Remoto N1 (Windows / Atendimento Geral)</span>
+              <span>Suporte Remoto N1 (Windows)</span>
             </div>
             <p className="text-[11px] text-slate-500 leading-relaxed">
               <b>Fonte:</b> Help Desk Institute (HDI) e MetricNet para centrais de atendimento N1
@@ -551,7 +603,7 @@ export default function Equipes() {
           <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
             <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
               <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
-              <span>Suporte Técnico N2 (Windows N2 / Projetos / Infraestrutura)</span>
+              <span>Suporte Técnico N2 (Infra/Projetos)</span>
             </div>
             <p className="text-[11px] text-slate-500 leading-relaxed">
               <b>Fonte:</b> Metas fornecidas diretamente pelo gestor da operação (definidas pela
@@ -566,11 +618,28 @@ export default function Equipes() {
               a infraestrutura proativa, gestão de mudanças, backups, virtualização e projetos.
             </p>
           </div>
+
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+              <span>Campo / Field Service (Presencial)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fonte:</b> Metas fornecidas pela gestão da operação (tabela de referência Field Service).
+              <br />
+              <b>Metas padrão:</b> TMA entre <b>3h e 4h30min</b> (180–270 min), produtividade de{' '}
+              <b>1,2 a 1,8 chamados/dia/técnico</b> e ocupação direta em tickets de <b>70% a 80%</b>{' '}
+              (equipe necessária ideal: <b>3 a 4 técnicos</b> para ~75 chamados/mês).
+              <br />
+              <b>Contexto:</b> Atendimentos presenciais com deslocamento, formatação, antenas, relatórios
+              técnicos e rotinas de laboratório.
+            </p>
+          </div>
         </div>
 
         <p className="text-[11px] text-slate-400 pt-1">
-          Demais setores (ex.: Campo): metas sob levantamento; caso necessário, utilize os campos
-          acima para personalizar conforme a realidade da sua operação.
+          Todos os departamentos aceitam personalização de limites e metas individuais através dos campos
+          acima conforme a necessidade da operação.
         </p>
       </footer>
     </div>
