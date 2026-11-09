@@ -59,6 +59,7 @@ export async function deleteImportRecord(id: string): Promise<void> {
 export interface FetchSupportRecordsParams {
   startDate?: string // YYYY-MM-DD
   endDate?: string // YYYY-MM-DD
+  departamento?: string
 }
 
 export async function fetchSupportRecords(
@@ -75,6 +76,9 @@ export async function fetchSupportRecords(
   }
   if (params?.endDate) {
     query = query.lte('data_chamado', params.endDate)
+  }
+  if (params?.departamento) {
+    query = query.eq('departamento', params.departamento)
   }
 
   const { data, error } = await query

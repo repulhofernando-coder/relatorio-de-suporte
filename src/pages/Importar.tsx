@@ -18,6 +18,7 @@ import {
   StandardFieldKey,
   MapeamentoRecord,
   SupportRecordInsert,
+  normalizeDepartamento,
 } from '@/types/support'
 import {
   UploadCloud,
@@ -69,6 +70,8 @@ export default function Importar() {
     tempo_atendimento_min: '',
     prioridade: '',
     observacoes: '',
+    aberto_por: '',
+    departamento: '',
   })
   const [mappingName, setMappingName] = useState<string>('')
   const [saveMapping, setSaveMapping] = useState<boolean>(true)
@@ -160,6 +163,8 @@ export default function Importar() {
           tempo_atendimento_min: matchedSavedMapping.mapeamento['tempo_atendimento_min'] || '',
           prioridade: matchedSavedMapping.mapeamento['prioridade'] || '',
           observacoes: matchedSavedMapping.mapeamento['observacoes'] || '',
+          aberto_por: matchedSavedMapping.mapeamento['aberto_por'] || '',
+          departamento: matchedSavedMapping.mapeamento['departamento'] || '',
         }
         setMapping(newMap)
         setSelectedMappingId(matchedSavedMapping.id)
@@ -225,6 +230,8 @@ export default function Importar() {
           tempo_atendimento_min: target.mapeamento['tempo_atendimento_min'] || '',
           prioridade: target.mapeamento['prioridade'] || '',
           observacoes: target.mapeamento['observacoes'] || '',
+          aberto_por: target.mapeamento['aberto_por'] || '',
+          departamento: target.mapeamento['departamento'] || '',
         }
         setMapping(newMap)
         setAutoDetectedMessage(`Usando mapeamento salvo: ${target.nome}`)
@@ -304,6 +311,18 @@ export default function Importar() {
           observacoes = val || null
         }
 
+        let abertoPor: string | null = null
+        if (mapping.aberto_por && row[mapping.aberto_por] !== undefined) {
+          const val = String(row[mapping.aberto_por]).trim()
+          abertoPor = val || null
+        }
+
+        let departamento: string | null = null
+        if (mapping.departamento && row[mapping.departamento] !== undefined) {
+          const val = String(row[mapping.departamento]).trim()
+          departamento = normalizeDepartamento(val)
+        }
+
         validRecords.push({
           cliente,
           tecnico,
@@ -312,6 +331,8 @@ export default function Importar() {
           tempo_atendimento_min: tempoMin,
           prioridade,
           observacoes,
+          aberto_por: abertoPor,
+          departamento,
           origem_arquivo: file.name,
         })
       })
@@ -843,6 +864,10 @@ export default function Importar() {
                     <p>
                       • Linhas com cliente, técnico ou data vazios/inválidos serão puladas e
                       reportadas.
+                    </p>
+                    <p>
+                      • Departamento será normalizado para os setores fixos (Windows, Campo, Windows
+                      N2, Ativação, Projetos); valores fora da lista são mantidos como vieram.
                     </p>
                   </div>
                 </div>

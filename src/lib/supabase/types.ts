@@ -9,7 +9,128 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      imports: {
+        Row: {
+          created_at: string
+          detalhes_erro: Json | null
+          erros: number
+          id: string
+          ignoradas: number
+          importadas: number
+          mapeamento_nome: string | null
+          nome_arquivo: string
+          status: string
+          total_linhas: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          detalhes_erro?: Json | null
+          erros?: number
+          id?: string
+          ignoradas?: number
+          importadas?: number
+          mapeamento_nome?: string | null
+          nome_arquivo: string
+          status?: string
+          total_linhas?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          detalhes_erro?: Json | null
+          erros?: number
+          id?: string
+          ignoradas?: number
+          importadas?: number
+          mapeamento_nome?: string | null
+          nome_arquivo?: string
+          status?: string
+          total_linhas?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      mapeamentos: {
+        Row: {
+          created_at: string
+          id: string
+          mapeamento: Json
+          nome: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mapeamento: Json
+          nome: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mapeamento?: Json
+          nome?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      support_records: {
+        Row: {
+          cliente: string
+          created_at: string
+          data_chamado: string
+          id: string
+          import_id: string | null
+          observacoes: string | null
+          origem_arquivo: string | null
+          prioridade: string | null
+          tecnico: string
+          tempo_atendimento_min: number | null
+          tipo_chamado: string | null
+          user_id: string
+        }
+        Insert: {
+          cliente: string
+          created_at?: string
+          data_chamado: string
+          id?: string
+          import_id?: string | null
+          observacoes?: string | null
+          origem_arquivo?: string | null
+          prioridade?: string | null
+          tecnico: string
+          tempo_atendimento_min?: number | null
+          tipo_chamado?: string | null
+          user_id: string
+        }
+        Update: {
+          cliente?: string
+          created_at?: string
+          data_chamado?: string
+          id?: string
+          import_id?: string | null
+          observacoes?: string | null
+          origem_arquivo?: string | null
+          prioridade?: string | null
+          tecnico?: string
+          tempo_atendimento_min?: number | null
+          tipo_chamado?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'support_records_import_id_fkey'
+            columns: ['import_id']
+            isOneToOne: false
+            referencedRelation: 'imports'
+            referencedColumns: ['id']
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

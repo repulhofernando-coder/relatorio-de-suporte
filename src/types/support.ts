@@ -9,6 +9,8 @@ export interface SupportRecord {
   prioridade: string | null
   observacoes: string | null
   origem_arquivo: string | null
+  aberto_por: string | null
+  departamento: string | null
   import_id: string | null
   created_at: string
 }
@@ -22,6 +24,8 @@ export interface SupportRecordInsert {
   prioridade?: string | null
   observacoes?: string | null
   origem_arquivo?: string | null
+  aberto_por?: string | null
+  departamento?: string | null
   import_id?: string | null
   user_id?: string
 }
@@ -75,6 +79,8 @@ export type StandardFieldKey =
   | 'tempo_atendimento_min'
   | 'prioridade'
   | 'observacoes'
+  | 'aberto_por'
+  | 'departamento'
 
 export interface StandardFieldDef {
   key: StandardFieldKey
@@ -188,4 +194,60 @@ export const STANDARD_FIELDS: StandardFieldDef[] = [
     ],
     description: 'Anotações complementares sobre o chamado',
   },
+  {
+    key: 'aberto_por',
+    label: 'Aberto por',
+    required: false,
+    synonyms: [
+      'aberto por',
+      'abertura por',
+      'solicitante',
+      'solicitado por',
+      'usuário',
+      'usuario',
+      'reportado por',
+      'quem abriu',
+    ],
+    description: 'Quem abriu o chamado (não o técnico que atendeu)',
+  },
+  {
+    key: 'departamento',
+    label: 'Departamento',
+    required: false,
+    synonyms: ['departamento', 'setor', 'área', 'area', 'depto', 'department'],
+    description: 'Setor que atendeu o chamado (ex.: Windows, Campo, Projetos)',
+  },
 ]
+
+export const DEPARTMENT_VALUES = ['Windows', 'Campo', 'Windows N2', 'Ativação', 'Projetos'] as const
+
+/**
+ * Normaliza o valor do departamento para um dos setores fixos (case/acentos insensível).
+ * Valores fora da lista são devolvidos como vieram (trim).
+ */
+export function normalizeDepartamento(value: string | null | undefined): string | null {
+  if (!value) return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const norm = trimmed
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+
+  const direct = DEPARTMENT_VALUES.find(
+    (d) =>
+      d
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') === norm,
+  )
+  if (direct) return direct
+
+  // Variações comuns: "Windows N2" escrito "windows n2"/"windowsN2"
+  if (norm === 'windows n2' || norm === 'windowsn2' || norm === 'win n2') {
+    return 'Windows N2'
+  }
+
+  return trimmed
+}

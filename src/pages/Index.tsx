@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchSupportRecords, FetchSupportRecordsParams } from '@/services/support'
-import { SupportRecord } from '@/types/support'
+import { SupportRecord, DEPARTMENT_VALUES } from '@/types/support'
+import { normalizeHeader } from '@/lib/spreadsheet'
 import { CountUp } from '@/components/dashboard/CountUp'
 import {
   PhoneCall,
@@ -17,6 +18,8 @@ import {
   ChevronRight,
   Inbox,
   Sparkles,
+  UserPlus,
+  Building2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,6 +37,7 @@ import {
   Area,
   PieChart,
   Pie,
+  Legend,
 } from 'recharts'
 
 type PeriodPreset =
@@ -141,6 +145,31 @@ function formatShortDate(dateStr: string): string {
   return `${d}/${m}/${y}`
 }
 
+const DEPARTMENT_COLORS: Record<string, string> = {
+  Windows: '#0D9488',
+  Campo: '#6366F1',
+  'Windows N2': '#F59E0B',
+  Ativação: '#EC4899',
+  Projetos: '#06B6D4',
+}
+
+function departmentColor(name: string): string {
+  return DEPARTMENT_COLORS[name] || CHART_PALETTE[name.length % CHART_PALETTE.length]
+}
+
+/**
+ * Identifica se um "aberto por" é um técnico da Mundo Open:
+ * compara com os valores da coluna técnico dos registros (case/acentos insensível).
+ */
+function buildTecnicoNameSet(records: SupportRecord[]): Set<string> {
+  const set = new Set<string>()
+  records.forEach((r) => {
+    const t = r.tecnico?.trim()
+    if (t) set.add(normalizeHeader(t))
+  })
+  return set
+}
+
 export default function Index() {
   const navigate = useNavigate()
   const [records, setRecords] = useState<SupportRecord[]>([])
@@ -157,44 +186,50 @@ export default function Index() {
     endDate?: string
     label: string
   }>(() => getPresetDates('este-mes'))
+  const [departamentoFiltro, setDepartamentoFiltro] = useState<string>('todos')
 
-  const loadData = useCallback(async () => {
-    try {
-      setRefreshing(true)
-      const params: FetchSupportRecordsParams = {}
-      if (activeDateRange.startDate) params.startDate = activeDateRange.startDate
-      if (activeDateRange.endDate) params.endDate = activeDateRange.endDate
+  const loadData = useCallback(
+    async (depto: string = departamentoFiltro) => {
+      try {
+        setRefreshing(true)
+        const params: FetchSupportRecordsParams = {}
+        if (activeDateRange.startDate) params.startDate = activeDateRange.startDate
+        if (activeDateRange.endDate) params.endDate = activeDateRange.endDate
+        if (depto && depto !== 'todos') params.departamento = depto
 
-      const data = await fetchSupportRecords(params)
-      setRecords(data)
+        const data = await fetchSupportRecords(params)
+        setRecords(data)
 
-      // Calcular contagem do período anterior equivalente se houver datas
-      if (activeDateRange.startDate && activeDateRange.endDate) {
-        const start = new Date(activeDateRange.startDate)
-        const end = new Date(activeDateRange.endDate)
-        const diffMs = end.getTime() - start.getTime()
-        if (diffMs > 0) {
-          const prevEnd = new Date(start.getTime() - 86400000)
-          const prevStart = new Date(prevEnd.getTime() - diffMs)
-          const prevYmd = (d: Date) => d.toISOString().split('T')[0]
-          const prevData = await fetchSupportRecords({
-            startDate: prevYmd(prevStart),
-            endDate: prevYmd(prevEnd),
-          })
-          setPreviousPeriodRecordsCount(prevData.length)
+        // Calcular contagem do período anterior equivalente se houver datas
+        if (activeDateRange.startDate && activeDateRange.endDate) {
+          const start = new Date(activeDateRange.startDate)
+          const end = new Date(activeDateRange.endDate)
+          const diffMs = end.getTime() - start.getTime()
+          if (diffMs > 0) {
+            const prevEnd = new Date(start.getTime() - 86400000)
+            const prevStart = new Date(prevEnd.getTime() - diffMs)
+            const prevYmd = (d: Date) => d.toISOString().split('T')[0]
+            const prevData = await fetchSupportRecords({
+              startDate: prevYmd(prevStart),
+              endDate: prevYmd(prevEnd),
+              departamento: depto && depto !== 'todos' ? depto : undefined,
+            })
+            setPreviousPeriodRecordsCount(prevData.length)
+          } else {
+            setPreviousPeriodRecordsCount(null)
+          }
         } else {
           setPreviousPeriodRecordsCount(null)
         }
-      } else {
-        setPreviousPeriodRecordsCount(null)
+      } catch (err) {
+        console.error('Erro ao carregar dados do dashboard:', err)
+      } finally {
+        setLoading(false)
+        setRefreshing(false)
       }
-    } catch (err) {
-      console.error('Erro ao carregar dados do dashboard:', err)
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
-  }, [activeDateRange])
+    },
+    [activeDateRange, departamentoFiltro],
+  )
 
   useEffect(() => {
     loadData()
@@ -206,7 +241,14 @@ export default function Index() {
     if (newPreset !== 'personalizado') {
       const dates = getPresetDates(newPreset)
       setActiveDateRange(dates)
+      setDepartamentoFiltro('todos')
     }
+  }
+
+  // Aplica filtro de departamento (combinável com o período ativo)
+  const handleSelectDepartamento = (depto: string) => {
+    setDepartamentoFiltro(depto)
+    loadData(depto)
   }
 
   // Aplica range personalizado
@@ -256,17 +298,36 @@ export default function Index() {
     return { direction: 'neutral', percent: 0 }
   }, [totalChamados, previousPeriodRecordsCount])
 
-  // Gráfico 1: Top 8 clientes
+  // Gráfico 1: Top 8 clientes — empilhado: aberto pelo cliente vs aberto por técnico da Mundo Open
   const topClientesData = useMemo(() => {
-    const counts: Record<string, number> = {}
+    const tecnicosConhecidos = buildTecnicoNameSet(records)
+    const counts: Record<string, { porCliente: number; porTecnico: number }> = {}
+
     records.forEach((r) => {
-      const name = r.cliente?.trim()
-      if (!name) return
-      counts[name] = (counts[name] || 0) + 1
+      const cliente = r.cliente?.trim()
+      if (!cliente) return
+      if (!counts[cliente]) counts[cliente] = { porCliente: 0, porTecnico: 0 }
+
+      const abertoPor = r.aberto_por?.trim() || ''
+      const isTecnico = Boolean(abertoPor) && tecnicosConhecidos.has(normalizeHeader(abertoPor))
+
+      if (isTecnico) {
+        counts[cliente].porTecnico += 1
+      } else {
+        counts[cliente].porCliente += 1
+      }
     })
 
     return Object.entries(counts)
-      .map(([cliente, chamados]) => ({ cliente, chamados }))
+      .map(([cliente, c]) => ({
+        cliente,
+        abertoPeloCliente: c.porCliente,
+        abertoPorTecnico: c.porTecnico,
+        chamados: c.porCliente + c.porTecnico,
+        totalLabel: `${cliente} — ${c.porCliente + c.porTecnico} ${
+          c.porCliente + c.porTecnico === 1 ? 'chamado' : 'chamados'
+        }`,
+      }))
       .sort((a, b) => b.chamados - a.chamados)
       .slice(0, 8)
   }, [records])
@@ -331,6 +392,70 @@ export default function Index() {
       .sort((a, b) => b.count - a.count)
   }, [records])
 
+  // Ranking: quem mais abre chamados (coluna "aberto por")
+  const rankingAbertoPorData = useMemo(() => {
+    const counts: Record<string, number> = {}
+    records.forEach((r) => {
+      const name = r.aberto_por?.trim()
+      if (!name) return
+      counts[name] = (counts[name] || 0) + 1
+    })
+
+    const total = records.length || 1
+    return Object.entries(counts)
+      .map(([pessoa, chamados]) => ({
+        pessoa,
+        chamados,
+        porcentagem: ((chamados / total) * 100).toFixed(1),
+      }))
+      .sort((a, b) => b.chamados - a.chamados)
+      .slice(0, 8)
+  }, [records])
+
+  // Chamados por departamento (setores fixos primeiro, depois demais valores)
+  const chamadosPorDepartamentoData = useMemo(() => {
+    const counts: Record<string, number> = {}
+    records.forEach((r) => {
+      const depto = r.departamento?.trim()
+      if (!depto) return
+      counts[depto] = (counts[depto] || 0) + 1
+    })
+
+    const total = records.length || 1
+    return Object.entries(counts)
+      .map(([departamento, count]) => ({
+        departamento,
+        count,
+        percent: ((count / total) * 100).toFixed(1),
+        color: departmentColor(departamento),
+      }))
+      .sort((a, b) => {
+        const ia = (DEPARTMENT_VALUES as readonly string[]).indexOf(a.departamento)
+        const ib = (DEPARTMENT_VALUES as readonly string[]).indexOf(b.departamento)
+        if (ia !== -1 && ib !== -1) return ia - ib
+        if (ia !== -1) return -1
+        if (ib !== -1) return 1
+        return b.count - a.count
+      })
+  }, [records])
+
+  // Departamentos disponíveis no filtro (union dos setores fixos e dos valores já importados)
+  const departamentosDisponiveis = useMemo(() => {
+    const set = new Set<string>(DEPARTMENT_VALUES as readonly string[])
+    records.forEach((r) => {
+      const depto = r.departamento?.trim()
+      if (depto) set.add(depto)
+    })
+    return Array.from(set).sort((a, b) => {
+      const ia = (DEPARTMENT_VALUES as readonly string[]).indexOf(a)
+      const ib = (DEPARTMENT_VALUES as readonly string[]).indexOf(b)
+      if (ia !== -1 && ib !== -1) return ia - ib
+      if (ia !== -1) return -1
+      if (ib !== -1) return 1
+      return a.localeCompare(b)
+    })
+  }, [records])
+
   // Últimos 10 registros
   const ultimosRegistros = useMemo(() => {
     return records.slice(0, 10)
@@ -356,7 +481,7 @@ export default function Index() {
           <Button
             variant="outline"
             size="sm"
-            onClick={loadData}
+            onClick={() => loadData(departamentoFiltro)}
             disabled={refreshing}
             className="h-9 rounded-xl bg-white border-slate-200 text-slate-700 hover:bg-slate-50 gap-2 shadow-sm"
           >
@@ -436,6 +561,23 @@ export default function Index() {
               </Button>
             </div>
           )}
+
+          {/* Filtro de departamento (combinável com o período) */}
+          <div className="flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-teal-600 shrink-0" />
+            <select
+              value={departamentoFiltro}
+              onChange={(e) => handleSelectDepartamento(e.target.value)}
+              className="h-9 text-xs rounded-xl border-slate-200 bg-white px-3 font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+            >
+              <option value="todos">Todos os departamentos</option>
+              {departamentosDisponiveis.map((depto) => (
+                <option key={depto} value={depto}>
+                  {depto}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -618,14 +760,15 @@ export default function Index() {
                       />
                       <YAxis
                         type="category"
-                        dataKey="cliente"
-                        width={130}
+                        dataKey="totalLabel"
+                        width={210}
                         tick={{ fontSize: 11, fill: '#334155' }}
-                        tickFormatter={(val) =>
-                          val.length > 18 ? `${val.substring(0, 16)}...` : val
+                        tickFormatter={(val: string) =>
+                          val.length > 28 ? `${val.substring(0, 27)}…` : val
                         }
                       />
                       <Tooltip
+                        cursor={{ fill: 'rgba(13, 148, 136, 0.06)' }}
                         content={({ active, payload }) => {
                           if (active && payload && payload.length) {
                             const data = payload[0].payload
@@ -633,7 +776,12 @@ export default function Index() {
                               <div className="bg-slate-900 text-white px-3 py-2 rounded-xl text-xs shadow-lg">
                                 <p className="font-semibold">{data.cliente}</p>
                                 <p className="text-teal-300 font-mono mt-0.5">
-                                  {data.chamados} {data.chamados === 1 ? 'chamado' : 'chamados'}
+                                  {data.chamados} {data.chamados === 1 ? 'chamado' : 'chamados'} no
+                                  total
+                                </p>
+                                <p className="text-slate-300 font-mono">
+                                  {data.abertoPeloCliente} pelo cliente • {data.abertoPorTecnico}{' '}
+                                  por técnico
                                 </p>
                               </div>
                             )
@@ -641,13 +789,42 @@ export default function Index() {
                           return null
                         }}
                       />
-                      <Bar dataKey="chamados" radius={[0, 8, 8, 0]} animationDuration={600}>
-                        {topClientesData.map((_entry, index) => (
-                          <Cell key={`cell-${index}`} fill={index === 0 ? '#F59E0B' : '#0D9488'} />
-                        ))}
-                      </Bar>
+                      <Bar
+                        dataKey="abertoPeloCliente"
+                        stackId="clientes"
+                        name="Aberto pelo cliente"
+                        fill="#0D9488"
+                        radius={[0, 0, 0, 0]}
+                        animationDuration={600}
+                      />
+                      <Bar
+                        dataKey="abertoPorTecnico"
+                        stackId="clientes"
+                        name="Aberto por técnico da Mundo Open"
+                        fill="#F59E0B"
+                        radius={[0, 8, 8, 0]}
+                        animationDuration={600}
+                      />
+                      <Legend
+                        wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+                        iconType="circle"
+                        iconSize={8}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
+                )}
+                {!loading && topClientesData.length > 0 && (
+                  <div className="mt-3 space-y-1.5">
+                    {topClientesData.map((item) => (
+                      <div key={item.cliente} className="flex items-center justify-between text-xs">
+                        <span className="text-slate-600 truncate pr-2">{item.cliente}</span>
+                        <span className="font-semibold text-slate-800 whitespace-nowrap shrink-0">
+                          {item.cliente} — {item.chamados}{' '}
+                          {item.chamados === 1 ? 'chamado' : 'chamados'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
@@ -717,6 +894,82 @@ export default function Index() {
                   </ResponsiveContainer>
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* NOVO: Quem mais abre chamados (coluna "Aberto por") */}
+          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80 flex flex-col">
+            <div className="mb-4">
+              <h3 className="text-base font-bold text-slate-900">Quem mais abre chamados</h3>
+              <p className="text-xs text-slate-500">
+                Ranking de solicitantes conforme a coluna "Aberto por" (cliente ou técnico que
+                abriu)
+              </p>
+            </div>
+
+            <div className="flex-1 min-h-[300px] w-full">
+              {loading ? (
+                <div className="h-full w-full flex items-center justify-center">
+                  <div className="w-full h-56 bg-slate-50 rounded-xl animate-pulse" />
+                </div>
+              ) : rankingAbertoPorData.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 py-12">
+                  <Inbox className="w-10 h-10 mb-2 stroke-1" />
+                  <p className="text-xs">
+                    Sem dados de "aberto por" neste período (importações antigas podem não ter essa
+                    coluna)
+                  </p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={320}>
+                  <BarChart
+                    data={rankingAbertoPorData}
+                    layout="vertical"
+                    margin={{ top: 10, right: 30, left: 10, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
+                    <XAxis
+                      type="number"
+                      tick={{ fontSize: 11, fill: '#64748B' }}
+                      allowDecimals={false}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="pessoa"
+                      width={150}
+                      tick={{ fontSize: 11, fill: '#334155' }}
+                      tickFormatter={(val) => (val.length > 20 ? `${val.substring(0, 19)}…` : val)}
+                    />
+                    <Tooltip
+                      cursor={{ fill: 'rgba(13, 148, 136, 0.06)' }}
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload
+                          return (
+                            <div className="bg-slate-900 text-white px-3 py-2 rounded-xl text-xs shadow-lg">
+                              <p className="font-semibold">{data.pessoa}</p>
+                              <p className="text-teal-300 font-mono mt-0.5">
+                                {data.chamados}{' '}
+                                {data.chamados === 1 ? 'chamado aberto' : 'chamados abertos'} (
+                                {data.porcentagem}%)
+                              </p>
+                            </div>
+                          )
+                        }
+                        return null
+                      }}
+                    />
+                    <Bar dataKey="chamados" radius={[0, 8, 8, 0]} animationDuration={600}>
+                      {rankingAbertoPorData.map((_entry, index) => (
+                        <Cell
+                          key={`aberto-por-${index}`}
+                          fill={CHART_PALETTE[index % CHART_PALETTE.length]}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
 
@@ -867,6 +1120,71 @@ export default function Index() {
                 )}
               </div>
             </div>
+
+            {/* NOVO: Chamados por departamento (5 colunas) */}
+            <div className="lg:col-span-5 bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80 flex flex-col">
+              <div className="mb-4">
+                <h3 className="text-base font-bold text-slate-900">Chamados por departamento</h3>
+                <p className="text-xs text-slate-500">
+                  Distribuição pelos setores que atenderam: Windows, Campo, Windows N2, Ativação e
+                  Projetos
+                </p>
+              </div>
+
+              <div className="flex-1 min-h-[260px] w-full">
+                {loading ? (
+                  <div className="h-full w-full flex items-center justify-center">
+                    <div className="w-full h-52 bg-slate-50 rounded-xl animate-pulse" />
+                  </div>
+                ) : chamadosPorDepartamentoData.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400 py-12">
+                    <Inbox className="w-10 h-10 mb-2 stroke-1" />
+                    <p className="text-xs">
+                      Sem dados de departamento neste período (importações antigas podem não ter
+                      essa coluna)
+                    </p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart
+                      data={chamadosPorDepartamentoData}
+                      margin={{ top: 10, right: 20, left: -20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                      <XAxis
+                        dataKey="departamento"
+                        tick={{ fontSize: 11, fill: '#64748B' }}
+                        interval={0}
+                      />
+                      <YAxis tick={{ fontSize: 11, fill: '#64748B' }} allowDecimals={false} />
+                      <Tooltip
+                        cursor={{ fill: 'rgba(13, 148, 136, 0.06)' }}
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload
+                            return (
+                              <div className="bg-slate-900 text-white px-3 py-2 rounded-xl text-xs shadow-lg">
+                                <p className="font-semibold">{data.departamento}</p>
+                                <p className="text-teal-300 font-mono mt-0.5">
+                                  {data.count} {data.count === 1 ? 'chamado' : 'chamados'} (
+                                  {data.percent}%)
+                                </p>
+                              </div>
+                            )
+                          }
+                          return null
+                        }}
+                      />
+                      <Bar dataKey="count" radius={[6, 6, 0, 0]} animationDuration={600}>
+                        {chamadosPorDepartamentoData.map((entry, index) => (
+                          <Cell key={`depto-${index}`} fill={entry.color} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* ÚLTIMOS REGISTROS IMPORTADOS */}
@@ -909,6 +1227,7 @@ export default function Index() {
                         <th className="py-2.5 px-3">Data</th>
                         <th className="py-2.5 px-3">Cliente</th>
                         <th className="py-2.5 px-3">Técnico</th>
+                        <th className="py-2.5 px-3">Departamento</th>
                         <th className="py-2.5 px-3">Tipo</th>
                         <th className="py-2.5 px-3">Prioridade</th>
                         <th className="py-2.5 px-3 text-right">Tempo</th>
@@ -922,6 +1241,18 @@ export default function Index() {
                           </td>
                           <td className="py-3 px-3 font-semibold text-slate-800">{item.cliente}</td>
                           <td className="py-3 px-3 text-slate-600">{item.tecnico}</td>
+                          <td className="py-3 px-3 text-slate-600">
+                            {item.departamento ? (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] font-medium border-teal-200 text-teal-700 bg-teal-50"
+                              >
+                                {item.departamento}
+                              </Badge>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
                           <td className="py-3 px-3 text-slate-600">{item.tipo_chamado || '—'}</td>
                           <td className="py-3 px-3">
                             {item.prioridade ? (
@@ -968,8 +1299,13 @@ export default function Index() {
                           {formatMinutes(item.tempo_atendimento_min)}
                         </span>
                       </div>
-                      {(item.tipo_chamado || item.prioridade) && (
+                      {(item.tipo_chamado || item.prioridade || item.departamento) && (
                         <div className="flex items-center gap-1.5 pt-1">
+                          {item.departamento && (
+                            <span className="text-[10px] bg-teal-50 px-2 py-0.5 rounded border border-teal-200 text-teal-700">
+                              {item.departamento}
+                            </span>
+                          )}
                           {item.tipo_chamado && (
                             <span className="text-[10px] bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-600">
                               {item.tipo_chamado}
