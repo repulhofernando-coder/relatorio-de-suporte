@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Ticket, Search, ChevronLeft, ChevronRight, RefreshCw, Inbox, Clock } from 'lucide-react'
+import {
+  Ticket,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
+  Inbox,
+  Clock,
+  AlertTriangle,
+} from 'lucide-react'
 import {
   fetchChamados,
   fetchDepartamentosEmUso,
@@ -15,6 +24,7 @@ import { Badge } from '@/components/ui/badge'
 import { CountUp } from '@/components/dashboard/CountUp'
 import { TecnicosPanel, resumoPorTecnico } from '@/components/chamados/TecnicosPanel'
 import { TecnicoAberturaPie } from '@/components/chamados/TecnicoAberturaPie'
+import { classificarTempoTrabalhado, formatarHorasDecimaisLegivel } from '@/lib/duracao'
 
 type PeriodPreset =
   | 'este-mes'
@@ -230,10 +240,17 @@ export default function Chamados() {
     if (comTempo.length === 0) return null
     const somaHoras = comTempo.reduce((acc, r) => acc + Number(r.tempo_trabalhado), 0)
     const mediaMinutos = Math.round((somaHoras / comTempo.length) * 60)
+    const chamadosMenor5Min = registrosDoTecnico.filter((r) => {
+      const cls = classificarTempoTrabalhado(r.tempo_trabalhado)
+      return cls.nivel === 'critico'
+    }).length
+
     return {
       mediaMinutos,
       apontados: comTempo.length,
       alertaBaixo: mediaMinutos < 5,
+      chamadosMenor5Min,
+      totalTecnico: registrosDoTecnico.length,
     }
   }, [tecnicoFiltro, registrosDoTecnico])
 
@@ -494,21 +511,38 @@ export default function Chamados() {
               <h2 className="text-sm font-bold text-slate-900">{totalPaginasTexto}</h2>
             </div>
             {tecnicoFiltro && mediaTempoTrabalhadoTecnico && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200/80 text-xs font-semibold text-teal-900">
-                <Clock className="w-3.5 h-3.5 text-teal-600" />
-                <span>
-                  Média do técnico:{' '}
-                  <strong className="font-mono text-teal-950 font-bold">
-                    {mediaTempoTrabalhadoTecnico.mediaMinutos} min/chamado
-                  </strong>
-                </span>
-                {mediaTempoTrabalhadoTecnico.alertaBaixo && (
-                  <span
-                    className="ml-1 inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded"
-                    title="⚠ tempo muito baixo — verificar preenchimento"
-                  >
-                    ⚠ tempo muito baixo
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200/80 text-xs font-semibold text-teal-900">
+                  <Clock className="w-3.5 h-3.5 text-teal-600" />
+                  <span>
+                    Média do técnico:{' '}
+                    <strong className="font-mono text-teal-950 font-bold">
+                      {mediaTempoTrabalhadoTecnico.mediaMinutos} min/chamado
+                    </strong>
                   </span>
+                  {mediaTempoTrabalhadoTecnico.alertaBaixo && (
+                    <span
+                      className="ml-1 inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded"
+                      title="⚠ tempo muito baixo — verificar preenchimento"
+                    >
+                      ⚠ tempo muito baixo
+                    </span>
+                  )}
+                </div>
+                {mediaTempoTrabalhadoTecnico.chamadosMenor5Min > 0 && (
+                  <div
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-xs font-bold text-rose-800"
+                    title={`${mediaTempoTrabalhadoTecnico.chamadosMenor5Min} chamados com tempo trabalhado menor que 5 minutos (possível preenchimento incorreto ou fechamento apressado)`}
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                    <span>
+                      ⚠ {mediaTempoTrabalhadoTecnico.chamadosMenor5Min}{' '}
+                      {mediaTempoTrabalhadoTecnico.chamadosMenor5Min === 1
+                        ? 'chamado com menos de 5 minutos'
+                        : 'chamados com menos de 5 minutos'}{' '}
+                      (de {mediaTempoTrabalhadoTecnico.totalTecnico})
+                    </span>
+                  </div>
                 )}
               </div>
             )}
@@ -643,7 +677,32 @@ export default function Chamados() {
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap font-mono text-[11px] text-slate-700">
                         {r.tempo_trabalhado !== null && r.tempo_trabalhado !== undefined ? (
-                          <span>{Number(r.tempo_trabalhado).toFixed(1)}h</span>
+                          (() => {
+                            const cls = classificarTempoTrabalhado(r.tempo_trabalhado)
+                            const textoLegivel = formatarHorasDecimaisLegivel(r.tempo_trabalhado)
+                            return (
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-slate-800">{textoLegivel}</span>
+                                {cls.nivel === 'critico' && (
+                                  <Badge
+                                    className="bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200 text-[10px] font-bold px-1.5 py-0 shadow-none inline-flex items-center gap-0.5"
+                                    title={cls.descricao || 'Tempo menor que 5 minutos'}
+                                  >
+                                    <AlertTriangle className="w-2.5 h-2.5 text-rose-600 shrink-0" />
+                                    <span>&lt; 5 min</span>
+                                  </Badge>
+                                )}
+                                {cls.nivel === 'atencao' && (
+                                  <Badge
+                                    className="bg-amber-50 text-amber-800 hover:bg-amber-100 border-amber-200 text-[10px] font-medium px-1.5 py-0 shadow-none"
+                                    title={cls.descricao || 'Tempo entre 5 e 15 minutos'}
+                                  >
+                                    5–15 min
+                                  </Badge>
+                                )}
+                              </div>
+                            )
+                          })()
                         ) : (
                           <span className="text-slate-300">—</span>
                         )}

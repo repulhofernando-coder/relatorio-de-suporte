@@ -13,6 +13,11 @@ import {
   SavedReportPeriodChip,
   SavedReportFilters,
 } from '@/types/support'
+import {
+  formatarHorasDecimaisLegivel,
+  formatarMinutosLegivel,
+  formatarTotalHorasLegivel,
+} from '@/lib/duracao'
 import { normalizeHeader } from '@/lib/spreadsheet'
 import { CountUp } from '@/components/dashboard/CountUp'
 import {
@@ -1086,8 +1091,14 @@ export default function Index() {
               <div className="flex items-center gap-6">
                 <div>
                   <span className="text-[11px] text-slate-500 font-medium block">Total</span>
-                  <span className="text-xl font-extrabold text-teal-800 font-mono">
-                    {tempoTrabalhadoMetrics.totalHoras}h
+                  <span
+                    className="text-xl font-extrabold text-teal-800 font-mono"
+                    title={`${tempoTrabalhadoMetrics.totalHoras} horas`}
+                  >
+                    {formatarTotalHorasLegivel(tempoTrabalhadoMetrics.totalHoras)}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono block">
+                    ({tempoTrabalhadoMetrics.totalHoras}h)
                   </span>
                 </div>
                 {tempoTrabalhadoMetrics.mediaHoras !== null && (
@@ -1096,7 +1107,7 @@ export default function Index() {
                       Média por chamado
                     </span>
                     <span className="text-xl font-extrabold text-teal-800 font-mono">
-                      {tempoTrabalhadoMetrics.mediaHoras}h
+                      {formatarHorasDecimaisLegivel(tempoTrabalhadoMetrics.mediaHoras)}
                     </span>
                   </div>
                 )}
@@ -1271,9 +1282,9 @@ export default function Index() {
                                 </p>
                                 {data.totalHoras > 0 && (
                                   <p className="text-amber-300 font-mono text-[11px]">
-                                    Total: {data.totalHoras}h{' '}
-                                    {data.mediaHoras !== null
-                                      ? `· Média: ${data.mediaHoras}h/ch`
+                                    Total: {formatarTotalHorasLegivel(data.totalHoras)}{' '}
+                                    {data.mediaMinutos !== null
+                                      ? `· Média: ${formatarMinutosLegivel(data.mediaMinutos)}/ch`
                                       : ''}
                                   </p>
                                 )}
@@ -1318,7 +1329,7 @@ export default function Index() {
                         <span>{item.tecnico}</span>
                         {item.mediaMinutos !== null ? (
                           <span className="font-mono text-[10px] text-teal-800 bg-teal-100/80 px-1.5 py-0.5 rounded font-semibold">
-                            {item.mediaMinutos} min/chamado
+                            {formatarMinutosLegivel(item.mediaMinutos)}/chamado
                           </span>
                         ) : (
                           <span className="font-mono text-[11px] text-slate-500">

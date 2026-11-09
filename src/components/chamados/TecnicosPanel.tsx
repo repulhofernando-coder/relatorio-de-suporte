@@ -1,23 +1,33 @@
 import { Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SupportRecord } from '@/types/support'
+import { classificarTempoTrabalhado } from '@/lib/duracao'
 
 export interface TecnicoResumo {
   nome: string
   total: number
+  chamadosMenor5Min: number
 }
 
 /** Agrupa os registros pelo técnico que atendeu, do que mais atendeu para o que menos atendeu. */
 export function resumoPorTecnico(records: SupportRecord[]): TecnicoResumo[] {
-  const contagem = new Map<string, number>()
+  const contagem = new Map<string, { total: number; menor5Min: number }>()
   for (const r of records) {
     const nome = r.tecnico?.trim()
     if (!nome) continue
-    contagem.set(nome, (contagem.get(nome) || 0) + 1)
+    const atual = contagem.get(nome) || { total: 0, menor5Min: 0 }
+    atual.total += 1
+    const cls = classificarTempoTrabalhado(r.tempo_trabalhado)
+    if (cls.nivel === 'critico') {
+      atual.menor5Min += 1
+    }
+    contagem.set(nome, atual)
   }
-  return Array.from(contagem, ([nome, total]) => ({ nome, total })).sort(
-    (a, b) => b.total - a.total || a.nome.localeCompare(b.nome, 'pt-BR'),
-  )
+  return Array.from(contagem, ([nome, info]) => ({
+    nome,
+    total: info.total,
+    chamadosMenor5Min: info.menor5Min,
+  })).sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome, 'pt-BR'))
 }
 
 interface TecnicosPanelProps {
@@ -90,13 +100,23 @@ export function TecnicosPanel({
                   >
                     {t.nome}
                   </span>
-                  <span
-                    className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-mono font-bold ${
-                      ativo ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    {t.total}
-                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {t.chamadosMenor5Min > 0 && (
+                      <span
+                        className="rounded-full px-1.5 py-0.2 text-[10px] font-bold bg-rose-100 text-rose-800"
+                        title={`${t.chamadosMenor5Min} chamados com menos de 5 min`}
+                      >
+                        ⚠ {t.chamadosMenor5Min}
+                      </span>
+                    )}
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[11px] font-mono font-bold ${
+                        ativo ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {t.total}
+                    </span>
+                  </div>
                 </button>
               )
             })}

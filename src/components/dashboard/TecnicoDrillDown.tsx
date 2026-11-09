@@ -13,6 +13,7 @@ import {
   HelpCircle,
 } from 'lucide-react'
 import { SupportRecord } from '@/types/support'
+import { classificarTempoTrabalhado, formatarMinutosLegivel } from '@/lib/duracao'
 import { Button } from '@/components/ui/button'
 
 interface TecnicoDrillDownProps {
@@ -44,6 +45,8 @@ export function TecnicoDrillDown({ tecnico, records, onClose }: TecnicoDrillDown
 
     let somaHorasTrabalhadas = 0
     let countComTempo = 0
+    let chamadosMenor5Min = 0
+    let chamados5a15Min = 0
 
     const porMes: Record<string, { label: string; count: number; sortKey: string }> = {}
     const porAno: Record<string, number> = {}
@@ -65,11 +68,19 @@ export function TecnicoDrillDown({ tecnico, records, onClose }: TecnicoDrillDown
       if (
         r.tempo_trabalhado !== null &&
         r.tempo_trabalhado !== undefined &&
-        !isNaN(Number(r.tempo_trabalhado)) &&
-        Number(r.tempo_trabalhado) > 0
+        !isNaN(Number(r.tempo_trabalhado))
       ) {
-        somaHorasTrabalhadas += Number(r.tempo_trabalhado)
-        countComTempo += 1
+        const cls = classificarTempoTrabalhado(r.tempo_trabalhado)
+        if (cls.nivel === 'critico') {
+          chamadosMenor5Min += 1
+        } else if (cls.nivel === 'atencao') {
+          chamados5a15Min += 1
+        }
+
+        if (Number(r.tempo_trabalhado) > 0) {
+          somaHorasTrabalhadas += Number(r.tempo_trabalhado)
+          countComTempo += 1
+        }
       }
 
       if (r.data_chamado) {
@@ -113,6 +124,8 @@ export function TecnicoDrillDown({ tecnico, records, onClose }: TecnicoDrillDown
       somaHorasTrabalhadas: Math.round(somaHorasTrabalhadas * 10) / 10,
       tempoMedioMinutos,
       tempoMuitoBaixo: tempoMedioMinutos !== null && tempoMedioMinutos < 5,
+      chamadosMenor5Min,
+      chamados5a15Min,
       porMes: Object.values(porMes).sort((a, b) => a.sortKey.localeCompare(b.sortKey)),
       porAno: top(porAno, 6),
       topDeptos: top(deptos, 3),
@@ -158,21 +171,44 @@ export function TecnicoDrillDown({ tecnico, records, onClose }: TecnicoDrillDown
         </div>
 
         <div className="p-5 space-y-5">
-          {/* Selo de atenção: tempo muito baixo */}
-          {stats.tempoMuitoBaixo && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-start gap-2.5 text-xs text-amber-900">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-bold">⚠ tempo muito baixo — verificar preenchimento</span>
-                <p className="text-amber-800 text-[11px] mt-0.5 leading-relaxed">
-                  O tempo médio por chamado deste técnico é de{' '}
-                  <strong>{stats.tempoMedioMinutos} min/chamado</strong> (abaixo de 5 min).
-                  Verifique se os apontamentos de horas na planilha estão sendo preenchidos
-                  corretamente.
-                </p>
+          {/* Alertas de suspeita/tempo de atendimento */}
+          <div className="space-y-2.5">
+            {/* Contagem de chamados com menos de 5 minutos */}
+            {stats.chamadosMenor5Min > 0 && (
+              <div className="bg-rose-50 border border-rose-200 rounded-xl p-3.5 flex items-start gap-2.5 text-xs text-rose-900">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <span className="font-bold text-rose-950">
+                    ⚠ {stats.chamadosMenor5Min}{' '}
+                    {stats.chamadosMenor5Min === 1
+                      ? 'chamado com menos de 5 minutos'
+                      : 'chamados com menos de 5 minutos'}{' '}
+                    (de {stats.total})
+                  </span>
+                  <p className="text-rose-800 text-[11px] mt-0.5 leading-relaxed">
+                    Chamados encerrados muito rápido (inclui 0 min e menos de 5 min) podem indicar
+                    fechamento sem apontamento de horas, preenchimento apressado ou burla.
+                  </p>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+
+            {/* Selo de atenção: tempo médio muito baixo */}
+            {stats.tempoMuitoBaixo && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-start gap-2.5 text-xs text-amber-900">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold">⚠ tempo muito baixo — verificar preenchimento</span>
+                  <p className="text-amber-800 text-[11px] mt-0.5 leading-relaxed">
+                    O tempo médio por chamado deste técnico é de{' '}
+                    <strong>{formatarMinutosLegivel(stats.tempoMedioMinutos)}/chamado</strong>{' '}
+                    (abaixo de 5 min). Verifique se os apontamentos de horas na planilha estão sendo
+                    preenchidos corretamente.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* KPIs principais */}
           <div className="grid grid-cols-2 gap-3">
@@ -189,11 +225,13 @@ export function TecnicoDrillDown({ tecnico, records, onClose }: TecnicoDrillDown
                 <Clock className="w-3 h-3" /> Tempo Médio
               </div>
               <p className="text-2xl font-extrabold text-teal-800 font-mono mt-1">
-                {stats.tempoMedioMinutos !== null ? `${stats.tempoMedioMinutos} min` : '—'}
+                {stats.tempoMedioMinutos !== null
+                  ? formatarMinutosLegivel(stats.tempoMedioMinutos)
+                  : '—'}
               </p>
               <p className="text-[10px] text-slate-400">
                 {stats.tempoMedioMinutos !== null
-                  ? `${stats.tempoMedioMinutos} min/chamado (${stats.countComTempo} apontados)`
+                  ? `${formatarMinutosLegivel(stats.tempoMedioMinutos)}/chamado (${stats.countComTempo} apontados)`
                   : 'sem tempo registrado'}
               </p>
             </div>
