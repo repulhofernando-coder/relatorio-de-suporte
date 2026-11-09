@@ -1,12 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Ticket, Search, ChevronLeft, ChevronRight, RefreshCw, Inbox } from 'lucide-react'
-import { fetchChamados, fetchDepartamentosEmUso, FetchChamadosParams } from '@/services/support'
+import {
+  fetchChamados,
+  fetchDepartamentosEmUso,
+  fetchSupportRecords,
+  FetchChamadosParams,
+  FetchSupportRecordsParams,
+} from '@/services/support'
 import { SupportRecord } from '@/types/support'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { CountUp } from '@/components/dashboard/CountUp'
+import { TecnicosPanel, resumoPorTecnico } from '@/components/chamados/TecnicosPanel'
+import { TecnicoAberturaPie } from '@/components/chamados/TecnicoAberturaPie'
 
 type PeriodPreset =
   | 'este-mes'
@@ -85,6 +93,11 @@ export default function Chamados() {
   const [ordenarPor, setOrdenarPor] = useState<'data_chamado' | 'numero'>('data_chamado')
   const [ordem, setOrdem] = useState<'asc' | 'desc'>('desc')
   const [inicializado, setInicializado] = useState(false)
+  // Técnico selecionado no quadro de responsáveis (filtra a tabela; combina com os demais filtros)
+  const [tecnicoFiltro, setTecnicoFiltro] = useState<string | null>(null)
+  // Todos os registros do filtro atual (sem o filtro de técnico), paginados por fetchSupportRecords
+  const [registrosFiltro, setRegistrosFiltro] = useState<SupportRecord[]>([])
+  const [loadingRegistros, setLoadingRegistros] = useState(true)
 
   const [departamentosEmUso, setDepartamentosEmUso] = useState<string[]>([])
 
@@ -109,6 +122,7 @@ export default function Chamados() {
         if (range.endDate) params.endDate = range.endDate
         if (departamentoFiltro !== 'todos') params.departamento = departamentoFiltro
         if (buscaAplicada.trim()) params.busca = buscaAplicada.trim()
+        if (tecnicoFiltro) params.tecnico = tecnicoFiltro
 
         const result = await fetchChamados(params)
         setRows(result.rows)
@@ -121,8 +135,24 @@ export default function Chamados() {
         setRefreshing(false)
       }
     },
-    [range, departamentoFiltro, buscaAplicada, ordenarPor, ordem],
+    [range, departamentoFiltro, buscaAplicada, ordenarPor, ordem, tecnicoFiltro],
   )
+
+  const carregarRegistros = useCallback(async () => {
+    setLoadingRegistros(true)
+    try {
+      const params: FetchSupportRecordsParams = {}
+      if (range.startDate) params.startDate = range.startDate
+      if (range.endDate) params.endDate = range.endDate
+      if (departamentoFiltro !== 'todos') params.departamento = departamentoFiltro
+      if (buscaAplicada.trim()) params.busca = buscaAplicada.trim()
+      setRegistrosFiltro(await fetchSupportRecords(params))
+    } catch (err) {
+      console.error('Erro ao carregar responsáveis:', err)
+    } finally {
+      setLoadingRegistros(false)
+    }
+  }, [range, departamentoFiltro, buscaAplicada])
 
   // Primeiro load: se o mês atual não tem registros, o padrão é "Tudo"
   useEffect(() => {
@@ -156,6 +186,27 @@ export default function Chamados() {
   useEffect(() => {
     if (inicializado) carregar(page)
   }, [inicializado, carregar, page])
+
+  useEffect(() => {
+    if (inicializado) carregarRegistros()
+  }, [inicializado, carregarRegistros])
+
+  const tecnicosResumo = useMemo(() => resumoPorTecnico(registrosFiltro), [registrosFiltro])
+
+  const registrosDoTecnico = useMemo(
+    () => (tecnicoFiltro ? registrosFiltro.filter((r) => r.tecnico?.trim() === tecnicoFiltro) : []),
+    [registrosFiltro, tecnicoFiltro],
+  )
+
+  const clientesDoTecnico = useMemo(
+    () => new Set(registrosDoTecnico.map((r) => r.cliente?.trim()).filter(Boolean)).size,
+    [registrosDoTecnico],
+  )
+
+  const handleSelecionarTecnico = (nome: string | null) => {
+    setTecnicoFiltro(nome)
+    setPage(1)
+  }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -213,6 +264,7 @@ export default function Chamados() {
             onClick={() => {
               setRefreshing(true)
               carregar(page)
+              carregarRegistros()
             }}
             disabled={refreshing}
             className="h-9 rounded-xl bg-white border-slate-200 text-slate-700 hover:bg-slate-50 gap-2 shadow-sm"
@@ -324,8 +376,36 @@ export default function Chamados() {
         <p className="text-xs text-slate-400">Período: {range.label}</p>
       </div>
 
+      {/* RESPONSÁVEIS PELO ATENDIMENTO (+ pizza quando há técnico selecionado) */}
+      <div className={`grid grid-cols-1 gap-6 ${tecnicoFiltro ? 'lg:grid-cols-3' : ''}`}>
+        <div className={tecnicoFiltro ? 'lg:col-span-2' : ''}>
+          <TecnicosPanel
+            tecnicos={tecnicosResumo}
+            selecionado={tecnicoFiltro}
+            onSelecionar={handleSelecionarTecnico}
+            loading={loadingRegistros}
+          />
+        </div>
+        {tecnicoFiltro && (
+          <div className="lg:col-span-1">
+            <TecnicoAberturaPie tecnico={tecnicoFiltro} registros={registrosDoTecnico} />
+          </div>
+        )}
+      </div>
+
       {/* TABELA */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+        {tecnicoFiltro && (
+          <div className="px-5 py-3 bg-teal-50/60 border-b border-teal-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+            <p className="text-sm font-bold text-teal-900">
+              {clientesDoTecnico} {clientesDoTecnico === 1 ? 'cliente' : 'clientes'} ·{' '}
+              {registrosDoTecnico.length} {registrosDoTecnico.length === 1 ? 'chamado' : 'chamados'}
+            </p>
+            <p className="text-xs text-teal-800">
+              Atendidos por <span className="font-semibold">{tecnicoFiltro}</span>
+            </p>
+          </div>
+        )}
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Ticket className="w-4 h-4 text-teal-600" />

@@ -62,6 +62,8 @@ export interface FetchSupportRecordsParams {
   startDate?: string // YYYY-MM-DD
   endDate?: string // YYYY-MM-DD
   departamento?: string
+  tecnico?: string // nome exato do técnico que atendeu
+  busca?: string // número do chamado, cliente ou organização
 }
 
 export async function fetchSupportRecords(
@@ -89,6 +91,15 @@ export async function fetchSupportRecords(
     }
     if (params?.departamento) {
       query = query.eq('departamento', params.departamento)
+    }
+    if (params?.tecnico) {
+      query = query.eq('tecnico', params.tecnico)
+    }
+    if (params?.busca && params.busca.trim()) {
+      const termo = params.busca.trim()
+      query = query.or(
+        `numero.ilike.%${termo}%,cliente.ilike.%${termo}%,organizacao.ilike.%${termo}%`,
+      )
     }
 
     const { data, error } = await query
@@ -247,6 +258,7 @@ export interface FetchChamadosParams {
   startDate?: string // YYYY-MM-DD
   endDate?: string // YYYY-MM-DD
   departamento?: string
+  tecnico?: string // nome exato do técnico que atendeu
   busca?: string // número do chamado ou cliente
   ordenarPor?: 'data_chamado' | 'numero'
   ordem?: 'asc' | 'desc'
@@ -272,6 +284,9 @@ export async function fetchChamados(params?: FetchChamadosParams): Promise<Fetch
   }
   if (params?.departamento) {
     query = query.eq('departamento', params.departamento)
+  }
+  if (params?.tecnico) {
+    query = query.eq('tecnico', params.tecnico)
   }
   if (params?.busca && params.busca.trim()) {
     const termo = params.busca.trim()
