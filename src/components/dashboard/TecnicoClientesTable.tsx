@@ -10,6 +10,83 @@ export interface ClienteAtendimentoItem {
   quantidadeOutros?: number
 }
 
+export interface AgrupamentoClientesLinha {
+  cliente: string
+  chamados: number
+  percentual: number
+  proporcao: number
+}
+
+export interface AgrupamentoClientesResult {
+  total: number
+  totalClientesDistintos: number
+  linhas: AgrupamentoClientesLinha[]
+  outros: {
+    quantidadeClientes: number
+    chamados: number
+    percentual: number
+    proporcao: number
+  } | null
+}
+
+export function agruparAtendimentosPorCliente(
+  records: Array<{
+    cliente?: string | null
+    organizacao?: string | null
+  }>,
+): AgrupamentoClientesResult {
+  const total = records.length
+  if (total === 0) {
+    return {
+      total: 0,
+      totalClientesDistintos: 0,
+      linhas: [],
+      outros: null,
+    }
+  }
+
+  const contagem = new Map<string, number>()
+  records.forEach((r) => {
+    const nome = r.cliente?.trim() || r.organizacao?.trim() || 'Não identificado'
+    contagem.set(nome, (contagem.get(nome) || 0) + 1)
+  })
+
+  const ordenados = Array.from(contagem.entries())
+    .map(([cliente, chamados]) => ({
+      cliente,
+      chamados,
+      percentual: total > 0 ? (chamados / total) * 100 : 0,
+    }))
+    .sort((a, b) => b.chamados - a.chamados || a.cliente.localeCompare(b.cliente, 'pt-BR'))
+
+  const top10 = ordenados.slice(0, 10)
+  const restantes = ordenados.slice(10)
+  const maiorContagem = top10.length > 0 ? top10[0].chamados : 1
+
+  const linhas: AgrupamentoClientesLinha[] = top10.map((item) => ({
+    ...item,
+    proporcao: Math.round((item.chamados / maiorContagem) * 100),
+  }))
+
+  let outros: AgrupamentoClientesResult['outros'] = null
+  if (restantes.length > 0) {
+    const chamadosOutros = restantes.reduce((acc, cur) => acc + cur.chamados, 0)
+    outros = {
+      quantidadeClientes: restantes.length,
+      chamados: chamadosOutros,
+      percentual: total > 0 ? (chamadosOutros / total) * 100 : 0,
+      proporcao: Math.round((chamadosOutros / maiorContagem) * 100),
+    }
+  }
+
+  return {
+    total,
+    totalClientesDistintos: contagem.size,
+    linhas,
+    outros,
+  }
+}
+
 interface TecnicoClientesTableProps {
   tecnico: string
   records: Array<{

@@ -5,6 +5,8 @@ import { SupportRecord } from '../types/support'
 function mockRecord(cliente: string, tecnico = 'Alexandre Lopes'): SupportRecord {
   return {
     id: 'rec-' + Math.random(),
+    user_id: 'user-1',
+    origem_arquivo: 'planilha.xlsx',
     import_id: 'imp-1',
     numero: '1234',
     cliente,
@@ -28,9 +30,15 @@ function mockRecord(cliente: string, tecnico = 'Alexandre Lopes'): SupportRecord
 describe('agruparAtendimentosPorCliente', () => {
   it('agrupa registros e calcula porcentagem e barras proporcionais', () => {
     const records: SupportRecord[] = [
-      ...Array(10).fill(null).map(() => mockRecord('Petmais')),
-      ...Array(6).fill(null).map(() => mockRecord('Alexandre Casciano')),
-      ...Array(4).fill(null).map(() => mockRecord('Gta Assist')),
+      ...Array(10)
+        .fill(null)
+        .map(() => mockRecord('Petmais')),
+      ...Array(6)
+        .fill(null)
+        .map(() => mockRecord('Alexandre Casciano')),
+      ...Array(4)
+        .fill(null)
+        .map(() => mockRecord('Gta Assist')),
     ]
 
     const result = agruparAtendimentosPorCliente(records)
@@ -62,8 +70,12 @@ describe('agruparAtendimentosPorCliente', () => {
   it('cria linha "Outros" quando há mais de 10 clientes', () => {
     // 12 clientes: Cliente 1 com 10, Cliente 2..12 com 1 cada (total 21)
     const records: SupportRecord[] = [
-      ...Array(10).fill(null).map(() => mockRecord('Cliente 1')),
-      ...Array(11).fill(null).map((_, idx) => mockRecord(`Cliente ${idx + 2}`)),
+      ...Array(10)
+        .fill(null)
+        .map(() => mockRecord('Cliente 1')),
+      ...Array(11)
+        .fill(null)
+        .map((_, idx) => mockRecord(`Cliente ${idx + 2}`)),
     ]
 
     const result = agruparAtendimentosPorCliente(records)

@@ -202,6 +202,34 @@ export async function upsertMapeamento(record: MapeamentoInsert): Promise<Mapeam
   return data as MapeamentoRecord
 }
 
+export async function updateMapeamento(
+  id: string,
+  record: { nome: string; mapeamento: Record<string, string> },
+): Promise<MapeamentoRecord> {
+  const { data: userData } = await supabase.auth.getUser()
+  const userId = userData?.user?.id
+  if (!userId) throw new Error('Usuário não autenticado.')
+
+  const { data, error } = await (supabase as any)
+    .from('mapeamentos')
+    .update({
+      nome: record.nome.trim(),
+      mapeamento: record.mapeamento,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    if (error.code === '23505' || error.message?.includes('mapeamentos_nome_unique')) {
+      throw new Error(`Já existe outro mapeamento com o nome "${record.nome}". Escolha outro nome.`)
+    }
+    throw new Error(`Erro ao atualizar mapeamento: ${error.message}`)
+  }
+  return data as MapeamentoRecord
+}
+
 export async function deleteMapeamento(id: string): Promise<void> {
   const { error } = await (supabase as any).from('mapeamentos').delete().eq('id', id)
 
