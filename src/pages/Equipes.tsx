@@ -90,11 +90,19 @@ function toDraft(departamento: string, existing?: DepartmentCapacityRecord): Dra
   const chamadosMin =
     existing?.meta_chamados_dia_min ??
     existing?.meta_chamados_dia ??
-    (isCampo ? DEFAULT_CAMPO_CHAMADOS_MIN : isN2 ? DEFAULT_N2_CHAMADOS_MIN : DEFAULT_N1_CHAMADOS_MIN)
+    (isCampo
+      ? DEFAULT_CAMPO_CHAMADOS_MIN
+      : isN2
+        ? DEFAULT_N2_CHAMADOS_MIN
+        : DEFAULT_N1_CHAMADOS_MIN)
 
   const chamadosMax =
     existing?.meta_chamados_dia_max ??
-    (isCampo ? DEFAULT_CAMPO_CHAMADOS_MAX : isN2 ? DEFAULT_N2_CHAMADOS_MAX : DEFAULT_N1_CHAMADOS_MAX)
+    (isCampo
+      ? DEFAULT_CAMPO_CHAMADOS_MAX
+      : isN2
+        ? DEFAULT_N2_CHAMADOS_MAX
+        : DEFAULT_N1_CHAMADOS_MAX)
 
   return {
     departamento,
@@ -625,21 +633,22 @@ export default function Equipes() {
               <span>Campo / Field Service (Presencial)</span>
             </div>
             <p className="text-[11px] text-slate-500 leading-relaxed">
-              <b>Fonte:</b> Metas fornecidas pela gestão da operação (tabela de referência Field Service).
+              <b>Fonte:</b> Metas fornecidas pela gestão da operação (tabela de referência Field
+              Service).
               <br />
               <b>Metas padrão:</b> TMA entre <b>3h e 4h30min</b> (180–270 min), produtividade de{' '}
               <b>1,2 a 1,8 chamados/dia/técnico</b> e ocupação direta em tickets de <b>70% a 80%</b>{' '}
               (equipe necessária ideal: <b>3 a 4 técnicos</b> para ~75 chamados/mês).
               <br />
-              <b>Contexto:</b> Atendimentos presenciais com deslocamento, formatação, antenas, relatórios
-              técnicos e rotinas de laboratório.
+              <b>Contexto:</b> Atendimentos presenciais com deslocamento, formatação, antenas,
+              relatórios técnicos e rotinas de laboratório.
             </p>
           </div>
         </div>
 
         <p className="text-[11px] text-slate-400 pt-1">
-          Todos os departamentos aceitam personalização de limites e metas individuais através dos campos
-          acima conforme a necessidade da operação.
+          Todos os departamentos aceitam personalização de limites e metas individuais através dos
+          campos acima conforme a necessidade da operação.
         </p>
       </footer>
     </div>

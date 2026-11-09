@@ -17,7 +17,13 @@ export type Database = {
           id: string
           limite_diario: number
           meta_chamados_dia: number | null
+          meta_chamados_dia_max: number | null
+          meta_chamados_dia_min: number | null
+          meta_ocupacao_max: number | null
+          meta_ocupacao_min: number | null
+          meta_tma_max_num: number | null
           meta_tma_min: number | null
+          meta_tma_min_num: number | null
           qtd_tecnicos: number
           updated_at: string
           user_id: string
@@ -29,7 +35,13 @@ export type Database = {
           id?: string
           limite_diario?: number
           meta_chamados_dia?: number | null
+          meta_chamados_dia_max?: number | null
+          meta_chamados_dia_min?: number | null
+          meta_ocupacao_max?: number | null
+          meta_ocupacao_min?: number | null
+          meta_tma_max_num?: number | null
           meta_tma_min?: number | null
+          meta_tma_min_num?: number | null
           qtd_tecnicos?: number
           updated_at?: string
           user_id: string
@@ -41,7 +53,13 @@ export type Database = {
           id?: string
           limite_diario?: number
           meta_chamados_dia?: number | null
+          meta_chamados_dia_max?: number | null
+          meta_chamados_dia_min?: number | null
+          meta_ocupacao_max?: number | null
+          meta_ocupacao_min?: number | null
+          meta_tma_max_num?: number | null
           meta_tma_min?: number | null
+          meta_tma_min_num?: number | null
           qtd_tecnicos?: number
           updated_at?: string
           user_id?: string
