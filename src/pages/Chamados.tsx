@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Ticket, Search, ChevronLeft, ChevronRight, RefreshCw, Inbox } from 'lucide-react'
+import { Ticket, Search, ChevronLeft, ChevronRight, RefreshCw, Inbox, Clock } from 'lucide-react'
 import {
   fetchChamados,
   fetchDepartamentosEmUso,
@@ -217,6 +217,25 @@ export default function Chamados() {
     () => new Set(registrosDoTecnico.map((r) => r.cliente?.trim()).filter(Boolean)).size,
     [registrosDoTecnico],
   )
+
+  const mediaTempoTrabalhadoTecnico = useMemo(() => {
+    if (!tecnicoFiltro || registrosDoTecnico.length === 0) return null
+    const comTempo = registrosDoTecnico.filter(
+      (r) =>
+        r.tempo_trabalhado !== null &&
+        r.tempo_trabalhado !== undefined &&
+        !isNaN(Number(r.tempo_trabalhado)) &&
+        Number(r.tempo_trabalhado) > 0,
+    )
+    if (comTempo.length === 0) return null
+    const somaHoras = comTempo.reduce((acc, r) => acc + Number(r.tempo_trabalhado), 0)
+    const mediaMinutos = Math.round((somaHoras / comTempo.length) * 60)
+    return {
+      mediaMinutos,
+      apontados: comTempo.length,
+      alertaBaixo: mediaMinutos < 5,
+    }
+  }, [tecnicoFiltro, registrosDoTecnico])
 
   const handleSelecionarTecnico = (nome: string | null) => {
     setTecnicoFiltro(nome)
@@ -468,10 +487,31 @@ export default function Chamados() {
             </p>
           </div>
         )}
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Ticket className="w-4 h-4 text-teal-600" />
-            <h2 className="text-sm font-bold text-slate-900">{totalPaginasTexto}</h2>
+        <div className="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Ticket className="w-4 h-4 text-teal-600" />
+              <h2 className="text-sm font-bold text-slate-900">{totalPaginasTexto}</h2>
+            </div>
+            {tecnicoFiltro && mediaTempoTrabalhadoTecnico && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200/80 text-xs font-semibold text-teal-900">
+                <Clock className="w-3.5 h-3.5 text-teal-600" />
+                <span>
+                  Média do técnico:{' '}
+                  <strong className="font-mono text-teal-950 font-bold">
+                    {mediaTempoTrabalhadoTecnico.mediaMinutos} min/chamado
+                  </strong>
+                </span>
+                {mediaTempoTrabalhadoTecnico.alertaBaixo && (
+                  <span
+                    className="ml-1 inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded"
+                    title="⚠ tempo muito baixo — verificar preenchimento"
+                  >
+                    ⚠ tempo muito baixo
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button

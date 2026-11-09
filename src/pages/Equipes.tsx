@@ -13,12 +13,16 @@ import { Badge } from '@/components/ui/badge'
 
 const DEFAULT_DIAS_UTEIS = 22
 const DEFAULT_LIMITE_DIARIO = 8
+const DEFAULT_META_TMA = 20 // min/chamado (faixa 15–25)
+const DEFAULT_META_CHAMADOS_DIA = 15 // chamados/dia/técnico (faixa 12–18)
 
 interface DraftRow {
   departamento: string
   qtd_tecnicos: string
   dias_uteis: string
   limite_diario: string
+  meta_tma_min: string
+  meta_chamados_dia: string
   existing?: DepartmentCapacityRecord
 }
 
@@ -32,6 +36,12 @@ function toDraft(departamento: string, existing?: DepartmentCapacityRecord): Dra
       existing?.limite_diario != null
         ? String(existing.limite_diario)
         : String(DEFAULT_LIMITE_DIARIO),
+    meta_tma_min:
+      existing?.meta_tma_min != null ? String(existing.meta_tma_min) : String(DEFAULT_META_TMA),
+    meta_chamados_dia:
+      existing?.meta_chamados_dia != null
+        ? String(existing.meta_chamados_dia)
+        : String(DEFAULT_META_CHAMADOS_DIA),
     existing,
   }
 }
@@ -83,7 +93,7 @@ export default function Equipes() {
 
   const updateDraft = (
     depto: string,
-    field: 'qtd_tecnicos' | 'dias_uteis' | 'limite_diario',
+    field: 'qtd_tecnicos' | 'dias_uteis' | 'limite_diario' | 'meta_tma_min' | 'meta_chamados_dia',
     value: string,
   ) => {
     setDrafts((prev) => ({
@@ -102,6 +112,8 @@ export default function Equipes() {
     }
     const dias = parseInt(draft.dias_uteis, 10)
     const limite = parseFloat(draft.limite_diario.replace(',', '.'))
+    const metaTma = parseFloat(draft.meta_tma_min.replace(',', '.'))
+    const metaChamados = parseFloat(draft.meta_chamados_dia.replace(',', '.'))
 
     setSaving(depto)
     setError(null)
@@ -111,6 +123,9 @@ export default function Equipes() {
         qtd_tecnicos: qtd,
         dias_uteis: !isNaN(dias) && dias > 0 ? dias : DEFAULT_DIAS_UTEIS,
         limite_diario: !isNaN(limite) && limite > 0 ? limite : DEFAULT_LIMITE_DIARIO,
+        meta_tma_min: !isNaN(metaTma) && metaTma > 0 ? metaTma : DEFAULT_META_TMA,
+        meta_chamados_dia:
+          !isNaN(metaChamados) && metaChamados > 0 ? metaChamados : DEFAULT_META_CHAMADOS_DIA,
       })
       setCapacities((prev) => {
         const idx = prev.findIndex((c) => c.departamento === depto)
@@ -271,7 +286,7 @@ export default function Equipes() {
                     )}
                   </div>
 
-                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
                     <label className="block">
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                         Qtd. de técnicos
@@ -311,6 +326,32 @@ export default function Equipes() {
                         placeholder={String(DEFAULT_LIMITE_DIARIO)}
                       />
                     </label>
+                    <label className="block">
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                        Meta TMA (min/cham.)
+                      </span>
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        value={draft.meta_tma_min}
+                        onChange={(e) => updateDraft(depto, 'meta_tma_min', e.target.value)}
+                        className="h-9 mt-1 rounded-xl border-slate-200 text-xs"
+                        placeholder="15–25"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                        Meta chamados/dia
+                      </span>
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        value={draft.meta_chamados_dia}
+                        onChange={(e) => updateDraft(depto, 'meta_chamados_dia', e.target.value)}
+                        className="h-9 mt-1 rounded-xl border-slate-200 text-xs"
+                        placeholder="12–18"
+                      />
+                    </label>
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
@@ -342,6 +383,16 @@ export default function Equipes() {
           </div>
         )}
       </div>
+
+      {/* RODAPÉ FIXO COM NOTA DE FONTE BENCHMARK */}
+      <footer className="mt-8 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4 text-xs text-slate-600 leading-relaxed">
+        <p className="font-semibold text-slate-800">Nota sobre as metas e referências:</p>
+        <p className="mt-1 text-slate-600">
+          Metas de referência: benchmarks HDI (Help Desk Institute) e MetricNet para suporte remoto
+          N1 Windows (TMA 15–25 min/chamado; 12–18 chamados/dia/técnico). Metas de Campo e N2:
+          levantamento em andamento.
+        </p>
+      </footer>
     </div>
   )
 }

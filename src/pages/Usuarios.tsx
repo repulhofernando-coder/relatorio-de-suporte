@@ -97,7 +97,8 @@ export default function Usuarios() {
 
     setSubmitting(true)
     try {
-      const { data, error } = await supabase.rpc('admin_create_user', {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.rpc as any)('admin_create_user', {
         p_email: cleanEmail,
         p_password: password,
         p_nome: cleanNome || null,

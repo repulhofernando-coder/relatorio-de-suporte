@@ -1,8 +1,19 @@
 import { useMemo } from 'react'
-import { X, User, CalendarDays, Building2, Timer, Users, Hash, UserCheck } from 'lucide-react'
+import {
+  X,
+  User,
+  CalendarDays,
+  Building2,
+  Users,
+  Hash,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  AlertTriangle,
+  HelpCircle,
+} from 'lucide-react'
 import { SupportRecord } from '@/types/support'
 import { Button } from '@/components/ui/button'
-import { normalizeHeader } from '@/lib/spreadsheet'
 
 interface TecnicoDrillDownProps {
   tecnico: string
@@ -17,18 +28,8 @@ function formatShortDate(dateStr: string): string {
   return `${d}/${m}/${y}`
 }
 
-function formatSlaHoras(horas: number | null | undefined): string {
-  if (horas === null || horas === undefined || isNaN(horas) || horas <= 0) return '—'
-  const hours = Math.floor(horas)
-  const minutes = Math.round((horas - hours) * 60)
-  if (minutes === 60) return `${hours + 1}h`
-  if (hours > 0) {
-    return minutes > 0 ? `${hours}h${String(minutes).padStart(2, '0')}` : `${hours}h`
-  }
-  return `${(horas + Number.EPSILON).toFixed(2).replace('.', ',').replace(/,?0+$/, '')}h`
-}
-
 function formatPercent(part: number, total: number): string {
+  if (total <= 0) return '0%'
   const pct = (part / total) * 100
   return `${pct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
 }
@@ -37,21 +38,40 @@ export function TecnicoDrillDown({ tecnico, records, onClose }: TecnicoDrillDown
   const stats = useMemo(() => {
     const doTecnico = records.filter((r) => r.tecnico?.trim() === tecnico)
 
-    const slaValues = doTecnico
-      .map((r) => r.sla_horas)
-      .filter((s): s is number => typeof s === 'number' && !isNaN(s) && s > 0)
+    let noPrazo = 0
+    let foraDoPrazo = 0
+    let semInfoSla = 0
+
+    let somaHorasTrabalhadas = 0
+    let countComTempo = 0
 
     const porMes: Record<string, { label: string; count: number; sortKey: string }> = {}
     const porAno: Record<string, number> = {}
     const deptos: Record<string, number> = {}
     const clientes: Record<string, number> = {}
-    const nomeNormalizado = normalizeHeader(tecnico)
-    let abertosPorEleMesmo = 0
 
     doTecnico.forEach((r) => {
-      if (r.aberto_por?.trim() && normalizeHeader(r.aberto_por) === nomeNormalizado) {
-        abertosPorEleMesmo += 1
+      // SLA
+      const sla = r.sla_status?.toLowerCase().trim()
+      if (sla === 'dentro' || sla === 'no prazo' || sla === 'no_prazo') {
+        noPrazo += 1
+      } else if (sla === 'fora' || sla === 'fora do prazo' || sla === 'fora_do_prazo') {
+        foraDoPrazo += 1
+      } else {
+        semInfoSla += 1
       }
+
+      // Tempo trabalhado (horas decimais na coluna tempo_trabalhado)
+      if (
+        r.tempo_trabalhado !== null &&
+        r.tempo_trabalhado !== undefined &&
+        !isNaN(Number(r.tempo_trabalhado)) &&
+        Number(r.tempo_trabalhado) > 0
+      ) {
+        somaHorasTrabalhadas += Number(r.tempo_trabalhado)
+        countComTempo += 1
+      }
+
       if (r.data_chamado) {
         const [y, m] = r.data_chamado.split('-')
         if (y && m) {
@@ -78,13 +98,21 @@ export function TecnicoDrillDown({ tecnico, records, onClose }: TecnicoDrillDown
         .sort((a, b) => b[1] - a[1])
         .slice(0, n)
 
+    const total = doTecnico.length
+    const tempoMedioMinutos =
+      countComTempo > 0 ? Math.round((somaHorasTrabalhadas / countComTempo) * 60) : null
+
     return {
-      total: doTecnico.length,
-      abertosPorEleMesmo,
-      slaMedio: slaValues.length
-        ? slaValues.reduce((acc, v) => acc + v, 0) / slaValues.length
-        : null,
-      chamadosComSla: slaValues.length,
+      total,
+      noPrazo,
+      foraDoPrazo,
+      semInfoSla,
+      pctNoPrazo: total > 0 ? (noPrazo / total) * 100 : 0,
+      pctForaDoPrazo: total > 0 ? (foraDoPrazo / total) * 100 : 0,
+      countComTempo,
+      somaHorasTrabalhadas: Math.round(somaHorasTrabalhadas * 10) / 10,
+      tempoMedioMinutos,
+      tempoMuitoBaixo: tempoMedioMinutos !== null && tempoMedioMinutos < 5,
       porMes: Object.values(porMes).sort((a, b) => a.sortKey.localeCompare(b.sortKey)),
       porAno: top(porAno, 6),
       topDeptos: top(deptos, 3),
@@ -130,53 +158,129 @@ export function TecnicoDrillDown({ tecnico, records, onClose }: TecnicoDrillDown
         </div>
 
         <div className="p-5 space-y-5">
+          {/* Selo de atenção: tempo muito baixo */}
+          {stats.tempoMuitoBaixo && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-start gap-2.5 text-xs text-amber-900">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold">⚠ tempo muito baixo — verificar preenchimento</span>
+                <p className="text-amber-800 text-[11px] mt-0.5 leading-relaxed">
+                  O tempo médio por chamado deste técnico é de{' '}
+                  <strong>{stats.tempoMedioMinutos} min/chamado</strong> (abaixo de 5 min).
+                  Verifique se os apontamentos de horas na planilha estão sendo preenchidos
+                  corretamente.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* KPIs principais */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3">
               <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                <Hash className="w-3 h-3" /> Chamados
+                <Hash className="w-3 h-3" /> Total de Chamados
               </div>
               <p className="text-2xl font-extrabold text-slate-900 mt-1">{stats.total}</p>
+              <p className="text-[10px] text-slate-400">no período filtrado</p>
             </div>
+
             <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3">
               <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                <UserCheck className="w-3 h-3" /> Abertos por ele mesmo
+                <Clock className="w-3 h-3" /> Tempo Médio
               </div>
-              <p className="text-2xl font-extrabold text-slate-900 mt-1">
-                {stats.abertosPorEleMesmo}
+              <p className="text-2xl font-extrabold text-teal-800 font-mono mt-1">
+                {stats.tempoMedioMinutos !== null ? `${stats.tempoMedioMinutos} min` : '—'}
               </p>
               <p className="text-[10px] text-slate-400">
-                {stats.total > 0
-                  ? `${formatPercent(stats.abertosPorEleMesmo, stats.total)} do total`
-                  : 'sem chamados'}
+                {stats.tempoMedioMinutos !== null
+                  ? `${stats.tempoMedioMinutos} min/chamado (${stats.countComTempo} apontados)`
+                  : 'sem tempo registrado'}
               </p>
             </div>
-            <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3">
-              <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                <Timer className="w-3 h-3" /> SLA médio
+          </div>
+
+          {/* Resumo de SLA do técnico */}
+          <div className="rounded-2xl border border-slate-200/80 p-4 bg-white space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+                Desempenho de SLA
+              </span>
+              <span className="text-[11px] text-slate-400">
+                {stats.total > 0 ? `${stats.total} chamados` : ''}
+              </span>
+            </div>
+
+            {/* Barra visual de SLA */}
+            {stats.total > 0 && (
+              <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex shadow-inner">
+                {stats.pctNoPrazo > 0 && (
+                  <div
+                    style={{ width: `${stats.pctNoPrazo}%` }}
+                    className="bg-emerald-500"
+                    title={`No prazo: ${stats.noPrazo} (${stats.pctNoPrazo.toFixed(1)}%)`}
+                  />
+                )}
+                {stats.pctForaDoPrazo > 0 && (
+                  <div
+                    style={{ width: `${stats.pctForaDoPrazo}%` }}
+                    className="bg-rose-500"
+                    title={`Fora do prazo: ${stats.foraDoPrazo} (${stats.pctForaDoPrazo.toFixed(1)}%)`}
+                  />
+                )}
+                {stats.semInfoSla > 0 && (
+                  <div
+                    style={{ width: `${((stats.semInfoSla / stats.total) * 100).toFixed(1)}%` }}
+                    className="bg-slate-300"
+                    title={`Sem info: ${stats.semInfoSla}`}
+                  />
+                )}
               </div>
-              <p className="text-2xl font-extrabold text-slate-900 mt-1">
-                {formatSlaHoras(stats.slaMedio)}
-              </p>
-              <p className="text-[10px] text-slate-400">
-                {stats.chamadosComSla > 0
-                  ? `${stats.chamadosComSla} com SLA`
-                  : 'sem SLA registrado'}
-              </p>
-            </div>
-            <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3">
-              <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                <CalendarDays className="w-3 h-3" /> Meses
+            )}
+
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-2.5">
+                <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-800">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  No prazo
+                </div>
+                <div className="text-lg font-extrabold text-emerald-900 font-mono mt-1">
+                  {stats.noPrazo}
+                </div>
+                <div className="text-[10px] text-emerald-700 font-medium">
+                  {formatPercent(stats.noPrazo, stats.total)}
+                </div>
               </div>
-              <p className="text-2xl font-extrabold text-slate-900 mt-1">{stats.porMes.length}</p>
-              <p className="text-[10px] text-slate-400">com atendimento</p>
+
+              <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-2.5">
+                <div className="flex items-center gap-1 text-[11px] font-semibold text-rose-800">
+                  <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                  Fora do prazo
+                </div>
+                <div className="text-lg font-extrabold text-rose-900 font-mono mt-1">
+                  {stats.foraDoPrazo}
+                </div>
+                <div className="text-[10px] text-rose-700 font-medium">
+                  {formatPercent(stats.foraDoPrazo, stats.total)}
+                </div>
+              </div>
             </div>
+
+            {stats.semInfoSla > 0 && (
+              <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
+                <span className="flex items-center gap-1">
+                  <HelpCircle className="w-3 h-3 text-slate-400" /> Sem informação de SLA
+                </span>
+                <span className="font-mono font-semibold text-slate-700">
+                  {stats.semInfoSla} ({formatPercent(stats.semInfoSla, stats.total)})
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Chamados por mês */}
           <div>
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide mb-2">
-              Chamados por mês
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+              <CalendarDays className="w-3.5 h-3.5 text-slate-400" /> Chamados por mês
             </h3>
             {stats.porMes.length === 0 ? (
               <p className="text-xs text-slate-400">Sem registros no período.</p>

@@ -49,6 +49,8 @@ export interface DepartmentCapacityRecord {
   qtd_tecnicos: number
   dias_uteis: number
   limite_diario: number
+  meta_tma_min?: number | null
+  meta_chamados_dia?: number | null
   created_at: string
   updated_at: string
 }
@@ -58,6 +60,8 @@ export interface DepartmentCapacityUpsert {
   qtd_tecnicos: number
   dias_uteis: number
   limite_diario: number
+  meta_tma_min?: number | null
+  meta_chamados_dia?: number | null
   user_id?: string
 }
 

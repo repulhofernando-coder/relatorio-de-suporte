@@ -347,6 +347,8 @@ export async function upsertDepartmentCapacity(
         qtd_tecnicos: record.qtd_tecnicos,
         dias_uteis: record.dias_uteis,
         limite_diario: record.limite_diario,
+        meta_tma_min: record.meta_tma_min ?? null,
+        meta_chamados_dia: record.meta_chamados_dia ?? null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'user_id,departamento' },

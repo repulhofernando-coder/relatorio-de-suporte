@@ -33,6 +33,8 @@ import {
 import { CapacityPanel } from '@/components/dashboard/CapacityPanel'
 import { TecnicoDrillDown } from '@/components/dashboard/TecnicoDrillDown'
 import { ClientesUsoInadequadoPanel } from '@/components/dashboard/ClientesUsoInadequadoPanel'
+import { SlaStatusPanel } from '@/components/dashboard/SlaStatusPanel'
+import { BenchmarkPanel } from '@/components/dashboard/BenchmarkPanel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -428,48 +430,6 @@ export default function Index() {
     return { direction: 'neutral', percent: 0, positive: true }
   }, [slaMedioHoras, previousPeriodSlaMedia])
 
-  // SLA médio por técnico (apenas registros com SLA preenchido)
-  const slaPorTecnicoData = useMemo(() => {
-    const acc: Record<string, { sum: number; count: number }> = {}
-    records.forEach((r) => {
-      const tecnico = r.tecnico?.trim()
-      const sla = r.sla_horas
-      if (!tecnico || typeof sla !== 'number' || isNaN(sla) || sla <= 0) return
-      if (!acc[tecnico]) acc[tecnico] = { sum: 0, count: 0 }
-      acc[tecnico].sum += sla
-      acc[tecnico].count += 1
-    })
-    return Object.entries(acc)
-      .map(([tecnico, v]) => ({
-        tecnico,
-        media: Math.round((v.sum / v.count) * 100) / 100,
-        registros: v.count,
-      }))
-      .sort((a, b) => b.media - a.media)
-      .slice(0, 8)
-  }, [records])
-
-  // SLA médio por departamento (apenas registros com SLA preenchido)
-  const slaPorDepartamentoData = useMemo(() => {
-    const acc: Record<string, { sum: number; count: number }> = {}
-    records.forEach((r) => {
-      const depto = r.departamento?.trim()
-      const sla = r.sla_horas
-      if (!depto || typeof sla !== 'number' || isNaN(sla) || sla <= 0) return
-      if (!acc[depto]) acc[depto] = { sum: 0, count: 0 }
-      acc[depto].sum += sla
-      acc[depto].count += 1
-    })
-    return Object.entries(acc)
-      .map(([departamento, v]) => ({
-        departamento,
-        media: Math.round((v.sum / v.count) * 100) / 100,
-        registros: v.count,
-        color: departmentColor(departamento),
-      }))
-      .sort((a, b) => b.media - a.media)
-  }, [records])
-
   // Tendência do Total de Chamados vs período anterior
   const trend = useMemo(() => {
     if (previousPeriodRecordsCount === null || previousPeriodRecordsCount === undefined) return null
@@ -522,7 +482,7 @@ export default function Index() {
     return records.filter((r) => !isAbertoPorTecnico(r, tecnicosConhecidos))
   }, [records])
 
-  // Gráfico 2: Ranking de técnicos (incluindo horas trabalhadas e tempo médio por chamado)
+  // Gráfico 2: Ranking de técnicos (incluindo horas trabalhadas e tempo médio por chamado em minutos)
   const rankingTecnicosData = useMemo(() => {
     const stats: Record<string, { chamados: number; horas: number; horasCount: number }> = {}
     records.forEach((r) => {
@@ -544,12 +504,17 @@ export default function Index() {
     return Object.entries(stats)
       .map(([tecnico, st]) => {
         const mediaHoras = st.horasCount > 0 ? st.horas / st.horasCount : null
+        const mediaMinutos = mediaHoras !== null ? Math.round(mediaHoras * 60) : null
+        const tempoMuitoBaixo = mediaMinutos !== null && mediaMinutos < 5
+
         return {
           tecnico,
           chamados: st.chamados,
           porcentagem: ((st.chamados / total) * 100).toFixed(1),
           totalHoras: Math.round(st.horas * 10) / 10,
           mediaHoras: mediaHoras !== null ? Math.round(mediaHoras * 10) / 10 : null,
+          mediaMinutos,
+          tempoMuitoBaixo,
         }
       })
       .sort((a, b) => b.chamados - a.chamados)
@@ -1008,150 +973,8 @@ export default function Index() {
             </div>
           )}
 
-          {/* GRÁFICOS SLA (50% / 50%) */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {/* SLA médio por técnico */}
-            <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80 flex flex-col">
-              <div className="mb-4">
-                <h3 className="text-base font-bold text-slate-900">SLA médio por técnico</h3>
-                <p className="text-xs text-slate-500">
-                  Tempo médio de SLA (em horas) dos chamados com SLA preenchido
-                </p>
-              </div>
-
-              <div className="flex-1 min-h-[260px] w-full">
-                {loading ? (
-                  <div className="h-full w-full flex items-center justify-center">
-                    <div className="w-full h-52 bg-slate-50 rounded-xl animate-pulse" />
-                  </div>
-                ) : slaPorTecnicoData.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-400 py-12">
-                    <Inbox className="w-10 h-10 mb-2 stroke-1" />
-                    <p className="text-xs">
-                      Sem dados de SLA neste período (importações antigas podem não ter essa coluna)
-                    </p>
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <BarChart
-                      data={slaPorTecnicoData}
-                      layout="vertical"
-                      margin={{ top: 10, right: 30, left: 10, bottom: 5 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
-                      <XAxis
-                        type="number"
-                        tick={{ fontSize: 11, fill: '#64748B' }}
-                        tickFormatter={(v: number) => `${v}h`}
-                      />
-                      <YAxis
-                        type="category"
-                        dataKey="tecnico"
-                        width={130}
-                        tick={{ fontSize: 11, fill: '#334155' }}
-                        tickFormatter={(val) =>
-                          val.length > 16 ? `${val.substring(0, 15)}…` : val
-                        }
-                      />
-                      <Tooltip
-                        cursor={{ fill: 'rgba(13, 148, 136, 0.06)' }}
-                        content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            const data = payload[0].payload
-                            return (
-                              <div className="bg-slate-900 text-white px-3 py-2 rounded-xl text-xs shadow-lg">
-                                <p className="font-semibold">{data.tecnico}</p>
-                                <p className="text-teal-300 font-mono mt-0.5">
-                                  SLA médio de {formatSlaHoras(data.media)} ({data.registros}{' '}
-                                  {data.registros === 1 ? 'chamado' : 'chamados'})
-                                </p>
-                              </div>
-                            )
-                          }
-                          return null
-                        }}
-                      />
-                      <Bar dataKey="media" radius={[0, 8, 8, 0]} animationDuration={600}>
-                        {slaPorTecnicoData.map((_entry, index) => (
-                          <Cell
-                            key={`sla-tecnico-${index}`}
-                            fill={CHART_PALETTE[index % CHART_PALETTE.length]}
-                          />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </div>
-
-            {/* SLA médio por departamento */}
-            <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80 flex flex-col">
-              <div className="mb-4">
-                <h3 className="text-base font-bold text-slate-900">SLA médio por departamento</h3>
-                <p className="text-xs text-slate-500">
-                  Tempo médio de SLA (em horas) por setor — apenas departamentos com dados no
-                  período
-                </p>
-              </div>
-
-              <div className="flex-1 min-h-[260px] w-full">
-                {loading ? (
-                  <div className="h-full w-full flex items-center justify-center">
-                    <div className="w-full h-52 bg-slate-50 rounded-xl animate-pulse" />
-                  </div>
-                ) : slaPorDepartamentoData.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-400 py-12">
-                    <Inbox className="w-10 h-10 mb-2 stroke-1" />
-                    <p className="text-xs">
-                      Sem dados de SLA neste período (importações antigas podem não ter essa coluna)
-                    </p>
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <BarChart
-                      data={slaPorDepartamentoData}
-                      margin={{ top: 10, right: 20, left: -20, bottom: 5 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                      <XAxis
-                        dataKey="departamento"
-                        tick={{ fontSize: 11, fill: '#64748B' }}
-                        interval={0}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 11, fill: '#64748B' }}
-                        tickFormatter={(v: number) => `${v}h`}
-                      />
-                      <Tooltip
-                        cursor={{ fill: 'rgba(13, 148, 136, 0.06)' }}
-                        content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            const data = payload[0].payload
-                            return (
-                              <div className="bg-slate-900 text-white px-3 py-2 rounded-xl text-xs shadow-lg">
-                                <p className="font-semibold">{data.departamento}</p>
-                                <p className="text-teal-300 font-mono mt-0.5">
-                                  SLA médio de {formatSlaHoras(data.media)} ({data.registros}{' '}
-                                  {data.registros === 1 ? 'chamado' : 'chamados'})
-                                </p>
-                              </div>
-                            )
-                          }
-                          return null
-                        }}
-                      />
-                      <Bar dataKey="media" radius={[6, 6, 0, 0]} animationDuration={600}>
-                        {slaPorDepartamentoData.map((entry, index) => (
-                          <Cell key={`sla-depto-${index}`} fill={entry.color} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </div>
-          </div>
+          {/* NOVO QUADRO SLA (contagem de chamados no prazo, fora do prazo e sem informação) */}
+          <SlaStatusPanel records={records} loading={loading} />
 
           {/* GRÁFICOS LINHA 1 (55% / 45%) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
@@ -1343,7 +1166,7 @@ export default function Index() {
                   </ResponsiveContainer>
                 )}
 
-                {/* Legenda clicável: um "botão" por técnico do ranking */}
+                {/* Legenda clicável: um "botão" por técnico do ranking com tempo médio destacado e alerta < 5min */}
                 {!loading && rankingTecnicosData.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {rankingTecnicosData.map((item) => (
@@ -1351,15 +1174,25 @@ export default function Index() {
                         key={item.tecnico}
                         onClick={() => setTecnicoSelecionado(item.tecnico)}
                         className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 hover:bg-teal-50 hover:text-teal-700 px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors cursor-pointer"
-                        title={`Ver números de ${item.tecnico}`}
+                        title={`Ver resumo de ${item.tecnico}: ${item.chamados} chamados${item.mediaMinutos !== null ? ` • ${item.mediaMinutos} min/chamado` : ''}`}
                       >
-                        {item.tecnico}
-                        <span className="font-mono text-[11px] text-slate-500">
-                          {item.chamados}
-                        </span>
-                        {item.totalHoras > 0 && (
-                          <span className="font-mono text-[10px] text-teal-700 bg-teal-100/80 px-1 rounded">
-                            {item.totalHoras}h
+                        <span>{item.tecnico}</span>
+                        {item.mediaMinutos !== null ? (
+                          <span className="font-mono text-[10px] text-teal-800 bg-teal-100/80 px-1.5 py-0.5 rounded font-semibold">
+                            {item.mediaMinutos} min/chamado
+                          </span>
+                        ) : (
+                          <span className="font-mono text-[11px] text-slate-500">
+                            {item.chamados} ch
+                          </span>
+                        )}
+                        {item.tempoMuitoBaixo && (
+                          <span
+                            className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded"
+                            title="⚠ tempo muito baixo — verificar preenchimento"
+                          >
+                            <AlertTriangle className="w-3 h-3 text-amber-600" />
+                            tempo muito baixo
                           </span>
                         )}
                       </button>
@@ -1659,6 +1492,9 @@ export default function Index() {
               </div>
             </div>
           </div>
+
+          {/* PAINEL BENCHMARK: Comparativo de Desempenho (Sua Operação Real vs Cenário Ideal N1 Remoto vs Diagnóstico Gerencial) */}
+          <BenchmarkPanel records={records} capacities={capacities} loading={loading} />
 
           {/* Painel: Clientes que usam o suporte de forma errada (mais aberturas por técnicos do que pelo cliente) */}
           <ClientesUsoInadequadoPanel records={records} loading={loading} />
