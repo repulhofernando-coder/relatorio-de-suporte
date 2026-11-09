@@ -226,21 +226,36 @@ export function parseSlaHoras(value: unknown): number | null {
     return Math.round(value * 100) / 100
   }
 
-  if (value instanceof Date) return null
+  // Quando XLSX lê com { cellDates: true }, durações como "04:32:12" viram instâncias de Date
+  // Trata como duração (horas + minutos/60 + segundos/3600) usando o horário local da Date
+  if (value instanceof Date) {
+    if (isNaN(value.getTime())) return null
+    const h = value.getHours()
+    const m = value.getMinutes()
+    const s = value.getSeconds()
+    const totalHoras = h + m / 60 + s / 3600
+    return Math.round(totalHoras * 100) / 100
+  }
 
   const str = String(value).trim().toLowerCase()
   if (!str) return null
 
-  // "01:30" ou "01:30:00" → horas:minutos (1,5h)
-  const timeMatch = str.match(/^(\d{1,3}):(\d{2})(?::\d{2})?$/)
+  // Bloquear percentuais puros (ex.: "100%", "98,5%") para não virarem horas
+  if (str.includes('%')) {
+    return null
+  }
+
+  // "01:30" ou "01:30:00" ou "04:32:12" → horas:minutos:segundos
+  const timeMatch = str.match(/^(\d{1,3}):(\d{2})(?::(\d{2}))?$/)
   if (timeMatch) {
     const hours = parseInt(timeMatch[1], 10) || 0
     const minutes = parseInt(timeMatch[2], 10) || 0
-    return Math.round((hours + minutes / 60) * 100) / 100
+    const seconds = timeMatch[3] ? parseInt(timeMatch[3], 10) || 0 : 0
+    return Math.round((hours + minutes / 60 + seconds / 3600) * 100) / 100
   }
 
   // "2h30", "2h 30min", "2h"
-  const hMatch = str.match(/(\d+)\s*h(?:oras?)?(?:\s*(\d{1,2})\s*(?:m|min|minutos?)?)?/)
+  const hMatch = str.match(/^(\d+)\s*h(?:oras?)?(?:\s*(\d{1,2})\s*(?:m|min|minutos?)?)?$/)
   if (hMatch) {
     const hours = parseInt(hMatch[1], 10) || 0
     const minutes = hMatch[2] ? parseInt(hMatch[2], 10) || 0 : 0
@@ -254,12 +269,16 @@ export function parseSlaHoras(value: unknown): number | null {
     return Math.round((minutes / 60) * 100) / 100
   }
 
-  // Número puro ou decimal com vírgula: "2,5", "2.5", "3" (assumido em horas)
-  const cleanNum = str.replace(',', '.').replace(/[^\d.]/g, '')
-  if (!cleanNum) return null
-  const num = parseFloat(cleanNum)
-  if (isNaN(num) || num < 0) return null
-  return Math.round(num * 100) / 100
+  // Número puro ou decimal com vírgula/ponto: "2,5", "2.5", "3" (assumido em horas)
+  // Rejeita strings com ruído de texto para evitar que "100% OK" ou "chamado 123" vire SLA
+  if (/^\d+(?:[.,]\d+)?$/.test(str)) {
+    const cleanNum = str.replace(',', '.')
+    const num = parseFloat(cleanNum)
+    if (isNaN(num) || num < 0) return null
+    return Math.round(num * 100) / 100
+  }
+
+  return null
 }
 
 /**

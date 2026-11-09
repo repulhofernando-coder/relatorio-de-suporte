@@ -259,6 +259,7 @@ export interface FetchChamadosParams {
   endDate?: string // YYYY-MM-DD
   departamento?: string
   tecnico?: string // nome exato do técnico que atendeu
+  abertoPorProprioTecnico?: boolean // filtra somente chamados abertos pelo próprio técnico atendente
   busca?: string // número do chamado ou cliente
   ordenarPor?: 'data_chamado' | 'numero'
   ordem?: 'asc' | 'desc'
@@ -288,9 +289,12 @@ export async function fetchChamados(params?: FetchChamadosParams): Promise<Fetch
   if (params?.tecnico) {
     query = query.eq('tecnico', params.tecnico)
   }
+  if (params?.abertoPorProprioTecnico && params?.tecnico) {
+    query = query.ilike('aberto_por', params.tecnico)
+  }
   if (params?.busca && params.busca.trim()) {
     const termo = params.busca.trim()
-    const orCond = `numero.ilike.%${termo}%,cliente.ilike.%${termo}%,organizacao.ilike.%${termo}%`
+    const orCond = `numero.ilike.%${termo}%,cliente.ilike.%${termo}%,organizacao.ilike.%${termo}%,assunto.ilike.%${termo}%`
     query = query.or(orCond)
   }
 

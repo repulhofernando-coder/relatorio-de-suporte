@@ -29,6 +29,7 @@ import {
 } from 'lucide-react'
 import { CapacityPanel } from '@/components/dashboard/CapacityPanel'
 import { TecnicoDrillDown } from '@/components/dashboard/TecnicoDrillDown'
+import { ClientesUsoInadequadoPanel } from '@/components/dashboard/ClientesUsoInadequadoPanel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -1545,7 +1546,10 @@ export default function Index() {
             </div>
           </div>
 
-          {/* NOVO: Capacidade por departamento (chamados ÷ técnicos, média/dia, aviso de limite) */}
+          {/* Painel: Clientes que usam o suporte de forma errada (mais aberturas por técnicos do que pelo cliente) */}
+          <ClientesUsoInadequadoPanel records={records} loading={loading} />
+
+          {/* Capacidade por departamento (chamados ÷ técnicos, média/dia, aviso de limite) */}
           <CapacityPanel
             records={recordsCapacidade}
             capacities={capacities}

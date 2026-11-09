@@ -95,6 +95,8 @@ export default function Chamados() {
   const [inicializado, setInicializado] = useState(false)
   // Técnico selecionado no quadro de responsáveis (filtra a tabela; combina com os demais filtros)
   const [tecnicoFiltro, setTecnicoFiltro] = useState<string | null>(null)
+  // Subfiltro da pizza: quando ativo, mostra apenas chamados abertos pelo próprio técnico
+  const [somenteProprioFiltro, setSomenteProprioFiltro] = useState(false)
   // Todos os registros do filtro atual (sem o filtro de técnico), paginados por fetchSupportRecords
   const [registrosFiltro, setRegistrosFiltro] = useState<SupportRecord[]>([])
   const [loadingRegistros, setLoadingRegistros] = useState(true)
@@ -122,7 +124,12 @@ export default function Chamados() {
         if (range.endDate) params.endDate = range.endDate
         if (departamentoFiltro !== 'todos') params.departamento = departamentoFiltro
         if (buscaAplicada.trim()) params.busca = buscaAplicada.trim()
-        if (tecnicoFiltro) params.tecnico = tecnicoFiltro
+        if (tecnicoFiltro) {
+          params.tecnico = tecnicoFiltro
+          if (somenteProprioFiltro) {
+            params.abertoPorProprioTecnico = true
+          }
+        }
 
         const result = await fetchChamados(params)
         setRows(result.rows)
@@ -205,6 +212,12 @@ export default function Chamados() {
 
   const handleSelecionarTecnico = (nome: string | null) => {
     setTecnicoFiltro(nome)
+    setSomenteProprioFiltro(false)
+    setPage(1)
+  }
+
+  const handleToggleSomenteProprio = () => {
+    setSomenteProprioFiltro((prev) => !prev)
     setPage(1)
   }
 
@@ -388,7 +401,12 @@ export default function Chamados() {
         </div>
         {tecnicoFiltro && (
           <div className="lg:col-span-1">
-            <TecnicoAberturaPie tecnico={tecnicoFiltro} registros={registrosDoTecnico} />
+            <TecnicoAberturaPie
+              tecnico={tecnicoFiltro}
+              registros={registrosDoTecnico}
+              somenteProprio={somenteProprioFiltro}
+              onToggleSomenteProprio={handleToggleSomenteProprio}
+            />
           </div>
         )}
       </div>
@@ -396,11 +414,26 @@ export default function Chamados() {
       {/* TABELA */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
         {tecnicoFiltro && (
-          <div className="px-5 py-3 bg-teal-50/60 border-b border-teal-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-            <p className="text-sm font-bold text-teal-900">
-              {clientesDoTecnico} {clientesDoTecnico === 1 ? 'cliente' : 'clientes'} ·{' '}
-              {registrosDoTecnico.length} {registrosDoTecnico.length === 1 ? 'chamado' : 'chamados'}
-            </p>
+          <div className="px-5 py-3 bg-teal-50/60 border-b border-teal-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-sm font-bold text-teal-900">
+                {clientesDoTecnico} {clientesDoTecnico === 1 ? 'cliente' : 'clientes'} ·{' '}
+                {registrosDoTecnico.length}{' '}
+                {registrosDoTecnico.length === 1 ? 'chamado' : 'chamados'}
+              </p>
+              {somenteProprioFiltro && (
+                <Badge className="bg-teal-600 text-white text-[11px] gap-1 px-2 py-0.5">
+                  Filtro: abertos por ele mesmo
+                  <button
+                    onClick={handleToggleSomenteProprio}
+                    className="ml-1 hover:text-teal-200 text-xs font-bold leading-none"
+                    title="Remover filtro"
+                  >
+                    ×
+                  </button>
+                </Badge>
+              )}
+            </div>
             <p className="text-xs text-teal-800">
               Atendidos por <span className="font-semibold">{tecnicoFiltro}</span>
             </p>
@@ -472,7 +505,8 @@ export default function Chamados() {
                   <th className="py-3 px-4">Cliente / Organização</th>
                   <th className="py-3 px-4">Criado por</th>
                   <th className="py-3 px-4">Departamento</th>
-                  <th className="py-3 px-4">Assunto</th>
+                  <th className="py-3 px-4 max-w-[280px]">Assunto</th>
+                  <th className="py-3 px-4">Observações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -485,17 +519,19 @@ export default function Chamados() {
                       {formatDateBR(r.data_chamado)}
                     </td>
                     <td className="py-3 px-4 text-slate-800">
-                      <div className="font-medium truncate max-w-[240px]" title={r.cliente || ''}>
+                      <div className="font-medium truncate max-w-[220px]" title={r.cliente || ''}>
                         {r.cliente || '—'}
                       </div>
                       {r.organizacao && (
-                        <div className="text-[10px] text-slate-400 truncate max-w-[240px]">
+                        <div className="text-[10px] text-slate-400 truncate max-w-[220px]">
                           {r.organizacao}
                         </div>
                       )}
                     </td>
-                    <td className="py-3 px-4 text-slate-700">{r.aberto_por || '—'}</td>
-                    <td className="py-3 px-4">
+                    <td className="py-3 px-4 text-slate-700 whitespace-nowrap">
+                      {r.aberto_por || '—'}
+                    </td>
+                    <td className="py-3 px-4 whitespace-nowrap">
                       {r.departamento ? (
                         <Badge
                           variant="outline"
@@ -507,7 +543,19 @@ export default function Chamados() {
                         <span className="text-slate-300">—</span>
                       )}
                     </td>
-                    <td className="py-3 px-4 text-slate-600 truncate max-w-[220px]">
+                    <td className="py-3 px-4 text-slate-800 max-w-[280px]">
+                      {r.assunto ? (
+                        <div className="truncate font-medium" title={r.assunto}>
+                          {r.assunto}
+                        </div>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
+                    </td>
+                    <td
+                      className="py-3 px-4 text-slate-500 truncate max-w-[200px]"
+                      title={r.observacoes || ''}
+                    >
                       {r.observacoes || '—'}
                     </td>
                   </tr>

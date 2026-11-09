@@ -55,6 +55,7 @@ const EMPTY_MAPPING: Record<StandardFieldKey, string> = {
   sla_horas: '',
   numero: '',
   organizacao: '',
+  assunto: '',
 }
 
 export default function Importar() {
@@ -332,6 +333,12 @@ export default function Importar() {
           organizacao = val || null
         }
 
+        let assunto: string | null = null
+        if (mapping.assunto && row[mapping.assunto] !== undefined) {
+          const val = String(row[mapping.assunto] ?? '').trim()
+          assunto = val || null
+        }
+
         validRecords.push({
           cliente,
           tecnico,
@@ -345,6 +352,7 @@ export default function Importar() {
           sla_horas: slaHoras,
           numero: numeroChamado,
           organizacao,
+          assunto,
           origem_arquivo: file.name,
         })
       })

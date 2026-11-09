@@ -14,6 +14,7 @@ export interface SupportRecord {
   sla_horas: number | null
   numero: string | null
   organizacao: string | null
+  assunto: string | null
   import_id: string | null
   created_at: string
 }
@@ -32,6 +33,7 @@ export interface SupportRecordInsert {
   sla_horas?: number | null
   numero?: string | null
   organizacao?: string | null
+  assunto?: string | null
   import_id?: string | null
   user_id?: string
 }
@@ -109,6 +111,7 @@ export type StandardFieldKey =
   | 'sla_horas'
   | 'numero'
   | 'organizacao'
+  | 'assunto'
 
 export interface StandardFieldDef {
   key: StandardFieldKey
@@ -174,7 +177,6 @@ export const STANDARD_FIELDS: StandardFieldDef[] = [
       'tipo',
       'tipo de chamado',
       'categoria',
-      'assunto',
       'classificação',
       'classificacao',
       'tipo de atendimento',
@@ -314,6 +316,25 @@ export const STANDARD_FIELDS: StandardFieldDef[] = [
     ],
     description:
       'Organização/unidade do cliente referente ao chamado (se for a mesma coluna de Cliente, pode deixar sem mapear)',
+  },
+  {
+    key: 'assunto',
+    label: 'Assunto',
+    required: false,
+    synonyms: [
+      'assunto',
+      'assunto do chamado',
+      'título',
+      'titulo',
+      'descrição',
+      'descricao',
+      'resumo',
+      'subject',
+      'sumário',
+      'sumario',
+      'tema',
+    ],
+    description: 'Título ou resumo do chamado (ex.: assunto, subject, descrição breve)',
   },
 ]
 
