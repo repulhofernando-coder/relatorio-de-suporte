@@ -217,6 +217,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_create_user: {
+        Args: { p_email: string; p_nome?: string; p_password: string }
+        Returns: string
+      }
       create_system_user: {
         Args: { new_email: string; new_name?: string; new_password: string }
         Returns: Json
