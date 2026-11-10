@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
-import logoMundoOpen from '@/assets/logomo-dd541.png'
+import logoMundoOpen from '@/assets/mundoopen-cb15d.png'
 import {
   FileSpreadsheet,
   Sliders,
@@ -76,11 +76,11 @@ export default function Login() {
 
         {/* Marca com Logo Mundo Open */}
         <div className="flex items-center gap-3 relative z-10">
-          <div className="h-11 px-3 py-1.5 rounded-xl bg-white flex items-center justify-center shadow-lg shadow-slate-900/30">
+          <div className="h-12 px-3.5 py-1.5 rounded-xl bg-white flex items-center justify-center shadow-lg shadow-slate-900/30">
             <img
               src={logoMundoOpen}
               alt="Mundo Open Tecnologia"
-              className="h-8 w-auto object-contain"
+              className="h-9 w-auto max-w-[160px] object-contain"
             />
           </div>
           <div>
@@ -154,11 +154,11 @@ export default function Login() {
         <div className="w-full max-w-md">
           {/* Marca no mobile */}
           <div className="lg:hidden flex flex-col items-center justify-center gap-2 mb-8 text-center">
-            <div className="h-12 px-4 py-2 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shadow-sm">
+            <div className="h-14 px-4 py-2 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shadow-sm">
               <img
                 src={logoMundoOpen}
                 alt="Mundo Open Tecnologia"
-                className="h-8 w-auto object-contain"
+                className="h-10 w-auto max-w-[180px] object-contain"
               />
             </div>
             <div>
@@ -172,11 +172,11 @@ export default function Login() {
           <div className="bg-white rounded-2xl p-8 sm:p-10 shadow-sm border border-slate-200/80">
             {/* Logo acima do formulário */}
             <div className="flex justify-center mb-6">
-              <div className="p-3 bg-slate-50 border border-slate-100 rounded-2xl max-w-[220px]">
+              <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-2xl w-full max-w-[220px] flex items-center justify-center">
                 <img
                   src={logoMundoOpen}
                   alt="Logo Mundo Open Tecnologia"
-                  className="w-full h-auto max-h-12 object-contain"
+                  className="w-full h-auto max-h-14 object-contain"
                 />
               </div>
             </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
-import logoMundoOpen from '@/assets/logomo-dd541.png'
+import logoMundoOpen from '@/assets/mundoopen-cb15d.png'
 import {
   BarChart3,
   LineChart,
@@ -98,7 +98,11 @@ export default function Layout() {
         {/* Brand block com Logo Mundo Open */}
         <div className="p-5 border-b border-white/5 flex items-center gap-3">
           <div className="h-10 px-2.5 py-1 rounded-xl bg-white flex items-center justify-center shadow-md shadow-slate-950/40 shrink-0">
-            <img src={logoMundoOpen} alt="Mundo Open" className="h-7 w-auto object-contain" />
+            <img
+              src={logoMundoOpen}
+              alt="Mundo Open"
+              className="h-7 w-auto max-w-[120px] object-contain"
+            />
           </div>
           <div className="overflow-hidden">
             <span className="text-sm font-bold text-white tracking-tight block truncate">
