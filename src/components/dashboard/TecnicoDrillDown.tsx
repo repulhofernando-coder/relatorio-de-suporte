@@ -16,6 +16,8 @@ import { SupportRecord } from '@/types/support'
 import { classificarTempoTrabalhado, formatarMinutosLegivel } from '@/lib/duracao'
 import { Button } from '@/components/ui/button'
 import { TecnicoClientesTable } from '@/components/dashboard/TecnicoClientesTable'
+import { TecnicoDistribuicaoTable } from '@/components/chamados/TecnicoDistribuicaoTable'
+import { Tag } from 'lucide-react'
 
 interface TecnicoDrillDownProps {
   tecnico: string
@@ -371,27 +373,29 @@ export function TecnicoDrillDown({
             </div>
           )}
 
-          {/* Departamentos */}
-          <div>
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-              <Building2 className="w-3.5 h-3.5 text-slate-400" /> Departamentos em que mais atuou
-            </h3>
-            {stats.topDeptos.length === 0 ? (
-              <p className="text-xs text-slate-400">Sem departamento nos registros.</p>
-            ) : (
-              <ul className="space-y-1.5">
-                {stats.topDeptos.map(([depto, count]) => (
-                  <li
-                    key={depto}
-                    className="flex items-center justify-between text-xs text-slate-700"
-                  >
-                    <span className="truncate pr-2">{depto}</span>
-                    <span className="font-mono font-semibold">{count}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          {/* Atendimentos por departamento */}
+          <TecnicoDistribuicaoTable
+            tecnico={tecnico}
+            records={records}
+            campo="departamento"
+            titulo="Por departamento"
+            colunaHeader="Departamento"
+            icone={Building2}
+            corGradiente="indigo"
+            rotuloVazio="Sem departamento"
+          />
+
+          {/* Distribuição por tipo de chamado */}
+          <TecnicoDistribuicaoTable
+            tecnico={tecnico}
+            records={records}
+            campo="tipo_chamado"
+            titulo="Por tipo de chamado"
+            colunaHeader="Tipo de chamado"
+            icone={Tag}
+            corGradiente="sky"
+            rotuloVazio="Não informado"
+          />
 
           {/* Atendimentos por cliente — estilo Tabela Dinâmica do Excel */}
           <TecnicoClientesTable tecnico={tecnico} records={records} periodoFiltro={periodoFiltro} />

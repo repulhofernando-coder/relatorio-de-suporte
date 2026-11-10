@@ -1,8 +1,10 @@
-import { Users } from 'lucide-react'
+import { Users, Building2, Tag, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SupportRecord } from '@/types/support'
 import { classificarTempoTrabalhado } from '@/lib/duracao'
 import { TecnicoClientesTable } from '@/components/dashboard/TecnicoClientesTable'
+import { TecnicoDistribuicaoTable } from '@/components/chamados/TecnicoDistribuicaoTable'
+import { TecnicoSlaCard } from '@/components/chamados/TecnicoSlaCard'
 
 export interface TecnicoResumo {
   nome: string
@@ -38,6 +40,8 @@ interface TecnicosPanelProps {
   loading: boolean
   records?: SupportRecord[]
   onSelectCliente?: (cliente: string) => void
+  onSelectDepartamento?: (depto: string) => void
+  departamentoAtivo?: string | null
 }
 
 export function TecnicosPanel({
@@ -47,6 +51,8 @@ export function TecnicosPanel({
   loading,
   records,
   onSelectCliente,
+  onSelectDepartamento,
+  departamentoAtivo,
 }: TecnicosPanelProps) {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden h-full">
@@ -128,16 +134,84 @@ export function TecnicosPanel({
               })}
             </div>
 
-            {/* Tabela de atendimentos por cliente quando há técnico selecionado */}
-            {selecionado && records && records.length > 0 && (
-              <div className="pt-3 border-t border-slate-100">
-                <TecnicoClientesTable
-                  tecnico={selecionado}
-                  records={records}
-                  onSelectCliente={onSelectCliente}
-                />
-              </div>
-            )}
+            {/* Detalhamento do técnico selecionado: SLA, Departamento, Tipo de Chamado e Clientes */}
+            {selecionado &&
+              records &&
+              records.length > 0 &&
+              (() => {
+                const doTecnico = records.filter((r) => r.tecnico?.trim() === selecionado)
+                const menor5Min = doTecnico.filter((r) => {
+                  const cls = classificarTempoTrabalhado(r.tempo_trabalhado)
+                  return cls.nivel === 'critico'
+                }).length
+
+                return (
+                  <div className="pt-4 border-t border-slate-100 space-y-4">
+                    {/* Banner de alerta: chamados com menos de 5 min do técnico */}
+                    {menor5Min > 0 && (
+                      <div className="bg-rose-50 border border-rose-200 rounded-xl p-3.5 flex items-start gap-2.5 text-xs text-rose-900">
+                        <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <span className="font-bold text-rose-950">
+                            ⚠ {menor5Min}{' '}
+                            {menor5Min === 1
+                              ? 'chamado com menos de 5 minutos'
+                              : 'chamados com menos de 5 minutos'}{' '}
+                            (de {doTecnico.length})
+                          </span>
+                          <p className="text-rose-800 text-[11px] mt-0.5 leading-relaxed">
+                            Chamados encerrados muito rápido (inclui 0 min e menos de 5 min) podem
+                            indicar fechamento sem apontamento de horas, preenchimento apressado ou
+                            burla.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Quadro de SLA do técnico */}
+                    <TecnicoSlaCard tecnico={selecionado} records={records} />
+
+                    {/* Quadros em grid: Por Departamento e Por Tipo de Chamado */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <TecnicoDistribuicaoTable
+                        tecnico={selecionado}
+                        records={records}
+                        campo="departamento"
+                        titulo="Por departamento"
+                        colunaHeader="Departamento"
+                        icone={Building2}
+                        corGradiente="indigo"
+                        rotuloVazio="Sem departamento"
+                        onSelectItem={onSelectDepartamento}
+                        itemAtivo={departamentoAtivo}
+                        dicaClique={
+                          onSelectDepartamento
+                            ? 'Clique em um departamento para filtrar a tela.'
+                            : undefined
+                        }
+                      />
+
+                      <TecnicoDistribuicaoTable
+                        tecnico={selecionado}
+                        records={records}
+                        campo="tipo_chamado"
+                        titulo="Por tipo de chamado"
+                        colunaHeader="Tipo de chamado"
+                        icone={Tag}
+                        corGradiente="sky"
+                        rotuloVazio="Não informado"
+                      />
+                    </div>
+
+                    {/* Clientes mais atendidos */}
+                    <TecnicoClientesTable
+                      tecnico={selecionado}
+                      records={records}
+                      onSelectCliente={onSelectCliente}
+                    />
+                  </div>
+                )
+              })()}
           </div>
         )}
       </div>

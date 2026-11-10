@@ -514,6 +514,11 @@ export default function Chamados() {
               setClienteFiltro(cliente)
               setPage(1)
             }}
+            onSelectDepartamento={(depto) => {
+              setDepartamentoFiltro(depto)
+              setPage(1)
+            }}
+            departamentoAtivo={departamentoFiltro !== 'todos' ? departamentoFiltro : null}
           />
         </div>
         {tecnicoFiltro && (
