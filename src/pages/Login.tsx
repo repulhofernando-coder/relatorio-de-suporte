@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
+import logoMundoOpen from '@/assets/logomo-dd541.png'
 import {
-  BarChart3,
   FileSpreadsheet,
   Sliders,
   TrendingUp,
@@ -10,23 +10,21 @@ import {
   EyeOff,
   Loader2,
   AlertCircle,
-  CheckCircle2,
+  ShieldCheck,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 export default function Login() {
-  const { user, signIn, signUp, loading } = useAuth()
+  const { user, signIn, loading } = useAuth()
   const navigate = useNavigate()
 
-  const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
   // Redireciona se já estiver autenticado
   useEffect(() => {
@@ -38,7 +36,6 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrorMsg(null)
-    setSuccessMsg(null)
 
     if (!email.trim() || !password) {
       setErrorMsg('Por favor, preencha o e-mail e a senha.')
@@ -52,25 +49,15 @@ export default function Login() {
 
     setSubmitting(true)
     try {
-      if (mode === 'login') {
-        const { error } = await signIn(email.trim(), password)
-        if (error) {
-          if (error.message.includes('Invalid login credentials')) {
-            setErrorMsg('E-mail ou senha incorretos.')
-          } else {
-            setErrorMsg(error.message || 'Erro ao realizar login.')
-          }
+      const { error } = await signIn(email.trim(), password)
+      if (error) {
+        if (error.message.includes('Invalid login credentials')) {
+          setErrorMsg('E-mail ou senha incorretos.')
         } else {
-          navigate('/', { replace: true })
+          setErrorMsg(error.message || 'Erro ao realizar login.')
         }
       } else {
-        const { error } = await signUp(email.trim(), password)
-        if (error) {
-          setErrorMsg(error.message || 'Erro ao criar conta.')
-        } else {
-          setSuccessMsg('Conta criada com sucesso! Você já pode entrar.')
-          setMode('login')
-        }
+        navigate('/', { replace: true })
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Ocorreu um erro inesperado.')
@@ -87,14 +74,18 @@ export default function Login() {
         <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-teal-500/10 blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none" />
 
-        {/* Marca */}
+        {/* Marca com Logo Mundo Open */}
         <div className="flex items-center gap-3 relative z-10">
-          <div className="w-10 h-10 rounded-xl bg-teal-500 flex items-center justify-center shadow-lg shadow-teal-500/20 text-white font-bold">
-            <BarChart3 className="w-6 h-6 text-white" />
+          <div className="h-11 px-3 py-1.5 rounded-xl bg-white flex items-center justify-center shadow-lg shadow-slate-900/30">
+            <img
+              src={logoMundoOpen}
+              alt="Mundo Open Tecnologia"
+              className="h-8 w-auto object-contain"
+            />
           </div>
           <div>
             <span className="text-xl font-bold tracking-tight text-white">Suporte Analytics</span>
-            <span className="block text-xs text-teal-200">Painel de Gestão de Atendimentos</span>
+            <span className="block text-xs text-teal-200">Mundo Open Tecnologia</span>
           </div>
         </div>
 
@@ -162,27 +153,38 @@ export default function Login() {
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12">
         <div className="w-full max-w-md">
           {/* Marca no mobile */}
-          <div className="lg:hidden flex items-center justify-center gap-3 mb-8">
-            <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center text-white shadow-md">
-              <BarChart3 className="w-6 h-6 text-white" />
+          <div className="lg:hidden flex flex-col items-center justify-center gap-2 mb-8 text-center">
+            <div className="h-12 px-4 py-2 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shadow-sm">
+              <img
+                src={logoMundoOpen}
+                alt="Mundo Open Tecnologia"
+                className="h-8 w-auto object-contain"
+              />
             </div>
             <div>
-              <span className="text-xl font-bold tracking-tight text-slate-900">
+              <span className="text-lg font-bold tracking-tight text-slate-900 block">
                 Suporte Analytics
               </span>
-              <span className="block text-xs text-slate-500">Gestão de Atendimentos</span>
+              <span className="block text-xs text-slate-500">Mundo Open Tecnologia</span>
             </div>
           </div>
 
           <div className="bg-white rounded-2xl p-8 sm:p-10 shadow-sm border border-slate-200/80">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold tracking-tight text-slate-900">
-                {mode === 'login' ? 'Acesse sua conta' : 'Crie sua conta'}
-              </h2>
+            {/* Logo acima do formulário */}
+            <div className="flex justify-center mb-6">
+              <div className="p-3 bg-slate-50 border border-slate-100 rounded-2xl max-w-[220px]">
+                <img
+                  src={logoMundoOpen}
+                  alt="Logo Mundo Open Tecnologia"
+                  className="w-full h-auto max-h-12 object-contain"
+                />
+              </div>
+            </div>
+
+            <div className="mb-6 text-center">
+              <h2 className="text-2xl font-bold tracking-tight text-slate-900">Acesse sua conta</h2>
               <p className="text-sm text-slate-500 mt-1">
-                {mode === 'login'
-                  ? 'Informe seu e-mail e senha para acessar o painel'
-                  : 'Cadastre-se para importar planilhas e visualizar relatórios'}
+                Informe seu e-mail corporativo e senha para acessar o painel
               </p>
             </div>
 
@@ -193,22 +195,15 @@ export default function Login() {
               </div>
             )}
 
-            {successMsg && (
-              <div className="mb-5 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-start gap-2.5">
-                <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-600 mt-0.5" />
-                <span className="leading-snug">{successMsg}</span>
-              </div>
-            )}
-
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="email" className="text-xs font-semibold text-slate-700">
-                  E-mail
+                  E-mail corporativo
                 </Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="seu.email@empresa.com.br"
+                  placeholder="seu.nome@mundoopen.com.br"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={submitting}
@@ -253,48 +248,22 @@ export default function Login() {
                 {submitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    {mode === 'login' ? 'Entrando...' : 'Cadastrando...'}
+                    Entrando...
                   </>
-                ) : mode === 'login' ? (
-                  'Entrar'
                 ) : (
-                  'Criar conta'
+                  'Entrar no sistema'
                 )}
               </Button>
             </form>
 
-            <div className="mt-6 pt-6 border-t border-slate-100 text-center">
-              {mode === 'login' ? (
-                <p className="text-sm text-slate-600">
-                  Ainda não tem uma conta?{' '}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode('signup')
-                      setErrorMsg(null)
-                      setSuccessMsg(null)
-                    }}
-                    className="font-semibold text-teal-600 hover:text-teal-700 hover:underline"
-                  >
-                    Cadastre-se gratuitamente
-                  </button>
-                </p>
-              ) : (
-                <p className="text-sm text-slate-600">
-                  Já tem uma conta?{' '}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode('login')
-                      setErrorMsg(null)
-                      setSuccessMsg(null)
-                    }}
-                    className="font-semibold text-teal-600 hover:text-teal-700 hover:underline"
-                  >
-                    Fazer login
-                  </button>
-                </p>
-              )}
+            <div className="mt-6 pt-5 border-t border-slate-100 text-center">
+              <div className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+                <ShieldCheck className="w-4 h-4 text-teal-600" />
+                <span>Acesso corporativo restrito</span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                Novos acessos são criados internamente pelo administrador no menu <b>Usuários</b>.
+              </p>
             </div>
           </div>
         </div>

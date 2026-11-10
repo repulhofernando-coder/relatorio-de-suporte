@@ -1,37 +1,41 @@
 import { useState, useEffect } from 'react'
-import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
+import logoMundoOpen from '@/assets/logomo-dd541.png'
 import {
   BarChart3,
   LineChart,
+  FileText,
+  Ticket,
+  Users,
   Upload,
   History,
   Sliders,
-  Ticket,
-  Users,
   UserCog,
-  FileText,
   LogOut,
   Menu,
   X,
   Loader2,
+  Shield,
+  UserCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 
-const NAV_ITEMS = [
-  { label: 'Visão Geral', path: '/', icon: LineChart },
-  { label: 'Relatórios', path: '/relatorios', icon: FileText },
-  { label: 'Chamados', path: '/chamados', icon: Ticket },
-  { label: 'Equipes', path: '/equipes', icon: Users },
-  { label: 'Importar Planilha', path: '/importar', icon: Upload },
-  { label: 'Importações', path: '/importacoes', icon: History },
-  { label: 'Mapeamentos', path: '/mapeamentos', icon: Sliders },
-  { label: 'Usuários', path: '/usuarios', icon: UserCog },
+const ALL_NAV_ITEMS = [
+  { label: 'Visão Geral', path: '/', icon: LineChart, adminOnly: false },
+  { label: 'Relatórios', path: '/relatorios', icon: FileText, adminOnly: false },
+  { label: 'Chamados', path: '/chamados', icon: Ticket, adminOnly: false },
+  { label: 'Equipes', path: '/equipes', icon: Users, adminOnly: false },
+  { label: 'Importar Planilha', path: '/importar', icon: Upload, adminOnly: true },
+  { label: 'Importações', path: '/importacoes', icon: History, adminOnly: false },
+  { label: 'Mapeamentos', path: '/mapeamentos', icon: Sliders, adminOnly: false },
+  { label: 'Usuários', path: '/usuarios', icon: UserCog, adminOnly: true },
 ]
 
 export default function Layout() {
-  const { user, signOut, loading } = useAuth()
+  const { user, role, isAdmin, signOut, loading } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
@@ -76,8 +80,10 @@ export default function Layout() {
       .map((part: string) => part[0]?.toUpperCase())
       .join('') || 'SA'
 
+  const navItems = ALL_NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin)
+
   const currentTitle =
-    NAV_ITEMS.find((item) =>
+    ALL_NAV_ITEMS.find((item) =>
       item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path),
     )?.label || 'Suporte Analytics'
 
@@ -89,24 +95,24 @@ export default function Layout() {
   const navContent = (
     <div className="flex flex-col h-full justify-between">
       <div>
-        {/* Brand block */}
-        <div className="p-6 border-b border-white/5 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-teal-500 flex items-center justify-center shadow-md shadow-teal-500/20 text-white shrink-0">
-            <BarChart3 className="w-6 h-6 text-white" />
+        {/* Brand block com Logo Mundo Open */}
+        <div className="p-5 border-b border-white/5 flex items-center gap-3">
+          <div className="h-10 px-2.5 py-1 rounded-xl bg-white flex items-center justify-center shadow-md shadow-slate-950/40 shrink-0">
+            <img src={logoMundoOpen} alt="Mundo Open" className="h-7 w-auto object-contain" />
           </div>
           <div className="overflow-hidden">
-            <span className="text-base font-bold text-white tracking-tight block truncate">
+            <span className="text-sm font-bold text-white tracking-tight block truncate">
               Suporte Analytics
             </span>
             <span className="text-[11px] text-teal-300 block truncate font-medium">
-              Gestão de Atendimentos
+              Mundo Open Tecnologia
             </span>
           </div>
         </div>
 
         {/* Navigation items */}
         <nav className="p-3 space-y-1 mt-2">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon
             const isActive =
               item.path === '/'
@@ -142,14 +148,29 @@ export default function Layout() {
 
       {/* User block */}
       <div className="p-4 border-t border-white/5 bg-black/20 m-3 rounded-2xl">
-        <div className="flex items-center gap-3 mb-3">
+        <div className="flex items-center gap-3 mb-2.5">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white font-bold text-xs shadow-inner shrink-0">
             {userInitials}
           </div>
           <div className="overflow-hidden flex-1 min-w-0">
-            <p className="text-xs font-semibold text-white truncate">{userName}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-xs font-semibold text-white truncate">{userName}</p>
+            </div>
             <p className="text-[11px] text-slate-400 truncate">{userEmail}</p>
           </div>
+        </div>
+        <div className="mb-3">
+          {isAdmin ? (
+            <Badge className="bg-teal-500/20 text-teal-300 border-teal-500/30 text-[10px] font-semibold flex items-center gap-1 w-fit px-2 py-0.5">
+              <Shield className="w-3 h-3 text-teal-400" />
+              <span>Administrador</span>
+            </Badge>
+          ) : (
+            <Badge className="bg-slate-700/50 text-slate-300 border-slate-600 text-[10px] font-medium flex items-center gap-1 w-fit px-2 py-0.5">
+              <UserCheck className="w-3 h-3 text-slate-400" />
+              <span>Colaborador</span>
+            </Badge>
+          )}
         </div>
         <Button
           variant="ghost"

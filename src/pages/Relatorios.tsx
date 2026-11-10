@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '@/hooks/use-auth'
 import {
   fetchSavedReports,
   deleteSavedReport,
@@ -89,6 +90,7 @@ export function formatReportFiltersSummary(filters: SavedReportFilters): string 
 
 export default function Relatorios() {
   const navigate = useNavigate()
+  const { isAdmin } = useAuth()
   const { toast } = useToast()
 
   const [reports, setReports] = useState<SavedReportRecord[]>([])
@@ -275,14 +277,16 @@ export default function Relatorios() {
             <span className="hidden sm:inline">Atualizar</span>
           </Button>
 
-          <Button
-            size="sm"
-            onClick={() => setModalNovoAberto(true)}
-            className="h-9 rounded-xl bg-teal-600 hover:bg-teal-700 text-white gap-2 shadow-sm shadow-teal-600/20"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Novo relatório</span>
-          </Button>
+          {isAdmin && (
+            <Button
+              size="sm"
+              onClick={() => setModalNovoAberto(true)}
+              className="h-9 rounded-xl bg-teal-600 hover:bg-teal-700 text-white gap-2 shadow-sm shadow-teal-600/20"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Novo relatório</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -306,14 +310,16 @@ export default function Relatorios() {
             </p>
           </div>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-2">
-            <Button
-              size="sm"
-              onClick={() => setModalNovoAberto(true)}
-              className="rounded-xl bg-teal-600 hover:bg-teal-700 text-white gap-2 shadow-sm px-5 w-full sm:w-auto"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Criar relatório</span>
-            </Button>
+            {isAdmin && (
+              <Button
+                size="sm"
+                onClick={() => setModalNovoAberto(true)}
+                className="rounded-xl bg-teal-600 hover:bg-teal-700 text-white gap-2 shadow-sm px-5 w-full sm:w-auto"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Criar relatório</span>
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -356,16 +362,18 @@ export default function Relatorios() {
                       </p>
                     </div>
 
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setDeleteTarget(report)}
-                      className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors shrink-0"
-                      aria-label="Excluir relatório"
-                      title="Excluir relatório"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    {isAdmin && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDeleteTarget(report)}
+                        className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors shrink-0"
+                        aria-label="Excluir relatório"
+                        title="Excluir relatório"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
                   </div>
 
                   {/* RESUMO DOS FILTROS */}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useAuth } from '@/hooks/use-auth'
 import { Users, Save, Trash2, Plus, Info, Award, ShieldCheck } from 'lucide-react'
 import {
   fetchDepartmentCapacity,
@@ -159,6 +160,7 @@ function toDraft(departamento: string, existing?: DepartmentCapacityRecord): Dra
 }
 
 export default function Equipes() {
+  const { isAdmin } = useAuth()
   const [capacities, setCapacities] = useState<DepartmentCapacityRecord[]>([])
   const [departamentos, setDepartamentos] = useState<string[]>([])
   const [drafts, setDrafts] = useState<Record<string, DraftRow>>({})
@@ -402,30 +404,32 @@ export default function Equipes() {
         </div>
       )}
 
-      {/* NOVO DEPARTAMENTO */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200/80">
-        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-          <div className="flex-1">
-            <Input
-              value={novoDepto}
-              onChange={(e) => setNovoDepto(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleAddNovo()
-              }}
-              placeholder="Departamento que não está na lista (ex.: Redes, N2, Ativação)"
-              className="h-9 rounded-xl border-slate-200 text-xs bg-slate-50 focus:bg-white"
-            />
+      {/* NOVO DEPARTAMENTO (somente admin) */}
+      {isAdmin && (
+        <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200/80">
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <div className="flex-1">
+              <Input
+                value={novoDepto}
+                onChange={(e) => setNovoDepto(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAddNovo()
+                }}
+                placeholder="Departamento que não está na lista (ex.: Redes, N2, Ativação)"
+                className="h-9 rounded-xl border-slate-200 text-xs bg-slate-50 focus:bg-white"
+              />
+            </div>
+            <Button
+              size="sm"
+              onClick={handleAddNovo}
+              disabled={!novoDepto.trim()}
+              className="h-9 rounded-xl bg-teal-600 hover:bg-teal-700 text-white gap-1.5 text-xs"
+            >
+              <Plus className="w-3.5 h-3.5" /> Adicionar
+            </Button>
           </div>
-          <Button
-            size="sm"
-            onClick={handleAddNovo}
-            disabled={!novoDepto.trim()}
-            className="h-9 rounded-xl bg-teal-600 hover:bg-teal-700 text-white gap-1.5 text-xs"
-          >
-            <Plus className="w-3.5 h-3.5" /> Adicionar
-          </Button>
         </div>
-      </div>
+      )}
 
       {/* LISTA */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
@@ -633,29 +637,31 @@ export default function Equipes() {
                       </label>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0 self-end xl:self-center">
-                      <Button
-                        size="sm"
-                        onClick={() => handleSave(depto)}
-                        disabled={saving === depto}
-                        className="h-9 rounded-xl bg-teal-600 hover:bg-teal-700 text-white gap-1.5 text-xs font-medium"
-                      >
-                        <Save className="w-3.5 h-3.5" />
-                        {saving === depto ? 'Salvando…' : 'Salvar'}
-                      </Button>
-                      {isSalvo && (
+                    {isAdmin && (
+                      <div className="flex items-center gap-2 shrink-0 self-end xl:self-center">
                         <Button
-                          variant="outline"
                           size="sm"
-                          onClick={() => handleDelete(depto)}
+                          onClick={() => handleSave(depto)}
                           disabled={saving === depto}
-                          className="h-9 rounded-xl border-slate-200 text-rose-600 hover:bg-rose-50 gap-1.5 text-xs"
-                          title="Remover configuração deste departamento"
+                          className="h-9 rounded-xl bg-teal-600 hover:bg-teal-700 text-white gap-1.5 text-xs font-medium"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Save className="w-3.5 h-3.5" />
+                          {saving === depto ? 'Salvando…' : 'Salvar'}
                         </Button>
-                      )}
-                    </div>
+                        {isSalvo && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDelete(depto)}
+                            disabled={saving === depto}
+                            className="h-9 rounded-xl border-slate-200 text-rose-600 hover:bg-rose-50 gap-1.5 text-xs"
+                            title="Remover configuração deste departamento"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Linha informativa de SLA por complexidade para Linux */}

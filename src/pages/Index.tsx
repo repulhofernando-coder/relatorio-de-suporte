@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useAuth } from '@/hooks/use-auth'
 import {
   fetchSupportRecords,
   fetchDepartamentosEmUso,
@@ -229,6 +230,7 @@ function isAbertoPorTecnico(r: SupportRecord, tecnicosConhecidos: Set<string>): 
 
 export default function Index() {
   const navigate = useNavigate()
+  const { isAdmin } = useAuth()
   const [searchParams] = useSearchParams()
   const { toast } = useToast()
 
@@ -761,16 +763,18 @@ export default function Index() {
         </div>
 
         <div className="flex items-center gap-2 print:hidden">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleAbrirModalSalvarVisao}
-            className="h-9 rounded-xl bg-white border-slate-200 text-slate-700 hover:bg-slate-50 gap-2 shadow-sm"
-            title="Salvar esta visão nos Relatórios da equipe"
-          >
-            <BookmarkPlus className="w-3.5 h-3.5 text-teal-600" />
-            <span>Salvar visão</span>
-          </Button>
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAbrirModalSalvarVisao}
+              className="h-9 rounded-xl bg-white border-slate-200 text-slate-700 hover:bg-slate-50 gap-2 shadow-sm"
+              title="Salvar esta visão nos Relatórios da equipe"
+            >
+              <BookmarkPlus className="w-3.5 h-3.5 text-teal-600" />
+              <span>Salvar visão</span>
+            </Button>
+          )}
 
           <Button
             variant="outline"
@@ -804,14 +808,16 @@ export default function Index() {
             <span className="hidden sm:inline">Atualizar</span>
           </Button>
 
-          <Button
-            size="sm"
-            onClick={() => navigate('/importar')}
-            className="h-9 rounded-xl bg-teal-600 hover:bg-teal-700 text-white gap-2 shadow-sm shadow-teal-600/20"
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>Importar Planilha</span>
-          </Button>
+          {isAdmin && (
+            <Button
+              size="sm"
+              onClick={() => navigate('/importar')}
+              className="h-9 rounded-xl bg-teal-600 hover:bg-teal-700 text-white gap-2 shadow-sm shadow-teal-600/20"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>Importar Planilha</span>
+            </Button>
+          )}
         </div>
       </div>
 

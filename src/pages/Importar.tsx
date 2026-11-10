@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useAuth } from '@/hooks/use-auth'
 import {
   parseSpreadsheetFile,
   autoDetectMapping,
@@ -64,6 +65,7 @@ const EMPTY_MAPPING: Record<StandardFieldKey, string> = {
 
 export default function Importar() {
   const navigate = useNavigate()
+  const { isAdmin } = useAuth()
   const [searchParams] = useSearchParams()
   const preselectedMapeamentoId = searchParams.get('mapeamento')
 
@@ -103,6 +105,13 @@ export default function Importar() {
     detalhesErro: Array<{ linha: number; motivo: string }>
   } | null>(null)
   const [showErrorList, setShowErrorList] = useState(false)
+
+  // Redireciona colaborador se tentar acessar diretamente
+  useEffect(() => {
+    if (!isAdmin) {
+      navigate('/importacoes', { replace: true })
+    }
+  }, [isAdmin, navigate])
 
   // Carregar mapeamentos salvos
   useEffect(() => {

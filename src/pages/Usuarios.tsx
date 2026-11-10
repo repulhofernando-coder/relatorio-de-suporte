@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase/client'
-import { useAuth } from '@/hooks/use-auth'
+import { useAuth, UserRole } from '@/hooks/use-auth'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,7 +13,8 @@ import {
   Mail,
   Lock,
   User,
-  ShieldCheck,
+  Shield,
+  UserCheck,
   Calendar,
   Clock,
   Loader2,
@@ -21,6 +22,7 @@ import {
   KeyRound,
   CheckCircle2,
   AlertCircle,
+  ArrowUpDown,
 } from 'lucide-react'
 
 interface SystemUser {
@@ -28,16 +30,19 @@ interface SystemUser {
   email: string
   created_at: string
   last_sign_in_at: string | null
+  name?: string | null
   nome?: string | null
+  role?: string | null
 }
 
 export default function Usuarios() {
-  const { user: currentUser } = useAuth()
+  const { user: currentUser, isAdmin, refreshProfile } = useAuth()
   const { toast } = useToast()
 
   const [users, setUsers] = useState<SystemUser[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [changingRoleId, setChangingRoleId] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
 
   // Formulário
@@ -45,6 +50,7 @@ export default function Usuarios() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [role, setRole] = useState<UserRole>('colaborador')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const loadUsers = async () => {
@@ -98,10 +104,11 @@ export default function Usuarios() {
     setSubmitting(true)
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)('admin_create_user', {
+      const { error } = await (supabase.rpc as any)('admin_create_user', {
         p_email: cleanEmail,
         p_password: password,
         p_nome: cleanNome || null,
+        p_role: role,
       })
 
       if (error) {
@@ -120,7 +127,7 @@ export default function Usuarios() {
 
       toast({
         title: 'Usuário criado com sucesso!',
-        description: `O acesso para ${cleanEmail} foi criado e já pode fazer login.`,
+        description: `O acesso para ${cleanEmail} (${role === 'admin' ? 'Administrador' : 'Colaborador'}) foi criado.`,
       })
 
       // Limpa formulário
@@ -128,6 +135,7 @@ export default function Usuarios() {
       setEmail('')
       setPassword('')
       setConfirmPassword('')
+      setRole('colaborador')
       setFormOpen(false)
 
       await loadUsers()
@@ -136,6 +144,57 @@ export default function Usuarios() {
       setErrorMessage(`Erro inesperado: ${msg}`)
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const handleToggleRole = async (targetUser: SystemUser) => {
+    const currentRole = targetUser.role === 'admin' ? 'admin' : 'colaborador'
+    const newRole: UserRole = currentRole === 'admin' ? 'colaborador' : 'admin'
+    const roleLabel = newRole === 'admin' ? 'Administrador' : 'Colaborador'
+
+    if (
+      !confirm(
+        `Deseja alterar o perfil de ${targetUser.name || targetUser.email} para "${roleLabel}"?`,
+      )
+    ) {
+      return
+    }
+
+    setChangingRoleId(targetUser.id)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.rpc as any)('admin_update_user_role', {
+        p_target_user_id: targetUser.id,
+        p_new_role: newRole,
+      })
+
+      if (error) {
+        toast({
+          title: 'Erro ao alterar perfil',
+          description: error.message || 'Não foi possível alterar o perfil do usuário.',
+          variant: 'destructive',
+        })
+        return
+      }
+
+      toast({
+        title: 'Perfil atualizado!',
+        description: `${targetUser.email} agora tem perfil de ${roleLabel}.`,
+      })
+
+      if (targetUser.id === currentUser?.id) {
+        await refreshProfile()
+      }
+
+      await loadUsers()
+    } catch (err: any) {
+      toast({
+        title: 'Erro inesperado',
+        description: err.message || 'Falha ao atualizar perfil.',
+        variant: 'destructive',
+      })
+    } finally {
+      setChangingRoleId(null)
     }
   }
 
@@ -291,6 +350,70 @@ export default function Usuarios() {
                 </div>
               </div>
 
+              {/* SELEÇÃO DO PERFIL */}
+              <div className="space-y-2 pt-1">
+                <Label className="text-xs font-semibold text-slate-700 block">
+                  Perfil de acesso *
+                </Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setRole('colaborador')}
+                    className={`p-3.5 rounded-xl border text-left transition-all flex items-start gap-3 ${
+                      role === 'colaborador'
+                        ? 'border-teal-500 bg-teal-50/50 ring-2 ring-teal-500/20'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <div
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                        role === 'colaborador'
+                          ? 'bg-teal-600 text-white'
+                          : 'bg-slate-100 text-slate-500'
+                      }`}
+                    >
+                      <UserCheck className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-slate-900 block">
+                        Colaborador (Visualizador)
+                      </span>
+                      <span className="text-[11px] text-slate-500 block leading-relaxed mt-0.5">
+                        Acessa painéis, chamados e relatórios. Não pode importar planilhas nem
+                        alterar dados.
+                      </span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setRole('admin')}
+                    className={`p-3.5 rounded-xl border text-left transition-all flex items-start gap-3 ${
+                      role === 'admin'
+                        ? 'border-teal-500 bg-teal-50/50 ring-2 ring-teal-500/20'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <div
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                        role === 'admin' ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-500'
+                      }`}
+                    >
+                      <Shield className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-slate-900 block">
+                        Administrador (Acesso total)
+                      </span>
+                      <span className="text-[11px] text-slate-500 block leading-relaxed mt-0.5">
+                        Pode tudo: importar planilhas, gerenciar mapeamentos, metas de equipes e
+                        usuários.
+                      </span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                 <Button
                   type="button"
@@ -356,6 +479,11 @@ export default function Usuarios() {
             <div className="divide-y divide-slate-100">
               {users.map((u) => {
                 const isMe = currentUser?.id === u.id
+                const userRole = u.role === 'admin' ? 'admin' : 'colaborador'
+                const isUserAdmin = userRole === 'admin'
+                const displayName = u.name || u.nome || u.email.split('@')[0]
+                const isChanging = changingRoleId === u.id
+
                 const dataCriacao = u.created_at
                   ? new Date(u.created_at).toLocaleDateString('pt-BR', {
                       day: '2-digit',
@@ -376,37 +504,49 @@ export default function Usuarios() {
                 return (
                   <div
                     key={u.id}
-                    className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/80 transition-colors"
+                    className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:bg-slate-50/80 transition-colors"
                   >
-                    <div className="flex items-center gap-3.5">
-                      <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-sm shrink-0">
-                        {(u.nome?.[0] || u.email[0]).toUpperCase()}
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 ${
+                          isUserAdmin ? 'bg-teal-100 text-teal-800' : 'bg-slate-100 text-slate-700'
+                        }`}
+                      >
+                        {(displayName[0] || u.email[0]).toUpperCase()}
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-slate-900">
-                            {u.nome || u.email.split('@')[0]}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-bold text-slate-900 truncate">
+                            {displayName}
                           </span>
                           {isMe && (
                             <Badge className="bg-teal-50 text-teal-700 border-teal-200 text-[10px] font-semibold">
                               Você
                             </Badge>
                           )}
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] text-emerald-700 bg-emerald-50 border-emerald-200"
-                          >
-                            Ativo
-                          </Badge>
+                          {isUserAdmin ? (
+                            <Badge className="bg-teal-600 text-white text-[10px] font-semibold flex items-center gap-1 shadow-xs">
+                              <Shield className="w-3 h-3" />
+                              <span>Administrador</span>
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] text-slate-600 bg-slate-100 border-slate-200 font-medium flex items-center gap-1"
+                            >
+                              <UserCheck className="w-3 h-3 text-slate-500" />
+                              <span>Colaborador</span>
+                            </Badge>
+                          )}
                         </div>
-                        <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
-                          <Mail className="w-3.5 h-3.5 text-slate-400" />
-                          <span className="font-mono">{u.email}</span>
+                        <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5 truncate">
+                          <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="font-mono truncate">{u.email}</span>
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-4 text-xs text-slate-500 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
+                    <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs text-slate-500 border-t lg:border-t-0 pt-2 lg:pt-0 border-slate-100">
                       <div
                         className="flex items-center gap-1.5"
                         title="Data em que o usuário foi criado"
@@ -418,6 +558,31 @@ export default function Usuarios() {
                         <Clock className="w-3.5 h-3.5 text-slate-400" />
                         <span>{ultimoAcesso}</span>
                       </div>
+
+                      {/* AÇÃO DE PROMOVER / DEMOVER */}
+                      {isAdmin && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={isChanging}
+                          onClick={() => handleToggleRole(u)}
+                          className="h-8 text-xs rounded-xl bg-white border-slate-200 hover:bg-slate-50 gap-1.5 shadow-2xs font-medium ml-auto lg:ml-2"
+                          title={
+                            isUserAdmin
+                              ? 'Alterar para Colaborador (somente leitura)'
+                              : 'Promover para Administrador'
+                          }
+                        >
+                          {isChanging ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-600" />
+                          ) : (
+                            <ArrowUpDown className="w-3.5 h-3.5 text-slate-500" />
+                          )}
+                          <span>
+                            {isUserAdmin ? 'Mudar para Colaborador' : 'Tornar Administrador'}
+                          </span>
+                        </Button>
+                      )}
                     </div>
                   </div>
                 )

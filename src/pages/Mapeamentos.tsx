@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '@/hooks/use-auth'
 import { fetchMapeamentos, deleteMapeamento, updateMapeamento } from '@/services/support'
 import { MapeamentoRecord, STANDARD_FIELDS, StandardFieldKey } from '@/types/support'
 import {
@@ -41,6 +42,7 @@ import {
 
 export default function Mapeamentos() {
   const navigate = useNavigate()
+  const { isAdmin } = useAuth()
   const [mappings, setMappings] = useState<MapeamentoRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -216,14 +218,16 @@ export default function Mapeamentos() {
             <span className="hidden sm:inline">Atualizar</span>
           </Button>
 
-          <Button
-            size="sm"
-            onClick={() => navigate('/importar')}
-            className="h-9 rounded-xl bg-teal-600 hover:bg-teal-700 text-white gap-2 shadow-sm shadow-teal-600/20"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Novo layout (importar)</span>
-          </Button>
+          {isAdmin && (
+            <Button
+              size="sm"
+              onClick={() => navigate('/importar')}
+              className="h-9 rounded-xl bg-teal-600 hover:bg-teal-700 text-white gap-2 shadow-sm shadow-teal-600/20"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Novo layout (importar)</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -273,28 +277,30 @@ export default function Mapeamentos() {
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleOpenEdit(item)}
-                      className="h-8 px-2.5 text-slate-600 hover:text-teal-700 hover:bg-teal-50 rounded-lg transition-colors text-xs font-medium gap-1.5"
-                      aria-label="Editar mapeamento"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                      <span>Editar</span>
-                    </Button>
+                  {isAdmin && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenEdit(item)}
+                        className="h-8 px-2.5 text-slate-600 hover:text-teal-700 hover:bg-teal-50 rounded-lg transition-colors text-xs font-medium gap-1.5"
+                        aria-label="Editar mapeamento"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        <span>Editar</span>
+                      </Button>
 
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setDeleteTarget(item)}
-                      className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors shrink-0"
-                      aria-label="Excluir mapeamento"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDeleteTarget(item)}
+                        className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors shrink-0"
+                        aria-label="Excluir mapeamento"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {/* CHIPS DOS CAMPOS MAPEADOS */}
@@ -324,17 +330,19 @@ export default function Mapeamentos() {
                 </div>
               </div>
 
-              {/* BOTÃO DE AÇÃO */}
-              <div className="pt-4 mt-4 border-t border-slate-100">
-                <Button
-                  size="sm"
-                  onClick={() => navigate(`/importar?mapeamento=${item.id}`)}
-                  className="w-full h-9 rounded-xl bg-slate-900 hover:bg-teal-700 text-white text-xs font-semibold gap-1.5 transition-colors"
-                >
-                  <span>Importar com este mapeamento</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Button>
-              </div>
+              {/* BOTÃO DE AÇÃO (somente para admin) */}
+              {isAdmin && (
+                <div className="pt-4 mt-4 border-t border-slate-100">
+                  <Button
+                    size="sm"
+                    onClick={() => navigate(`/importar?mapeamento=${item.id}`)}
+                    className="w-full h-9 rounded-xl bg-slate-900 hover:bg-teal-700 text-white text-xs font-semibold gap-1.5 transition-colors"
+                  >
+                    <span>Importar com este mapeamento</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              )}
             </div>
           ))}
         </div>

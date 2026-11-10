@@ -1,5 +1,6 @@
+import { ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider } from '@/hooks/use-auth'
+import { AuthProvider, useAuth } from '@/hooks/use-auth'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -15,6 +16,15 @@ import Usuarios from './pages/Usuarios'
 import Relatorios from './pages/Relatorios'
 import NotFound from './pages/NotFound'
 
+function AdminRoute({ children }: { children: ReactNode }) {
+  const { isAdmin, loading } = useAuth()
+  if (loading) return null
+  if (!isAdmin) {
+    return <Navigate to="/" replace />
+  }
+  return <>{children}</>
+}
+
 const App = () => (
   <BrowserRouter>
     <AuthProvider>
@@ -28,12 +38,26 @@ const App = () => (
           {/* Rotas autenticadas sob o Layout global */}
           <Route element={<Layout />}>
             <Route path="/" element={<Index />} />
-            <Route path="/importar" element={<Importar />} />
+            <Route
+              path="/importar"
+              element={
+                <AdminRoute>
+                  <Importar />
+                </AdminRoute>
+              }
+            />
             <Route path="/importacoes" element={<Importacoes />} />
             <Route path="/mapeamentos" element={<Mapeamentos />} />
             <Route path="/chamados" element={<Chamados />} />
             <Route path="/equipes" element={<Equipes />} />
-            <Route path="/usuarios" element={<Usuarios />} />
+            <Route
+              path="/usuarios"
+              element={
+                <AdminRoute>
+                  <Usuarios />
+                </AdminRoute>
+              }
+            />
             <Route path="/relatorios" element={<Relatorios />} />
           </Route>
 
