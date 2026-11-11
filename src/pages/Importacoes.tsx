@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
 import { fetchImports, deleteImportRecord } from '@/services/support'
+import { fetchDbUsage, formatarBytes, DbUsage } from '@/services/db-usage'
+import { EspacoUtilizadoCard } from '@/components/importacoes/EspacoUtilizadoCard'
 import { ImportRecord } from '@/types/support'
 import {
   History,
@@ -35,9 +37,27 @@ export default function Importacoes() {
   const [refreshing, setRefreshing] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
+  // Uso de espaço do banco
+  const [usage, setUsage] = useState<DbUsage | null>(null)
+  const [usageLoading, setUsageLoading] = useState(true)
+  const [usageErro, setUsageErro] = useState<string | null>(null)
+
   // Modal de exclusão
   const [deleteTarget, setDeleteTarget] = useState<ImportRecord | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  const loadUsage = useCallback(async () => {
+    try {
+      setUsageLoading(true)
+      setUsageErro(null)
+      setUsage(await fetchDbUsage())
+    } catch (err: any) {
+      console.error('Erro ao carregar espaço utilizado:', err)
+      setUsageErro(err.message || 'Erro ao carregar espaço utilizado.')
+    } finally {
+      setUsageLoading(false)
+    }
+  }, [])
 
   const loadData = useCallback(async () => {
     try {
@@ -50,7 +70,12 @@ export default function Importacoes() {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [])
+    loadUsage()
+  }, [loadUsage])
+
+  // Espaço ocupado pelos chamados de uma importação (bytes), se conhecido
+  const espacoDaImportacao = (id: string): string =>
+    usage?.imports[id] !== undefined ? formatarBytes(usage.imports[id]) : '—'
 
   useEffect(() => {
     loadData()
@@ -126,6 +151,14 @@ export default function Importacoes() {
         </div>
       </div>
 
+      {/* ESPAÇO UTILIZADO */}
+      <EspacoUtilizadoCard
+        usage={usage}
+        loading={usageLoading}
+        erro={usageErro}
+        onAtualizar={loadUsage}
+      />
+
       {/* CONTEÚDO */}
       {loading ? (
         <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 space-y-3">
@@ -170,6 +203,7 @@ export default function Importacoes() {
                   <th className="py-3 px-4 text-center">Importadas</th>
                   <th className="py-3 px-4 text-center">Ignoradas</th>
                   <th className="py-3 px-4 text-center">Status</th>
+                  <th className="py-3 px-4 text-right">Espaço</th>
                   <th className="py-3 px-4 text-right">Ações</th>
                 </tr>
               </thead>
@@ -220,6 +254,9 @@ export default function Importacoes() {
                             Com erros
                           </Badge>
                         )}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono text-slate-600 whitespace-nowrap">
+                        {espacoDaImportacao(item.id)}
                       </td>
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
@@ -330,6 +367,9 @@ export default function Importacoes() {
                   <div className="flex items-center justify-between pt-1">
                     <span className="text-xs text-slate-500">
                       Layout: <strong>{item.mapeamento_nome || 'Nenhum'}</strong>
+                    </span>
+                    <span className="text-xs text-slate-500 font-mono">
+                      Espaço: <strong>{espacoDaImportacao(item.id)}</strong>
                     </span>
 
                     <div className="flex items-center gap-2">
