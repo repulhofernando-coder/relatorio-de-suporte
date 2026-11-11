@@ -1849,6 +1849,8 @@ export default function Index() {
           records={records}
           onClose={() => setTecnicoSelecionado(null)}
           periodoFiltro={preset || undefined}
+          startDate={activeDateRange.startDate}
+          endDate={activeDateRange.endDate}
         />
       )}
 

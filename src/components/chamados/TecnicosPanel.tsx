@@ -5,6 +5,7 @@ import { classificarTempoTrabalhado } from '@/lib/duracao'
 import { TecnicoClientesTable } from '@/components/dashboard/TecnicoClientesTable'
 import { TecnicoDistribuicaoTable } from '@/components/chamados/TecnicoDistribuicaoTable'
 import { TecnicoSlaCard } from '@/components/chamados/TecnicoSlaCard'
+import { RitmoAtendimentoCard } from '@/components/chamados/RitmoAtendimentoCard'
 
 export interface TecnicoResumo {
   nome: string
@@ -42,6 +43,8 @@ interface TecnicosPanelProps {
   onSelectCliente?: (cliente: string) => void
   onSelectDepartamento?: (depto: string) => void
   departamentoAtivo?: string | null
+  startDate?: string // período ativo (para o ritmo de atendimento)
+  endDate?: string
 }
 
 export function TecnicosPanel({
@@ -53,6 +56,8 @@ export function TecnicosPanel({
   onSelectCliente,
   onSelectDepartamento,
   departamentoAtivo,
+  startDate,
+  endDate,
 }: TecnicosPanelProps) {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden h-full">
@@ -170,6 +175,14 @@ export function TecnicosPanel({
 
                     {/* Quadro de SLA do técnico */}
                     <TecnicoSlaCard tecnico={selecionado} records={records} />
+
+                    {/* Ritmo de atendimento por dia útil e por mês vs. meta do departamento */}
+                    <RitmoAtendimentoCard
+                      tecnico={selecionado}
+                      records={records}
+                      startDate={startDate}
+                      endDate={endDate}
+                    />
 
                     {/* Quadros em grid: Por Departamento e Por Tipo de Chamado */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

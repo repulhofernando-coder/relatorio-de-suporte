@@ -510,6 +510,8 @@ export default function Chamados() {
             onSelecionar={handleSelecionarTecnico}
             loading={loadingRegistros}
             records={registrosFiltro}
+            startDate={range.startDate}
+            endDate={range.endDate}
             onSelectCliente={(cliente) => {
               setClienteFiltro(cliente)
               setPage(1)

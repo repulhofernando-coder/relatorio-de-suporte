@@ -17,6 +17,7 @@ import { classificarTempoTrabalhado, formatarMinutosLegivel } from '@/lib/duraca
 import { Button } from '@/components/ui/button'
 import { TecnicoClientesTable } from '@/components/dashboard/TecnicoClientesTable'
 import { TecnicoDistribuicaoTable } from '@/components/chamados/TecnicoDistribuicaoTable'
+import { RitmoAtendimentoCard } from '@/components/chamados/RitmoAtendimentoCard'
 import { Tag } from 'lucide-react'
 
 interface TecnicoDrillDownProps {
@@ -24,6 +25,8 @@ interface TecnicoDrillDownProps {
   records: SupportRecord[] // já filtrados pelo período ativo
   onClose: () => void
   periodoFiltro?: string // para repassar aos links de /chamados
+  startDate?: string // período ativo (para o ritmo de atendimento)
+  endDate?: string
 }
 
 function formatShortDate(dateStr: string): string {
@@ -44,6 +47,8 @@ export function TecnicoDrillDown({
   records,
   onClose,
   periodoFiltro,
+  startDate,
+  endDate,
 }: TecnicoDrillDownProps) {
   const stats = useMemo(() => {
     const doTecnico = records.filter((r) => r.tecnico?.trim() === tecnico)
@@ -372,6 +377,14 @@ export function TecnicoDrillDown({
               </div>
             </div>
           )}
+
+          {/* Ritmo de atendimento por dia útil e por mês vs. meta do departamento */}
+          <RitmoAtendimentoCard
+            tecnico={tecnico}
+            records={records}
+            startDate={startDate}
+            endDate={endDate}
+          />
 
           {/* Atendimentos por departamento */}
           <TecnicoDistribuicaoTable
