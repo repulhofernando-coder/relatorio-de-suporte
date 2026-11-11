@@ -394,13 +394,11 @@ export default function Index() {
       .catch((err) => console.error('Erro ao buscar capacidade:', err))
   }, [])
 
-  // Aplica filtro predefinido
+  // Aplica filtro predefinido (mantém o departamento selecionado — os filtros são independentes)
   const handleSelectPreset = (newPreset: PeriodPreset) => {
     setPreset(newPreset)
     if (newPreset !== 'personalizado') {
-      const dates = getPresetDates(newPreset)
-      setActiveDateRange(dates)
-      setDepartamentoFiltro('todos')
+      setActiveDateRange(getPresetDates(newPreset))
     }
   }
 
