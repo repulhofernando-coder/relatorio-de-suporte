@@ -12,6 +12,7 @@ import {
   Search,
   SearchX,
   Download,
+  Printer,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,6 +30,13 @@ import { fetchDepartmentCapacity } from '@/services/support'
 import { calcularMediaMensalPorCliente, formatarMediaMensalCompacta } from '@/lib/media-mensal'
 import { exportarHorasDashboard } from '@/lib/exportar-horas'
 import { useToast } from '@/hooks/use-toast'
+import { useAuth } from '@/hooks/use-auth'
+import { fetchClientContracts } from '@/services/contratos'
+import type { ClientContract } from '@/services/contratos'
+import { ContratosPanel } from '@/components/horas/ContratosPanel'
+import { contratoDoCliente, contrastarComContrato } from '@/lib/contrato-contraste'
+import { ContratosResumoEstouro } from '@/components/horas/ContratosResumoEstouro'
+import { ClienteContratoBadge } from '@/components/horas/ClienteContratoBadge'
 
 type PeriodPreset =
   | 'este-mes'
@@ -96,6 +104,9 @@ export default function Horas() {
   // Busca local (sem nova query): filtra os lançamentos já carregados por período/departamento
   const [buscaCliente, setBuscaCliente] = useState('')
   const [buscaTecnico, setBuscaTecnico] = useState('')
+  // Contratos de horas por cliente: contrastar a média mensal com o contratado
+  const [contratos, setContratos] = useState<ClientContract[]>([])
+  const { isAdmin } = useAuth()
 
   // Lista de departamentos disponíveis: união dos rótulos de time_logs
   // (normalizados para o nome natural do setor), das metas de Equipes e dos
@@ -144,6 +155,20 @@ export default function Horas() {
   useEffect(() => {
     carregar()
   }, [carregar])
+
+  // Contratos de horas: leitura para todos (admin e colaborador — o contraste
+  // aparece para ambos); escrita fica restrita a admin via RLS e via UI.
+  const carregarContratos = useCallback(async () => {
+    try {
+      setContratos(await fetchClientContracts())
+    } catch (err) {
+      console.error('Erro ao carregar contratos de horas:', err)
+    }
+  }, [])
+
+  useEffect(() => {
+    carregarContratos()
+  }, [carregarContratos])
 
   const handleSelectPreset = (p: PeriodPreset) => {
     if (p === 'personalizado') {
@@ -264,6 +289,24 @@ export default function Horas() {
           <Button
             variant="outline"
             size="sm"
+            onClick={() => {
+              const oldTitle = document.title
+              const dataFormatada = new Date().toISOString().slice(0, 10)
+              document.title = `relatorio-horas-${dataFormatada}`
+              window.print()
+              setTimeout(() => {
+                document.title = oldTitle
+              }, 1000)
+            }}
+            className="h-9 rounded-xl bg-white border-slate-200 text-slate-700 hover:bg-slate-50 gap-2 shadow-sm"
+            title="Exportar este relatório para PDF"
+          >
+            <Printer className="w-3.5 h-3.5 text-teal-600" />
+            <span>Imprimir</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => carregar(true)}
             disabled={refreshing}
             className="h-9 rounded-xl bg-white border-slate-200 text-slate-700 hover:bg-slate-50 gap-2 shadow-sm"
@@ -367,6 +410,9 @@ export default function Horas() {
         </div>
         <p className="text-xs text-slate-400">Período: {range.label}</p>
       </div>
+
+      {/* CONTRATOS: resumo dos clientes acima do contratado (admin e colaborador) */}
+      <ContratosResumoEstouro contratos={contratos} mediaMensalPorCliente={mediaMensalPorCliente} />
 
       {error && (
         <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-start gap-2.5">
@@ -592,6 +638,10 @@ export default function Horas() {
           <div className="space-y-3">
             {visao.porCliente.map((c, idx) => {
               const media = mediaMensalDe(c.cliente)
+              const contraste = contrastarComContrato(
+                media?.mediaHorasPorMes ?? null,
+                contratoDoCliente(c.cliente, contratos),
+              )
               return (
                 <div
                   key={c.cliente}
@@ -628,6 +678,20 @@ export default function Horas() {
                       </span>
                     </div>
                   </div>
+                  {contraste && (
+                    <div className="pl-7">
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold border whitespace-nowrap ${
+                          contraste.estourou
+                            ? 'bg-red-50 text-red-700 border-red-200'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}
+                        title={contraste.texto}
+                      >
+                        {contraste.texto}
+                      </span>
+                    </div>
+                  )}
                   <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
                     <div
                       className="h-full rounded-full bg-teal-500 transition-all duration-500"
@@ -745,6 +809,15 @@ export default function Horas() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* CONTRATOS DE HORAS — gestão restrita a admin (RLS: escrita só admin) */}
+      {isAdmin && (
+        <ContratosPanel
+          contratos={contratos}
+          onRecarregar={carregarContratos}
+          clientesSugeridos={visao?.porCliente.map((c) => c.cliente) ?? []}
+        />
       )}
     </div>
   )

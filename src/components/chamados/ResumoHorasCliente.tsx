@@ -3,6 +3,8 @@ import { Clock, Ticket, Users, Building2, SearchX, CalendarDays } from 'lucide-r
 import type { TimeLogRecord } from '@/types/horas'
 import { formatarHorasDecimaisLegivel } from '@/lib/duracao'
 import { formatarMediaMensalCompacta, mesDeDataLancamento } from '@/lib/media-mensal'
+import { contratoDoCliente, contrastarComContrato } from '@/lib/contrato-contraste'
+import type { ClientContract } from '@/services/contratos'
 
 /**
  * Resumo de horas de um cliente pesquisado em /chamados.
@@ -104,10 +106,24 @@ interface ResumoHorasClienteProps {
   logs: TimeLogRecord[]
   /** true enquanto os logs ainda não chegaram (evita falso "vazio"). */
   loading?: boolean
+  /** Contratos cadastrados (client_contracts) para o contraste consumo × contrato. */
+  contratos?: ClientContract[]
 }
 
-export function ResumoHorasCliente({ termo, logs, loading = false }: ResumoHorasClienteProps) {
+export function ResumoHorasCliente({
+  termo,
+  logs,
+  loading = false,
+  contratos = [],
+}: ResumoHorasClienteProps) {
   const resumo = useMemo(() => agregarHorasDoCliente(logs, termo), [logs, termo])
+  const contraste = useMemo(() => {
+    if (!resumo) return null
+    return contrastarComContrato(
+      resumo.mediaHorasPorMes,
+      contratoDoCliente(resumo.clientePlanilha, contratos),
+    )
+  }, [resumo, contratos])
 
   if (!termo.trim()) return null
   if (loading) {
@@ -167,7 +183,9 @@ export function ResumoHorasCliente({ termo, logs, loading = false }: ResumoHoras
             </p>
             {resumo.mediaHorasPorMes !== null ? (
               <p
-                className="text-[11px] font-semibold text-teal-700 mt-1 flex items-center gap-1"
+                className={`text-[11px] font-semibold mt-1 flex items-center gap-1 ${
+                  contraste?.estourou ? 'text-red-700' : 'text-teal-700'
+                }`}
                 title={`${resumo.mesesComDados} mês(es) com lançamento no período`}
               >
                 <CalendarDays className="w-3 h-3" />
@@ -177,6 +195,17 @@ export function ResumoHorasCliente({ termo, logs, loading = false }: ResumoHoras
                 </span>
               </p>
             ) : null}
+            {contraste && (
+              <p
+                className={`text-[11px] font-semibold mt-1 rounded-lg px-2 py-1 inline-flex ${
+                  contraste.estourou
+                    ? 'bg-red-50 text-red-700 border border-red-200'
+                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                }`}
+              >
+                {contraste.texto}
+              </p>
+            )}
           </div>
           <div>
             <div className="flex items-center gap-2 text-slate-400 text-[11px] font-semibold uppercase mb-1">

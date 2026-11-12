@@ -29,6 +29,8 @@ import { CountUp } from '@/components/dashboard/CountUp'
 import { TecnicosPanel, resumoPorTecnico } from '@/components/chamados/TecnicosPanel'
 import { TecnicoAberturaPie } from '@/components/chamados/TecnicoAberturaPie'
 import { ResumoHorasCliente } from '@/components/chamados/ResumoHorasCliente'
+import { fetchClientContracts } from '@/services/contratos'
+import type { ClientContract } from '@/services/contratos'
 import { classificarTempoTrabalhado, formatarHorasDecimaisLegivel } from '@/lib/duracao'
 import { criarMatcherDepartamento } from '@/lib/departamentos'
 
@@ -127,6 +129,9 @@ export default function Chamados() {
   // o resumo de horas do cliente pesquisado filtra localmente por nome.
   const [timeLogsBrutos, setTimeLogsBrutos] = useState<TimeLogRecord[]>([])
   const [timeLogsLoading, setTimeLogsLoading] = useState(true)
+  // Contratos de horas por cliente — alimenta o contraste consumo × contrato
+  // no resumo de horas do cliente pesquisado (leitura para todos os perfis).
+  const [contratos, setContratos] = useState<ClientContract[]>([])
 
   const [departamentosEmUso, setDepartamentosEmUso] = useState<string[]>([])
 
@@ -134,6 +139,9 @@ export default function Chamados() {
     fetchDepartamentosEmUso()
       .then(setDepartamentosEmUso)
       .catch((err) => console.error('Erro ao buscar departamentos:', err))
+    fetchClientContracts()
+      .then(setContratos)
+      .catch((err) => console.error('Erro ao carregar contratos de horas:', err))
   }, [])
 
   const carregar = useCallback(
@@ -557,6 +565,7 @@ export default function Chamados() {
           termo={buscaAplicada}
           logs={timeLogsBrutos}
           loading={timeLogsLoading && timeLogsBrutos.length === 0}
+          contratos={contratos}
         />
       )}
 
