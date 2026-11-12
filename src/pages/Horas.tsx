@@ -30,10 +30,8 @@ import { fetchDepartmentCapacity } from '@/services/support'
 import { calcularMediaMensalPorCliente, formatarMediaMensalCompacta } from '@/lib/media-mensal'
 import { exportarHorasDashboard } from '@/lib/exportar-horas'
 import { useToast } from '@/hooks/use-toast'
-import { useAuth } from '@/hooks/use-auth'
 import { fetchClientContracts } from '@/services/contratos'
 import type { ClientContract } from '@/services/contratos'
-import { ContratosPanel } from '@/components/horas/ContratosPanel'
 import { contratoDoCliente, contrastarComContrato } from '@/lib/contrato-contraste'
 import { ContratosResumoEstouro } from '@/components/horas/ContratosResumoEstouro'
 
@@ -105,7 +103,6 @@ export default function Horas() {
   const [buscaTecnico, setBuscaTecnico] = useState('')
   // Contratos de horas por cliente: contrastar a média mensal com o contratado
   const [contratos, setContratos] = useState<ClientContract[]>([])
-  const { isAdmin } = useAuth()
 
   // Lista de departamentos disponíveis: união dos rótulos de time_logs
   // (normalizados para o nome natural do setor), das metas de Equipes e dos
@@ -810,14 +807,7 @@ export default function Horas() {
         </div>
       )}
 
-      {/* CONTRATOS DE HORAS — gestão restrita a admin (RLS: escrita só admin) */}
-      {isAdmin && (
-        <ContratosPanel
-          contratos={contratos}
-          onRecarregar={carregarContratos}
-          clientesSugeridos={visao?.porCliente.map((c) => c.cliente) ?? []}
-        />
-      )}
+      {/* Contratos movidos para a página própria /contratos (menu Contratos) */}
     </div>
   )
 }

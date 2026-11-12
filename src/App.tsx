@@ -12,6 +12,7 @@ import Importacoes from './pages/Importacoes'
 import Mapeamentos from './pages/Mapeamentos'
 import Chamados from './pages/Chamados'
 import Horas from './pages/Horas'
+import Contratos from './pages/Contratos'
 import Equipes from './pages/Equipes'
 import Usuarios from './pages/Usuarios'
 import Relatorios from './pages/Relatorios'
@@ -51,6 +52,7 @@ const App = () => (
             <Route path="/mapeamentos" element={<Mapeamentos />} />
             <Route path="/chamados" element={<Chamados />} />
             <Route path="/horas" element={<Horas />} />
+            <Route path="/contratos" element={<Contratos />} />
             <Route path="/equipes" element={<Equipes />} />
             <Route
               path="/usuarios"

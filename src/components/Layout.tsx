@@ -12,6 +12,7 @@ import {
   History,
   Sliders,
   Clock,
+  FileClock,
   UserCog,
   LogOut,
   Menu,
@@ -33,6 +34,7 @@ const ALL_NAV_ITEMS = [
   { label: 'Importações', path: '/importacoes', icon: History, adminOnly: false },
   { label: 'Mapeamentos', path: '/mapeamentos', icon: Sliders, adminOnly: false },
   { label: 'Horas', path: '/horas', icon: Clock, adminOnly: false },
+  { label: 'Contratos', path: '/contratos', icon: FileClock, adminOnly: false },
   { label: 'Usuários', path: '/usuarios', icon: UserCog, adminOnly: true },
 ]
 
