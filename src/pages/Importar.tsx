@@ -45,8 +45,9 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 import HorasWizard from '@/components/importar/HorasWizard'
+import SatisfacaoWizard from '@/components/importar/SatisfacaoWizard'
 import { traduzirErro } from '@/lib/erros'
-import { Clock, Ticket } from 'lucide-react'
+import { Clock, Ticket, Smile } from 'lucide-react'
 
 const EMPTY_MAPPING: Record<StandardFieldKey, string> = {
   cliente: '',
@@ -72,8 +73,10 @@ export default function Importar() {
   const [searchParams] = useSearchParams()
   const preselectedMapeamentoId = searchParams.get('mapeamento')
 
-  // Tipo de importação: chamados (padrão) ou horas trabalhadas
-  const [tipoImportacao, setTipoImportacao] = useState<'chamados' | 'horas'>('chamados')
+  // Tipo de importação: chamados (padrão), horas trabalhadas ou satisfação
+  const [tipoImportacao, setTipoImportacao] = useState<'chamados' | 'horas' | 'satisfacao'>(
+    'chamados',
+  )
 
   // Mapeamentos salvos
   const [savedMappings, setSavedMappings] = useState<MapeamentoRecord[]>([])
@@ -82,6 +85,12 @@ export default function Importar() {
   // Mapeamentos salvos do tipo Horas (prefixo "[Horas]" no nome)
   const savedMappingsHoras = useMemo(
     () => savedMappings.filter((m) => m.nome.startsWith('[Horas]')),
+    [savedMappings],
+  )
+
+  // Mapeamentos salvos do tipo Satisfação (prefixo "[Satisfação]" no nome)
+  const savedMappingsSatisfacao = useMemo(
+    () => savedMappings.filter((m) => m.nome.startsWith('[Satisfação]')),
     [savedMappings],
   )
 
@@ -499,12 +508,14 @@ export default function Importar() {
         <p className="text-sm text-slate-500 mt-1">
           {tipoImportacao === 'horas'
             ? 'Envie o relatório "Tempo trabalhado nos tickets" do Movidesk e mapeie as colunas para o banco de dados.'
-            : 'Envie o relatório de atendimentos mensal em Excel ou CSV e mapeie as colunas para o banco de dados.'}
+            : tipoImportacao === 'satisfacao'
+              ? 'Envie a pesquisa de satisfação respondida pelos clientes (Movidesk) e mapeie as colunas para o banco de dados.'
+              : 'Envie o relatório de atendimentos mensal em Excel ou CSV e mapeie as colunas para o banco de dados.'}
         </p>
       </div>
 
       {/* SELETOR DE TIPO DE IMPORTAÇÃO */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <button
           type="button"
           onClick={() => setTipoImportacao('chamados')}
@@ -566,9 +577,45 @@ export default function Importar() {
             </p>
           </div>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setTipoImportacao('satisfacao')}
+          className={`p-4 rounded-2xl border text-left transition-all flex items-center gap-3 ${
+            tipoImportacao === 'satisfacao'
+              ? 'border-teal-500 bg-teal-50/60 ring-2 ring-teal-500/20'
+              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+          }`}
+        >
+          <div
+            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+              tipoImportacao === 'satisfacao'
+                ? 'bg-teal-600 text-white'
+                : 'bg-slate-100 text-slate-500'
+            }`}
+          >
+            <Smile className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <p
+              className={`text-sm font-bold ${
+                tipoImportacao === 'satisfacao' ? 'text-teal-800' : 'text-slate-800'
+              }`}
+            >
+              Satisfação
+            </p>
+            <p className="text-xs text-slate-500 leading-tight">
+              Pesquisa de satisfação respondida pelo cliente ao finalizar o chamado
+            </p>
+          </div>
+        </button>
       </div>
 
       {tipoImportacao === 'horas' && <HorasWizard savedMappings={savedMappingsHoras} />}
+
+      {tipoImportacao === 'satisfacao' && (
+        <SatisfacaoWizard savedMappings={savedMappingsSatisfacao} />
+      )}
 
       {tipoImportacao === 'chamados' && (
         <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200/80">
