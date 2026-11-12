@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { RefreshCw, Clock, Users, Ticket, AlertCircle, Building2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import {
+  RefreshCw,
+  Clock,
+  Users,
+  Ticket,
+  AlertCircle,
+  Building2,
+  Layers,
+  ExternalLink,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -8,6 +18,8 @@ import { carregarHorasDashboard, fetchTimeLogs } from '@/services/horas'
 import type { HorasDashboardData } from '@/services/horas'
 import { formatarHorasDecimaisLegivel } from '@/lib/duracao'
 import { traduzirErro } from '@/lib/erros'
+import { agregarHorasPorDepartamentoCliente } from '@/lib/tempo-horas'
+import type { HorasPorDepartamento } from '@/lib/tempo-horas'
 
 type PeriodPreset =
   | 'este-mes'
@@ -57,6 +69,7 @@ function getPresetDates(preset: PeriodPreset): {
 }
 
 export default function Horas() {
+  const navigate = useNavigate()
   const [data, setData] = useState<HorasDashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -132,7 +145,26 @@ export default function Horas() {
     [data],
   )
 
+  const porDepto = useMemo(
+    () => (data ? agregarHorasPorDepartamentoCliente(data.logs, 5) : []),
+    [data],
+  )
+  const maxHorasDepto = useMemo(
+    () => porDepto.reduce((acc, d) => Math.max(acc, d.totalHoras), 0),
+    [porDepto],
+  )
+
   const resumo = data?.resumo
+
+  const navegarParaChamadosDoCliente = (cliente: string) => {
+    const params = new URLSearchParams()
+    params.set('cliente', cliente)
+    if (preset !== 'personalizado') params.set('periodo', preset)
+    if (range.startDate) params.set('startDate', range.startDate)
+    if (range.endDate) params.set('endDate', range.endDate)
+    if (departamentoFiltro !== 'todos') params.set('departamento', departamentoFiltro)
+    navigate(`/chamados?${params.toString()}`)
+  }
 
   return (
     <div className="space-y-6 pb-12">
@@ -327,13 +359,23 @@ export default function Horas() {
 
           <div className="space-y-3">
             {data.porCliente.map((c, idx) => (
-              <div key={c.cliente} className="space-y-1.5">
+              <div
+                key={c.cliente}
+                className="space-y-1.5 cursor-pointer group rounded-lg -mx-2 px-2 py-1 transition-colors hover:bg-teal-50/60"
+                onClick={() => navegarParaChamadosDoCliente(c.cliente)}
+                title={`Ver os chamados de ${c.cliente} em Chamados (período: ${range.label}${
+                  departamentoFiltro !== 'todos' ? ` · ${departamentoFiltro}` : ''
+                })`}
+              >
                 <div className="flex items-center justify-between gap-3 text-xs">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold flex items-center justify-center shrink-0">
                       {idx + 1}
                     </span>
-                    <span className="font-semibold text-slate-800 truncate" title={c.cliente}>
+                    <span
+                      className="font-semibold text-slate-800 truncate group-hover:text-teal-700"
+                      title={c.cliente}
+                    >
                       {c.cliente}
                     </span>
                   </div>
@@ -450,6 +492,96 @@ export default function Horas() {
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* HORAS POR DEPARTAMENTO × CLIENTE */}
+      {data && porDepto.length > 0 && (
+        <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+              <Layers className="w-4 h-4 text-teal-600" />
+              Horas por departamento × cliente
+            </h2>
+            <Badge className="bg-teal-50 text-teal-700 border border-teal-200 text-[11px]">
+              {porDepto.length} departamento(s)
+            </Badge>
+          </div>
+          <p className="text-xs text-slate-500 -mt-2 mb-4">
+            Total de horas de cada setor no período e os clientes que mais o consumiram (top 5 +
+            Outros) — para validar contratos por departamento.
+          </p>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {porDepto.map((d) => (
+              <div
+                key={d.departamento}
+                className="rounded-xl border border-slate-200/80 p-4 space-y-3 bg-slate-50/40"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="w-2.5 h-2.5 rounded-full bg-teal-500 shrink-0" />
+                    <span
+                      className="font-bold text-sm text-slate-900 truncate"
+                      title={d.departamento}
+                    >
+                      {d.departamento}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 font-mono text-[11px]">
+                    <span className="text-slate-500">{d.tickets} chamado(s)</span>
+                    <span className="text-slate-400">{d.percent}% do total</span>
+                    <span className="font-bold text-teal-700">
+                      {formatarHorasDecimaisLegivel(d.totalHoras)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  {d.clientes.map((c) => (
+                    <div key={`${d.departamento}-${c.cliente}`} className="space-y-1">
+                      <div className="flex items-center justify-between gap-3 text-[11px]">
+                        <span
+                          className={`truncate ${
+                            c.isOutros
+                              ? 'italic text-slate-500 font-medium'
+                              : 'font-semibold text-slate-700'
+                          }`}
+                          title={c.cliente}
+                        >
+                          {c.cliente}
+                        </span>
+                        <span className="shrink-0 font-mono">
+                          <span className="text-slate-400 mr-2">{c.percent}%</span>
+                          <span className="font-bold text-slate-700">
+                            {formatarHorasDecimaisLegivel(c.totalHoras)}
+                          </span>
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-slate-200/70 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            c.isOutros ? 'bg-slate-400' : 'bg-teal-500'
+                          }`}
+                          style={{
+                            width:
+                              maxHorasDepto > 0
+                                ? `${Math.max(2, (d.totalHoras / maxHorasDepto) * 100)}%`
+                                : '0%',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  {d.outrosClientes > 0 && (
+                    <p className="text-[10px] text-slate-400 pt-0.5">
+                      Linha "Outros" agrega {d.outrosClientes} cliente(s) fora do top 5.
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

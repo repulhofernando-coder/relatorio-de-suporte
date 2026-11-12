@@ -43,7 +43,10 @@ import {
   AlertTriangle,
   BookmarkPlus,
   Loader2,
+  Hourglass,
 } from 'lucide-react'
+import { carregarRankingHorasClientes } from '@/services/horas'
+import type { RankingHorasCliente } from '@/services/horas'
 import { useToast } from '@/hooks/use-toast'
 import {
   Dialog,
@@ -261,6 +264,10 @@ export default function Index() {
   const [departamentoFiltro, setDepartamentoFiltro] = useState<string>('todos')
   const [inicializado, setInicializado] = useState(false)
 
+  // Card "Clientes que mais consumiram horas" (time_logs, mesmo período/depto da tela)
+  const [rankingHoras, setRankingHoras] = useState<RankingHorasCliente[]>([])
+  const [loadingRankingHoras, setLoadingRankingHoras] = useState(true)
+
   const loadData = useCallback(
     async (depto: string = departamentoFiltro) => {
       try {
@@ -383,6 +390,31 @@ export default function Index() {
   useEffect(() => {
     if (inicializado) loadData()
   }, [inicializado, loadData])
+
+  // Ranking de horas consumidas (time_logs) — mesmo período/departamento da tela
+  useEffect(() => {
+    if (!inicializado) return
+    let ativo = true
+    setLoadingRankingHoras(true)
+    carregarRankingHorasClientes({
+      startDate: activeDateRange.startDate,
+      endDate: activeDateRange.endDate,
+      departamento: departamentoFiltro !== 'todos' ? departamentoFiltro : undefined,
+    })
+      .then((ranking) => {
+        if (ativo) setRankingHoras(ranking)
+      })
+      .catch((err) => {
+        console.error('Erro ao carregar ranking de horas:', err)
+        if (ativo) setRankingHoras([])
+      })
+      .finally(() => {
+        if (ativo) setLoadingRankingHoras(false)
+      })
+    return () => {
+      ativo = false
+    }
+  }, [inicializado, activeDateRange.startDate, activeDateRange.endDate, departamentoFiltro])
 
   // Departamentos que realmente existem nos registros (filtro e gráfico dinâmicos)
   useEffect(() => {
@@ -1450,6 +1482,84 @@ export default function Index() {
                 </ResponsiveContainer>
               )}
             </div>
+          </div>
+
+          {/* CARD: CLIENTES QUE MAIS CONSUMIRAM HORAS (time_logs — mesmo período/depto da tela) */}
+          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80 flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Hourglass className="w-4 h-4 text-teal-600" />
+                  Clientes que mais consumiram horas
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Horas lançadas (planilha de horas) no período — clique para abrir a página Horas
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate('/horas')}
+                className="text-xs text-teal-600 hover:text-teal-700 gap-1"
+              >
+                <span>Ver Horas</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+
+            {loadingRankingHoras ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-8 bg-slate-50 rounded-xl animate-pulse" />
+                ))}
+              </div>
+            ) : rankingHoras.length === 0 ? (
+              <p className="text-xs text-slate-400 py-6 text-center">
+                Nenhuma hora lançada no período
+              </p>
+            ) : (
+              <div className="space-y-2.5">
+                {rankingHoras.slice(0, 8).map((c, idx) => (
+                  <button
+                    key={c.cliente}
+                    onClick={() => navigate('/horas')}
+                    className="w-full text-left space-y-1 cursor-pointer group rounded-lg -mx-1 px-1 py-0.5 hover:bg-teal-50/50 transition-colors"
+                    title={`Ver detalhes de horas de ${c.cliente} na página Horas`}
+                  >
+                    <div className="flex items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold flex items-center justify-center shrink-0">
+                          {idx + 1}
+                        </span>
+                        <span
+                          className="font-semibold text-slate-800 truncate group-hover:text-teal-700"
+                          title={c.cliente}
+                        >
+                          {c.cliente}
+                        </span>
+                      </div>
+                      <span className="shrink-0 font-mono text-[11px]">
+                        <span className="text-slate-400 mr-2">{c.percent}%</span>
+                        <span className="font-bold text-teal-700">
+                          {formatarHorasDecimaisLegivel(c.totalHoras)}
+                        </span>
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-teal-500 transition-all duration-500"
+                        style={{
+                          width:
+                            rankingHoras[0].totalHoras > 0
+                              ? `${Math.max(2, (c.totalHoras / rankingHoras[0].totalHoras) * 100)}%`
+                              : '0%',
+                        }}
+                      />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* GRÁFICOS LINHA 2 (60% / 40%) */}

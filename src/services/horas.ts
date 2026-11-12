@@ -8,7 +8,12 @@ import {
   upsertMapeamento,
   insertTimeLogsBatch,
 } from '@/services/support'
-import { agregarHorasPorCliente, agregarHorasPorTecnico, TimeLogLike } from '@/lib/tempo-horas'
+import {
+  agregarHorasPorCliente,
+  agregarHorasPorTecnico,
+  agregarHorasPorDepartamentoCliente,
+  TimeLogLike,
+} from '@/lib/tempo-horas'
 import type { MapeamentoInsert } from '@/types/support'
 
 export {
@@ -19,7 +24,60 @@ export {
   insertTimeLogsBatch,
 }
 export { agregarHorasPorCliente, agregarHorasPorTecnico }
+export { agregarHorasPorDepartamentoCliente }
+export type { HorasPorDepartamento, HorasClienteDepto } from '@/lib/tempo-horas'
 export type { TimeLogRecord, TimeLogInsert, TimeLogLike, ImportTipo, MapeamentoInsert }
+
+/** Linha do ranking "Clientes que mais consumiram horas" (Visão Geral). */
+export interface RankingHorasCliente {
+  cliente: string
+  totalHoras: number
+  percent: number
+  tickets: number
+}
+
+/**
+ * Ranking de clientes por horas consumidas para a Visão Geral.
+ * Respeita o período e o departamento ativos na tela (mesma régua dos
+ * outros cards). Aceita reaproveitar os logs já filtrados da página /horas.
+ */
+export async function carregarRankingHorasClientes(
+  filtros: HorasFiltros,
+  logsFiltrados?: TimeLogRecord[],
+): Promise<RankingHorasCliente[]> {
+  const logs =
+    logsFiltrados ??
+    (await fetchTimeLogs()).filter((log) => {
+      if (filtros.startDate || filtros.endDate) {
+        const data = log.data_lancamento || ''
+        if (filtros.startDate && (!data || data < filtros.startDate)) return false
+        if (filtros.endDate && (!data || data > filtros.endDate)) return false
+      }
+      if (filtros.departamento && (log.departamento || '') !== filtros.departamento) return false
+      return true
+    })
+
+  const mapa = new Map<string, { minutos: number; tickets: Set<string> }>()
+  for (const log of logs) {
+    const cliente = log.cliente?.trim() || 'Sem cliente'
+    const entry = mapa.get(cliente) || { minutos: 0, tickets: new Set<string>() }
+    entry.minutos += log.minutos || 0
+    if (log.numero_ticket) entry.tickets.add(log.numero_ticket)
+    mapa.set(cliente, entry)
+  }
+
+  const totalMinutos = Array.from(mapa.values()).reduce((acc, e) => acc + e.minutos, 0)
+  if (totalMinutos === 0) return []
+
+  return Array.from(mapa.entries())
+    .map(([cliente, e]) => ({
+      cliente,
+      totalHoras: Math.round((e.minutos / 60) * 100) / 100,
+      percent: Math.round((e.minutos / totalMinutos) * 1000) / 10,
+      tickets: e.tickets.size,
+    }))
+    .sort((a, b) => b.totalHoras - a.totalHoras)
+}
 
 /**
  * Salva (upsert por nome único) um mapeamento de colunas da planilha de horas.

@@ -192,6 +192,118 @@ export function agregarHorasPorTecnico(logs: TimeLogLike[]): HorasPorTecnico[] {
     .sort((a, b) => b.totalHoras - a.totalHoras)
 }
 
+export interface HorasClienteDepto {
+  cliente: string
+  totalHoras: number
+  /** % do total do departamento */
+  percent: number
+  tickets: number
+  /** true quando a linha agrega os clientes fora do top N */
+  isOutros?: boolean
+}
+
+export interface HorasPorDepartamento {
+  departamento: string
+  totalHoras: number
+  totalMinutos: number
+  /** % do total geral de horas do período */
+  percent: number
+  tickets: number
+  /** Top N clientes + eventual linha "Outros" (isOutros) */
+  clientes: HorasClienteDepto[]
+  /** Quantidade de clientes agregados na linha "Outros" */
+  outrosClientes: number
+}
+
+/**
+ * Cruza departamento × cliente: para cada setor, total de horas no período e
+ * a quebra pelos maiores consumidores (top N + linha "Outros").
+ */
+export function agregarHorasPorDepartamentoCliente(
+  logs: TimeLogLike[],
+  topN = 5,
+): HorasPorDepartamento[] {
+  interface Entrada {
+    minutos: number
+    tickets: Set<string>
+    clientes: Map<string, { minutos: number; tickets: Set<string> }>
+  }
+
+  const departamentos = new Map<string, Entrada>()
+
+  for (const log of logs) {
+    const depto = log.departamento?.trim() || 'Sem departamento'
+    const cliente = log.cliente?.trim() || 'Sem cliente'
+    const entrada = departamentos.get(depto) || {
+      minutos: 0,
+      tickets: new Set<string>(),
+      clientes: new Map(),
+    }
+    entrada.minutos += log.minutos || 0
+    if (log.numero_ticket) entrada.tickets.add(log.numero_ticket)
+
+    const clienteEntry = entrada.clientes.get(cliente) || { minutos: 0, tickets: new Set() }
+    clienteEntry.minutos += log.minutos || 0
+    if (log.numero_ticket) clienteEntry.tickets.add(log.numero_ticket)
+    entrada.clientes.set(cliente, clienteEntry)
+    departamentos.set(depto, entrada)
+  }
+
+  const totalMinutosGeral = Array.from(departamentos.values()).reduce(
+    (acc, e) => acc + e.minutos,
+    0,
+  )
+
+  return Array.from(departamentos.entries())
+    .map(([depto, entrada]) => {
+      const ranking = Array.from(entrada.clientes.entries())
+        .map(([cliente, c]) => ({
+          cliente,
+          totalHoras: roundHoras(c.minutos / 60),
+          totalMinutos: c.minutos,
+          tickets: c.tickets.size,
+        }))
+        // ranking interno em minutos (evita empates por arredondamento de horas)
+        .sort((a, b) => b.totalMinutos - a.totalMinutos)
+
+      const top = ranking.slice(0, topN)
+      const fora = ranking.slice(topN)
+      const minutosOutros = fora.reduce((acc, c) => acc + c.totalMinutos, 0)
+      const ticketsOutros = fora.reduce((acc, c) => acc + c.tickets, 0)
+
+      const clientes: HorasClienteDepto[] = top.map((c) => ({
+        cliente: c.cliente,
+        totalHoras: c.totalHoras,
+        percent:
+          entrada.minutos > 0 ? Math.round((c.totalMinutos / entrada.minutos) * 1000) / 10 : 0,
+        tickets: c.tickets,
+      }))
+
+      if (fora.length > 0) {
+        clientes.push({
+          cliente: 'Outros',
+          totalHoras: roundHoras(minutosOutros / 60),
+          percent:
+            entrada.minutos > 0 ? Math.round((minutosOutros / entrada.minutos) * 1000) / 10 : 0,
+          tickets: ticketsOutros,
+          isOutros: true,
+        })
+      }
+
+      return {
+        departamento: depto,
+        totalHoras: roundHoras(entrada.minutos / 60),
+        totalMinutos: entrada.minutos,
+        percent:
+          totalMinutosGeral > 0 ? Math.round((entrada.minutos / totalMinutosGeral) * 1000) / 10 : 0,
+        tickets: entrada.tickets.size,
+        clientes,
+        outrosClientes: fora.length,
+      }
+    })
+    .sort((a, b) => b.totalMinutos - a.totalMinutos)
+}
+
 /** Extrai o período real (min–max) coberto pelos lançamentos com data. */
 export function periodoCobertoHoras(logs: TimeLogLike[]): {
   min: string | null
