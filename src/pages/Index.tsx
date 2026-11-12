@@ -46,11 +46,7 @@ import {
   Hourglass,
 } from 'lucide-react'
 import { carregarRankingHorasClientes } from '@/services/horas'
-import {
-  normalizarDepartamentoHoras,
-  normalizarDepartamentosEmLogs,
-  uniaoDepartamentosHoras,
-} from '@/lib/departamentos'
+import { criarMatcherDepartamento, uniaoDepartamentosHoras } from '@/lib/departamentos'
 import type { RankingHorasCliente } from '@/services/horas'
 import { fetchTimeLogs } from '@/services/support'
 import type { TimeLogRecord } from '@/types/horas'
@@ -279,18 +275,17 @@ export default function Index() {
   const [timeLogs, setTimeLogs] = useState<TimeLogRecord[]>([])
   const timeLogsFiltrados = useMemo(() => {
     if (!timeLogs.length) return []
-    // Rótulos já normalizados em departamentos.ts ("Linux N1/N2" → "Linux",
-    // "Windows - N2" → "Windows N2", "Datacenter: X" → "Datacenter").
+    // Departamento comparado por família de rótulo sobre o rótulo BRUTO do
+    // Movidesk ("Linux" casa "Linux N1/N2", "Windows N2" casa todo rótulo de
+    // N2 — ver departamentos.ts). Normalizar antes esconderia o N2 de
+    // "Linux N1/N2". Período segue comparação de data.
+    const casaDepto =
+      departamentoFiltro !== 'todos' ? criarMatcherDepartamento(departamentoFiltro) : null
     return timeLogs.filter((log) => {
       const data = log.data_lancamento || ''
       if (activeDateRange.startDate && (!data || data < activeDateRange.startDate)) return false
       if (activeDateRange.endDate && (!data || data > activeDateRange.endDate)) return false
-      if (
-        departamentoFiltro !== 'todos' &&
-        (log.departamento || '') !== normalizarDepartamentoHoras(departamentoFiltro)
-      ) {
-        return false
-      }
+      if (casaDepto && !casaDepto(log.departamento)) return false
       return true
     })
   }, [timeLogs, activeDateRange.startDate, activeDateRange.endDate, departamentoFiltro])
@@ -459,8 +454,10 @@ export default function Index() {
     let ativo = true
     fetchTimeLogs()
       .then((logs) => {
-        // Normaliza os rótulos ("Linux N1/N2" → "Linux" etc.) para casar com o filtro
-        if (ativo) setTimeLogs(normalizarDepartamentosEmLogs(logs))
+        // Guarda o rótulo BRUTO do Movidesk — o casamento com o filtro é feito
+        // por família de rótulo em casaDepartamento/criarMatcherDepartamento
+        // (ver departamentos.ts). Normalizar aqui esconderia o N2 de "Linux N1/N2".
+        if (ativo) setTimeLogs(logs)
       })
       .catch((err) => {
         console.error('Erro ao carregar lançamentos de horas:', err)

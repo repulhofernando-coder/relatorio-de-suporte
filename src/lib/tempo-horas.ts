@@ -1,3 +1,5 @@
+import { normalizarDepartamentoHoras } from './departamentos'
+
 /**
  * Parser tolerante de TEMPO para a importação de "Horas trabalhadas" (Movidesk).
  *

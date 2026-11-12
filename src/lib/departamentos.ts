@@ -1,29 +1,41 @@
 /**
- * Normalização de rótulos de departamento para as consultas de HORAS (time_logs).
+ * Normalização e casamento de rótulos de departamento para as HORAS (time_logs).
  *
  * O Movidesk grava rótulos que não batem com os usados nos chamados
- * (support_records: Windows, Linux, Campo, Windows N2). Esta função unifica
- * a equivalência num único lugar — usada por /horas, pela Visão Geral (card
- * "Clientes que mais consumiram horas") e pelo Top 3 do técnico em Chamados.
+ * (support_records: Windows, Linux, Campo, Windows N2). Valores reais em
+ * time_logs.departamento: "Linux N1/N2", "Windows - N2", "Datacenter: Windows",
+ * "Datacenter: Linux", "Coordenadores." — além de "Comercial", "Cabeamento",
+ * "Laboratório", "Projetos Locais", "Ativação", "Alocado", "Financeiro".
+ *
+ * O rótulo canônico (normalizarDepartamentoHoras) é o "nome natural" do setor,
+ * usado para EXIBIR e para montar o filtro. O casamento filtro × log
+ * (casaDepartamento) é SEMÂNTICO — por família de rótulo, aplicado sobre o
+ * RÓTULO BRUTO (normalizar depois esconderia o N2 de "Linux N1/N2"):
+ *   - filtro com "N2"      → qualquer rótulo com "N2" ("Windows - N2", "Linux N1/N2")
+ *   - filtro "Linux"       → rótulos do setor Linux ("Linux", "Linux N1/N2")
+ *   - filtro "Windows"     → contém "Windows", sem N2 e sem Datacenter
+ *   - filtro "Campo"       → contém "Campo"
+ *   - filtro "Datacenter"  → contém "Datacenter" (agrupa ": Windows" e ": Linux")
+ *   - demais               → igualdade canônica (Comercial, Cabeamento…)
  *
  * IMPORTANTE: vale APENAS para time_logs. Os relatórios de chamados
  * (support_records) continuam usando o rótulo exato — não alterar.
- *
- * O rótulo normalizado é o "nome natural" do setor (o mesmo usado nos
- * chamados e nas metas de Equipes): selecionar "Linux" traz "Linux N1/N2",
- * selecionar "Windows N2" traz "Windows - N2" e "Datacenter" agrupa
- * "Datacenter: Windows" e "Datacenter: Linux".
  */
+
+function minusculeSemAcento(valor: string): string {
+  return valor
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // remove acentos
+}
 
 /** Rótulo canônico (o que o usuário vê e seleciona no filtro). */
 export function normalizarDepartamentoHoras(depto: string | null | undefined): string {
   const bruto = (depto ?? '').trim()
   if (!bruto) return ''
 
-  const min = bruto
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // remove acentos
+  const min = minusculeSemAcento(bruto)
 
   // "Linux", "Linux N1", "Linux N2", "Linux N1/N2" → Linux
   if (/^linux(\s*n[12](\s*\/\s*n[12])?)?$/.test(min)) return 'Linux'
@@ -54,51 +66,56 @@ export function normalizarDepartamentosEmLogs<T extends { departamento?: string 
 }
 
 /**
- * Conjunto de rótulos equivalentes ao departamento selecionado — usado quando
- * o filtro é aplicado sobre rótulos JÁ normalizados (ex.: em logs de horas).
- * Ex.: "Linux" → { "Linux", "Linux N1", "Linux N2", "Linux N1/N2" }.
+ * true quando o lançamento de horas pertence ao departamento selecionado.
+ * Comparação SEMÂNTICA por família de rótulo (ver cabeçalho do arquivo) —
+ * "Linux" traz "Linux N1/N2", "Windows N2" traz todo rótulo de N2,
+ * "Datacenter" agrupa "Datacenter: Windows" e "Datacenter: Linux".
  */
-export function variacoesEquivalentesDepto(filtro: string): Set<string> {
-  const bruto = filtro.trim()
-  if (!bruto) return new Set()
-
-  const min = bruto
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-
-  const variacoes = new Set<string>([bruto, normalizarDepartamentoHoras(bruto)])
-
-  // Linux: rótulos N1/N2 do Movidesk
-  if (min === 'linux') {
-    variacoes.add('Linux N1')
-    variacoes.add('Linux N2')
-    variacoes.add('Linux N1/N2')
-  }
-
-  // Datacenter: os dois rótulos do Movidesk
-  if (min === 'datacenter') {
-    variacoes.add('Datacenter: Windows')
-    variacoes.add('Datacenter: Linux')
-  }
-
-  return variacoes
-}
-
-/** true quando o log pertence ao departamento selecionado (comparação normalizada). */
-export function logPertenceAoDepartamento(
+export function casaDepartamento(
   deptoDoLog: string | null | undefined,
   filtro: string | null | undefined,
 ): boolean {
-  if (!filtro) return true
+  const filtroMin = minusculeSemAcento(filtro ?? '')
+  if (!filtroMin || filtroMin === 'todos') return true
+
+  const logMin = minusculeSemAcento(deptoDoLog ?? '')
+  if (!logMin) return false
+
+  // N2: qualquer rótulo de N2 (Windows - N2, Linux N1/N2)
+  if (filtroMin.includes('n2')) return logMin.includes('n2')
+
+  // Linux: rótulos do setor Linux (não "Datacenter: Linux", que é Datacenter)
+  if (filtroMin.includes('linux')) return logMin.startsWith('linux')
+
+  // Windows: sem N2 e sem Datacenter (esses têm filtros próprios)
+  if (filtroMin.includes('windows')) {
+    return logMin.includes('windows') && !logMin.includes('n2') && !logMin.includes('datacenter')
+  }
+
+  if (filtroMin.includes('campo')) return logMin.includes('campo')
+  if (filtroMin.includes('datacenter')) return logMin.includes('datacenter')
+
+  // Demais setores (Comercial, Cabeamento, Laboratório, …): igualdade canônica
   return normalizarDepartamentoHoras(deptoDoLog) === normalizarDepartamentoHoras(filtro)
 }
+
+/** Predicado pronto para aplicar sobre os logs de uma tela. */
+export function criarMatcherDepartamento(
+  filtro: string | null | undefined,
+): (deptoDoLog: string | null | undefined) => boolean {
+  return (deptoDoLog) => casaDepartamento(deptoDoLog, filtro)
+}
+
+/** true quando o log pertence ao departamento selecionado (alias de casaDepartamento). */
+export const logPertenceAoDepartamento = casaDepartamento
 
 /**
  * União dos departamentos que aparecem em time_logs (normalizados),
  * support_records e nas metas de Equipes (department_capacity) — sem duplicar
  * nomes. Alimenta o filtro de departamento das telas que mostram horas
- * (/horas e o filtro da Visão Geral que alimenta o card de horas).
+ * (/horas e o filtro da Visão Geral que alimenta o card de horas), incluindo
+ * os setores que só existem nas horas (Comercial, Datacenter, Cabeamento,
+ * Laboratório, Projetos Locais, Coordenadores, Ativação, Alocado, Financeiro).
  */
 export function uniaoDepartamentosHoras(
   ...sources: Array<Array<string | null | undefined>>

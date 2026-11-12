@@ -16,9 +16,9 @@ import {
 } from '@/lib/tempo-horas'
 import type { MapeamentoInsert } from '@/types/support'
 import {
-  logPertenceAoDepartamento,
+  casaDepartamento,
+  normalizarDepartamentoHoras,
   normalizarDepartamentosEmLogs,
-  variacoesEquivalentesDepto,
 } from '@/lib/departamentos'
 
 export {
@@ -50,18 +50,16 @@ export async function carregarRankingHorasClientes(
   filtros: HorasFiltros,
   logsFiltrados?: TimeLogRecord[],
 ): Promise<RankingHorasCliente[]> {
-  const brutos = logsFiltrados ?? normalizarDepartamentosEmLogs(await fetchTimeLogs())
+  const brutos = logsFiltrados ?? (await fetchTimeLogs())
   const logs = brutos.filter((log) => {
     if (filtros.startDate || filtros.endDate) {
       const data = log.data_lancamento || ''
       if (filtros.startDate && (!data || data < filtros.startDate)) return false
       if (filtros.endDate && (!data || data > filtros.endDate)) return false
     }
-    // Departamento comparado por equivalência de nome ("Linux N1/N2" casa "Linux")
-    if (
-      filtros.departamento &&
-      !logPertenceAoDepartamento(log.departamento, filtros.departamento)
-    ) {
+    // Departamento comparado por família de rótulo sobre o BRUTO ("Linux" casa
+    // "Linux N1/N2"; "Windows N2" casa todo rótulo de N2 — ver departamentos.ts)
+    if (filtros.departamento && !casaDepartamento(log.departamento, filtros.departamento)) {
       return false
     }
     return true
@@ -133,10 +131,7 @@ export interface HorasDashboardData {
  * e a seção departamento × cliente passam a exibir o nome natural do setor.
  */
 export async function carregarHorasDashboard(filtros: HorasFiltros): Promise<HorasDashboardData> {
-  // Departamentos equivalentes ao selecionado (ex.: "Linux" ← "Linux N1/N2")
   const filtroDepto = filtros.departamento
-  const filtroVariacoes =
-    filtroDepto === undefined ? undefined : variacoesEquivalentesDepto(filtroDepto)
 
   const params: FetchSupportRecordsParams = {}
   if (filtroDepto) params.departamento = filtroDepto
@@ -149,17 +144,22 @@ export async function carregarHorasDashboard(filtros: HorasFiltros): Promise<Hor
     fetchMinutosPorTicket(),
   ])
 
-  const logsFiltrados = normalizarDepartamentosEmLogs(logs).filter((log) => {
-    if (filtros.startDate || filtros.endDate) {
-      const data = log.data_lancamento || ''
-      if (filtros.startDate && (!data || data < filtros.startDate)) return false
-      if (filtros.endDate && (!data || data > filtros.endDate)) return false
-    }
-    if (filtroVariacoes && !filtroVariacoes.has(log.departamento || '')) {
-      return false
-    }
-    return true
-  })
+  // Casamento por família de rótulo sobre o BRUTO ("Linux" casa "Linux N1/N2",
+  // "Windows N2" casa todo rótulo de N2 — ver departamentos.ts); o rótulo
+  // canônico é aplicado DEPOIS, para exibição (normalizarDepartamentosEmLogs).
+  const logsFiltrados = normalizarDepartamentosEmLogs(
+    logs.filter((log) => {
+      if (filtros.startDate || filtros.endDate) {
+        const data = log.data_lancamento || ''
+        if (filtros.startDate && (!data || data < filtros.startDate)) return false
+        if (filtros.endDate && (!data || data > filtros.endDate)) return false
+      }
+      if (filtroDepto && !casaDepartamento(log.departamento, filtroDepto)) {
+        return false
+      }
+      return true
+    }),
+  )
 
   const porCliente = agregarHorasPorCliente(logsFiltrados, minutosPorTicket)
   const porTecnico = agregarHorasPorTecnico(logsFiltrados)
