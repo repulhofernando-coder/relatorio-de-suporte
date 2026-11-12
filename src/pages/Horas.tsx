@@ -36,7 +36,6 @@ import type { ClientContract } from '@/services/contratos'
 import { ContratosPanel } from '@/components/horas/ContratosPanel'
 import { contratoDoCliente, contrastarComContrato } from '@/lib/contrato-contraste'
 import { ContratosResumoEstouro } from '@/components/horas/ContratosResumoEstouro'
-import { ClienteContratoBadge } from '@/components/horas/ClienteContratoBadge'
 
 type PeriodPreset =
   | 'este-mes'
