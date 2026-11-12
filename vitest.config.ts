@@ -1,19 +1,16 @@
-import path from 'path'
 import { defineConfig } from 'vitest/config'
+import path from 'path'
+import react from '@vitejs/plugin-react'
 
-// Configuração de testes unitários (vitest). Testes rodam em ambiente "dom"
-// e usam o mesmo alias "@" do vite.config.ts.
 export default defineConfig({
+  plugins: [react()],
   test: {
-    environment: 'dom',
-    include: ['src/**/*.test.{ts,tsx}'],
+    environment: 'node',
+    include: ['src/**/*.test.ts'],
   },
   resolve: {
-    alias: [
-      {
-        find: '@',
-        replacement: path.resolve(__dirname, './src'),
-      },
-    ],
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
   },
 })

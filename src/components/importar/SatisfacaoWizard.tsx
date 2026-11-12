@@ -1,7 +1,11 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { parseSpreadsheetFile, parseDateToISO, ParsedSpreadsheet } from '@/lib/spreadsheet'
-import { autoDetectMappingSatisfacao, parseNotaSatisfacao } from '@/lib/satisfacao-spreadsheet'
+import {
+  autoDetectMappingSatisfacao,
+  parseNotaSatisfacao,
+  sugestaoColunaSatisfacao,
+} from '@/lib/satisfacao-spreadsheet'
 import { insertSatisfacaoBatch } from '@/services/satisfacao'
 import { upsertMapeamento, createImportRecord } from '@/services/support'
 import type { MapeamentoRecord } from '@/types/support'
@@ -18,6 +22,8 @@ import {
   UploadCloud,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
+  Lightbulb,
   ArrowRight,
   ArrowLeft,
   Loader2,
@@ -214,6 +220,29 @@ export default function SatisfacaoWizard({ savedMappings }: SatisfacaoWizardProp
   }, [parsedData, mapping])
 
   const totalIgnoradas = linhasValidas.filter((l) => l.nota === null).length
+
+  // Diagnóstico do passo 3: quando NENHUMA nota é reconhecida, revela os
+  // valores brutos distintos da coluna mapeada como resposta de satisfação e,
+  // se for o caso, sugere a coluna alternativa que "parece" conter as respostas.
+  const diagnosticoSatisfacao = useMemo(() => {
+    const todasNull =
+      parsedData && parsedData.rows.length > 0 && linhasValidas.every((l) => l.nota === null)
+    if (!parsedData || !todasNull) return null
+
+    const col = mapping.resposta_satisfacao
+    const contagem = new Map<string, number>()
+    for (const row of parsedData.rows) {
+      const raw = col ? row[col] : null
+      const chave =
+        raw === null || raw === undefined || String(raw).trim() === '' ? '(vazio)' : String(raw)
+      contagem.set(chave, (contagem.get(chave) ?? 0) + 1)
+    }
+    const valoresBrutos = [...contagem.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)
+    const colunaVazia = contagem.size === 1 && contagem.has('(vazio)')
+    const colunaSugerida =
+      colunaVazia || !col ? sugestaoColunaSatisfacao(parsedData, col || undefined) : null
+    return { valoresBrutos, colunaVazia, colunaSugerida, colSemColuna: !col }
+  }, [parsedData, linhasValidas, mapping.resposta_satisfacao])
 
   const handleExecuteImport = async () => {
     if (!file || !parsedData) return
@@ -578,6 +607,64 @@ export default function SatisfacaoWizard({ savedMappings }: SatisfacaoWizardProp
                   </tbody>
                 </table>
               </div>
+
+              {diagnosticoSatisfacao && (
+                <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 text-sm text-amber-900 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-amber-600" />
+                    <div className="space-y-1">
+                      <p className="font-bold">Nenhuma resposta de satisfação foi reconhecida.</p>
+                      <p>
+                        Verifique se a coluna correta foi mapeada e veja abaixo os valores
+                        encontrados.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-amber-800 mb-1.5">
+                      Valores encontrados na coluna{' '}
+                      <span className="font-mono">
+                        “{mapping.resposta_satisfacao || '(coluna não mapeada)'}”
+                      </span>
+                      :
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {diagnosticoSatisfacao.valoresBrutos.map(([valor, qtd]) => (
+                        <span
+                          key={valor}
+                          className="inline-flex items-center gap-1 bg-white border border-amber-200 rounded-md px-2 py-0.5 text-xs text-slate-700"
+                        >
+                          <span className="font-mono">“{valor}”</span>
+                          <span className="text-amber-700 font-semibold">×{qtd}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {diagnosticoSatisfacao.colunaSugerida && (
+                    <div className="flex items-start gap-2 bg-white border border-amber-200 rounded-lg p-2.5 text-xs">
+                      <Lightbulb className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+                      <p>
+                        A coluna <strong>“{diagnosticoSatisfacao.colunaSugerida}”</strong> parece
+                        conter as respostas de satisfação — volte ao passo de mapeamento e
+                        selecione-a.
+                      </p>
+                    </div>
+                  )}
+
+                  {diagnosticoSatisfacao.colunaVazia && !diagnosticoSatisfacao.colunaSugerida && (
+                    <div className="flex items-start gap-2 bg-white border border-amber-200 rounded-lg p-2.5 text-xs">
+                      <Lightbulb className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+                      <p>
+                        As carinhas podem ter sido exportadas como imagem pelo Movidesk. Reexporte o
+                        relatório em formato que traga as respostas como texto (ex.: 'Muito
+                        satisfeito') e tente novamente.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {importing && (
                 <div className="space-y-2">
