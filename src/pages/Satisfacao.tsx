@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input'
 import { CountUp } from '@/components/dashboard/CountUp'
 import { traduzirErro } from '@/lib/erros'
 import { formatarIndiceMedio, formatarPercentual } from '@/lib/formatar'
+import { uniaoDepartamentosHoras } from '@/lib/departamentos'
+import { fetchDepartamentosEmUso, fetchDepartmentCapacity } from '@/services/support'
 import {
   fetchSatisfactionResponses,
   fetchChamadoInfoPorNumero,
@@ -96,6 +98,7 @@ export default function Satisfacao() {
     getPresetDates('tudo'),
   )
   const [departamentoFiltro, setDepartamentoFiltro] = useState('todos')
+  const [departamentosOpcoes, setDepartamentosOpcoes] = useState<string[]>([])
 
   useEffect(() => {
     let ativo = true
@@ -120,6 +123,36 @@ export default function Satisfacao() {
       ativo = false
     }
   }, [])
+
+  // Opções do seletor de departamento: MESMA fonte de /horas e da Visão Geral —
+  // união dos departamentos em uso (support_records), das metas de Equipes
+  // (department_capacity) e dos departamentos herdados pelas respostas
+  // (normalizados), incluindo setores que só existem nas horas.
+  useEffect(() => {
+    Promise.all([fetchDepartamentosEmUso(), fetchDepartmentCapacity()])
+      .then(([deps, caps]) =>
+        setDepartamentosOpcoes((prev) =>
+          uniaoDepartamentosHoras(
+            prev,
+            deps,
+            caps.map((c) => c.departamento),
+          ),
+        ),
+      )
+      .catch((err) => console.error('Erro ao buscar departamentos:', err))
+  }, [])
+
+  // Departamentos que aparecem nas respostas (rótulo bruto ou herdado do chamado)
+  // também viram opção — cobre rótulos de satisfação fora da base de chamados.
+  useEffect(() => {
+    if (!respostas) return
+    setDepartamentosOpcoes((prev) =>
+      uniaoDepartamentosHoras(
+        prev,
+        respostas.map((r) => r.departamento),
+      ),
+    )
+  }, [respostas])
 
   const dashboard = useMemo<DashboardSatisfacao | null>(() => {
     if (!respostas) return null
@@ -212,6 +245,20 @@ export default function Satisfacao() {
             })}
           </div>
           <div className="flex items-center gap-2">
+            {/* Seletor de departamento — mesmo padrão do seletor de /horas */}
+            <select
+              value={departamentoFiltro}
+              onChange={(e) => setDepartamentoFiltro(e.target.value)}
+              className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs text-slate-700 focus:outline-none focus:border-teal-500"
+              aria-label="Filtrar por departamento"
+            >
+              <option value="todos">Todos os departamentos</option>
+              {departamentosOpcoes.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
             {preset === 'personalizado' && (
               <>
                 <Input
