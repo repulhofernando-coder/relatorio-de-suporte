@@ -13,7 +13,6 @@ import {
   type RankingSatisfacaoItem,
 } from '@/services/satisfacao'
 import type { SatisfactionResponse } from '@/services/satisfacao'
-import { casaDepartamento } from '@/lib/departamentos'
 
 type PeriodPreset =
   | 'este-mes'
@@ -458,14 +457,12 @@ function RankingCard({
   )
 }
 
-import { fetchDepartamentosEmUso } from '@/services/support'
-
 /** Herda cliente/departamento do chamado quando o número do tíquete casa (tolerante). */
 function enriquecer(
   r: SatisfactionResponse,
-  info: ReturnType<typeof fetchChamadoInfoPorNumero> extends Promise<infer T> ? T : never,
+  info: Map<string, { cliente: string | null; departamento: string | null }>,
 ): SatisfactionResponse {
-  const chave = chaveNumero(r.numeroTicket)
+  const chave = chaveNumero(r.numero_ticket)
   const achou = chave ? info.get(chave) : undefined
   return {
     ...r,

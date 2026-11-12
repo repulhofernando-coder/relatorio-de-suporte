@@ -19,6 +19,7 @@ import { TecnicoClientesTable } from '@/components/dashboard/TecnicoClientesTabl
 import { TecnicoDistribuicaoTable } from '@/components/chamados/TecnicoDistribuicaoTable'
 import { RitmoAtendimentoCard } from '@/components/chamados/RitmoAtendimentoCard'
 import { TecnicoTopClientesHoras } from '@/components/chamados/TecnicoTopClientesHoras'
+import { TecnicoSatisfacao } from '@/components/dashboard/TecnicoSatisfacao'
 import { Tag } from 'lucide-react'
 import type { TimeLogRecord } from '@/types/horas'
 
@@ -417,6 +418,9 @@ export function TecnicoDrillDown({
 
           {/* Onde lança mais horas (Top 3 clientes por time_logs) */}
           <TecnicoTopClientesHoras tecnico={tecnico} timeLogs={timeLogs ?? []} />
+
+          {/* Satisfação do técnico (pesquisa Movidesk) — só aparece se houver respostas */}
+          <TecnicoSatisfacao tecnico={tecnico} />
 
           {/* Atendimentos por cliente — estilo Tabela Dinâmica do Excel */}
           <TecnicoClientesTable tecnico={tecnico} records={records} periodoFiltro={periodoFiltro} />

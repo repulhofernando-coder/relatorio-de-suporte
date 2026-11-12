@@ -58,13 +58,13 @@ export const LABELS_CAMPOS_SATISFACAO: Record<CampoSatisfacaoKey, string> = {
 }
 
 export interface MappingSatisfacao {
-  numero_ticket?: string
-  cliente?: string
-  tecnico?: string
-  departamento?: string
-  data_resposta?: string
-  resposta_satisfacao?: string
-  comentario?: string
+  numero_ticket: string
+  cliente: string
+  tecnico: string
+  departamento: string
+  data_resposta: string
+  resposta_satisfacao: string
+  comentario: string
 }
 
 /** Rótulo legível da nota (escala 1–3). */
