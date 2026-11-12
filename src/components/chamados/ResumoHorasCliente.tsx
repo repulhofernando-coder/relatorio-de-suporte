@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
-import { Clock, Ticket, Users, Building2, SearchX } from 'lucide-react'
+import { Clock, Ticket, Users, Building2, SearchX, CalendarDays } from 'lucide-react'
 import type { TimeLogRecord } from '@/types/horas'
 import { formatarHorasDecimaisLegivel } from '@/lib/duracao'
+import { formatarMediaMensalCompacta, mesDeDataLancamento } from '@/lib/media-mensal'
 
 /**
  * Resumo de horas de um cliente pesquisado em /chamados.
@@ -35,6 +36,10 @@ export interface ResumoHorasClienteData {
   chamadosComHoras: number
   /** Técnico que mais lançou horas para o cliente (top 1). */
   topTecnico: { nome: string; totalHoras: number } | null
+  /** Meses distintos com lançamento no período (base da média mensal). */
+  mesesComDados: number
+  /** totalHoras ÷ meses com dados — null quando nenhum lançamento tem data. */
+  mediaHorasPorMes: number | null
 }
 
 /**
@@ -59,10 +64,13 @@ export function agregarHorasDoCliente(
   let totalMinutos = 0
   const tickets = new Set<string>()
   const tecnicos = new Map<string, { minutos: number; tickets: Set<string> }>()
+  const meses = new Set<string>()
 
   for (const log of logsDoCliente) {
     totalMinutos += log.minutos || 0
     if (log.numero_ticket) tickets.add(log.numero_ticket)
+    const mes = mesDeDataLancamento(log.data_lancamento)
+    if (mes) meses.add(mes)
 
     const tecnico = log.tecnico?.trim() || 'Sem técnico'
     const entry = tecnicos.get(tecnico) || { minutos: 0, tickets: new Set<string>() }
@@ -75,13 +83,17 @@ export function agregarHorasDoCliente(
     .map(([nome, e]) => ({ nome, totalHoras: Math.round((e.minutos / 60) * 100) / 100 }))
     .sort((a, b) => b.totalHoras - a.totalHoras)[0]
 
+  const totalHoras = Math.round((totalMinutos / 60) * 100) / 100
+
   return {
     clientePlanilha: logsDoCliente[0]?.cliente?.trim() || termo,
-    totalHoras: Math.round((totalMinutos / 60) * 100) / 100,
+    totalHoras,
     totalMinutos,
     lancamentos: logsDoCliente.length,
     chamadosComHoras: tickets.size,
     topTecnico: topTecnico ?? null,
+    mesesComDados: meses.size,
+    mediaHorasPorMes: meses.size > 0 ? Math.round((totalHoras / meses.size) * 100) / 100 : null,
   }
 }
 
@@ -153,6 +165,18 @@ export function ResumoHorasCliente({ termo, logs, loading = false }: ResumoHoras
             <p className="text-2xl font-bold text-slate-900">
               {formatarHorasDecimaisLegivel(resumo.totalHoras, '0 min')}
             </p>
+            {resumo.mediaHorasPorMes !== null ? (
+              <p
+                className="text-[11px] font-semibold text-teal-700 mt-1 flex items-center gap-1"
+                title={`${resumo.mesesComDados} mês(es) com lançamento no período`}
+              >
+                <CalendarDays className="w-3 h-3" />
+                {formatarMediaMensalCompacta(resumo.mediaHorasPorMes)}
+                <span className="font-normal text-slate-400">
+                  ({resumo.mesesComDados} m{resumo.mesesComDados === 1 ? 'ês' : 'eses'} c/ dados)
+                </span>
+              </p>
+            ) : null}
           </div>
           <div>
             <div className="flex items-center gap-2 text-slate-400 text-[11px] font-semibold uppercase mb-1">

@@ -11,6 +11,7 @@ import {
   ExternalLink,
   Search,
   SearchX,
+  Download,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,6 +26,9 @@ import { agregarHorasPorDepartamentoCliente } from '@/lib/tempo-horas'
 import type { HorasPorDepartamento } from '@/lib/tempo-horas'
 import { uniaoDepartamentosHoras } from '@/lib/departamentos'
 import { fetchDepartmentCapacity } from '@/services/support'
+import { calcularMediaMensalPorCliente, formatarMediaMensalCompacta } from '@/lib/media-mensal'
+import { exportarHorasDashboard } from '@/lib/exportar-horas'
+import { useToast } from '@/hooks/use-toast'
 
 type PeriodPreset =
   | 'este-mes'
@@ -75,6 +79,7 @@ function getPresetDates(preset: PeriodPreset): {
 
 export default function Horas() {
   const navigate = useNavigate()
+  const { toast } = useToast()
   const [data, setData] = useState<HorasDashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -171,6 +176,14 @@ export default function Horas() {
     )
   }, [data, buscaCliente, buscaTecnico, buscaAtiva])
 
+  // Média mensal por cliente — MESMOS logs da visão (período + departamento +
+  // busca já aplicados): total ÷ meses com lançamento (meses vazios não contam).
+  const mediaMensalPorCliente = useMemo(
+    () => calcularMediaMensalPorCliente(visao?.logs ?? []),
+    [visao],
+  )
+  const mediaMensalDe = (cliente: string) => mediaMensalPorCliente.get(cliente) ?? null
+
   const maxHorasCliente = useMemo(
     () => visao?.porCliente.reduce((acc, c) => Math.max(acc, c.totalHoras), 0) ?? 0,
     [visao],
@@ -197,6 +210,34 @@ export default function Horas() {
     navigate(`/chamados?${params.toString()}`)
   }
 
+  const handleExportar = () => {
+    if (!visao || visao.logs.length === 0) {
+      toast({
+        title: 'Nada para exportar',
+        description: 'Sem lançamentos de horas com os filtros ativos.',
+      })
+      return
+    }
+    try {
+      exportarHorasDashboard({
+        visao,
+        porDepto,
+        mediaMensalPorCliente,
+        periodo: range.label,
+        departamento: departamentoFiltro !== 'todos' ? departamentoFiltro : 'Todos',
+        buscaCliente: buscaCliente.trim() || null,
+        buscaTecnico: buscaTecnico.trim() || null,
+      })
+      toast({ title: 'Exportação gerada', description: 'O arquivo .xlsx foi baixado.' })
+    } catch (err) {
+      console.error('Erro ao exportar horas:', err)
+      toast({
+        title: 'Erro ao exportar',
+        description: traduzirErro(err),
+      })
+    }
+  }
+
   return (
     <div className="space-y-6 pb-12">
       {/* HEADER */}
@@ -209,16 +250,30 @@ export default function Horas() {
             Lançamentos de tempo por ticket do Movidesk (chamados resolvidos)
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => carregar(true)}
-          disabled={refreshing}
-          className="h-9 rounded-xl bg-white border-slate-200 text-slate-700 hover:bg-slate-50 gap-2 shadow-sm"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-teal-600' : ''}`} />
-          <span className="hidden sm:inline">Atualizar</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportar}
+            disabled={!visao || visao.logs.length === 0}
+            className="h-9 rounded-xl bg-white border-slate-200 text-slate-700 hover:bg-slate-50 gap-2 shadow-sm"
+          >
+            <Download className="w-3.5 h-3.5 text-teal-600" />
+            <span className="hidden sm:inline">Exportar</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => carregar(true)}
+            disabled={refreshing}
+            className="h-9 rounded-xl bg-white border-slate-200 text-slate-700 hover:bg-slate-50 gap-2 shadow-sm"
+          >
+            <RefreshCw
+              className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-teal-600' : ''}`}
+            />
+            <span className="hidden sm:inline">Atualizar</span>
+          </Button>
+        </div>
       </div>
 
       {/* FILTROS */}
@@ -535,50 +590,58 @@ export default function Horas() {
           </div>
 
           <div className="space-y-3">
-            {visao.porCliente.map((c, idx) => (
-              <div
-                key={c.cliente}
-                className="space-y-1.5 cursor-pointer group rounded-lg -mx-2 px-2 py-1 transition-colors hover:bg-teal-50/60"
-                onClick={() => navegarParaChamadosDoCliente(c.cliente)}
-                title={`Ver os chamados de ${c.cliente} em Chamados (período: ${range.label}${
-                  departamentoFiltro !== 'todos' ? ` · ${departamentoFiltro}` : ''
-                })`}
-              >
-                <div className="flex items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold flex items-center justify-center shrink-0">
-                      {idx + 1}
-                    </span>
-                    <span
-                      className="font-semibold text-slate-800 truncate group-hover:text-teal-700"
-                      title={c.cliente}
-                    >
-                      {c.cliente}
-                    </span>
+            {visao.porCliente.map((c, idx) => {
+              const media = mediaMensalDe(c.cliente)
+              return (
+                <div
+                  key={c.cliente}
+                  className="space-y-1.5 cursor-pointer group rounded-lg -mx-2 px-2 py-1 transition-colors hover:bg-teal-50/60"
+                  onClick={() => navegarParaChamadosDoCliente(c.cliente)}
+                  title={`Ver os chamados de ${c.cliente} em Chamados (período: ${range.label}${
+                    departamentoFiltro !== 'todos' ? ` · ${departamentoFiltro}` : ''
+                  })`}
+                >
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold flex items-center justify-center shrink-0">
+                        {idx + 1}
+                      </span>
+                      <span
+                        className="font-semibold text-slate-800 truncate group-hover:text-teal-700"
+                        title={c.cliente}
+                      >
+                        {c.cliente}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0 font-mono">
+                      <span className="text-slate-500 text-[11px]">
+                        {c.tickets} chamado{c.tickets === 1 ? '' : 's'}
+                      </span>
+                      <span className="text-slate-400 text-[11px]">{c.percent}%</span>
+                      <span className="font-bold text-teal-700">
+                        {formatarHorasDecimaisLegivel(c.totalHoras)}
+                      </span>
+                      <span className="text-slate-500 text-[11px] whitespace-nowrap">
+                        {media?.mediaHorasPorMes != null
+                          ? `· ${formatarMediaMensalCompacta(media.mediaHorasPorMes)}`
+                          : ''}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0 font-mono">
-                    <span className="text-slate-500 text-[11px]">
-                      {c.tickets} chamado{c.tickets === 1 ? '' : 's'}
-                    </span>
-                    <span className="text-slate-400 text-[11px]">{c.percent}%</span>
-                    <span className="font-bold text-teal-700">
-                      {formatarHorasDecimaisLegivel(c.totalHoras)}
-                    </span>
+                  <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-teal-500 transition-all duration-500"
+                      style={{
+                        width:
+                          maxHorasCliente > 0
+                            ? `${Math.max(2, (c.totalHoras / maxHorasCliente) * 100)}%`
+                            : '0%',
+                      }}
+                    />
                   </div>
                 </div>
-                <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-teal-500 transition-all duration-500"
-                    style={{
-                      width:
-                        maxHorasCliente > 0
-                          ? `${Math.max(2, (c.totalHoras / maxHorasCliente) * 100)}%`
-                          : '0%',
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
@@ -646,28 +709,37 @@ export default function Horas() {
                     <th className="pb-2 font-semibold text-right">Chamados</th>
                     <th className="pb-2 font-semibold text-right">Total</th>
                     <th className="pb-2 font-semibold text-right">Média/chamado</th>
+                    <th className="pb-2 font-semibold text-right">Média/mês</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {visao.porCliente.map((c) => (
-                    <tr
-                      key={c.cliente}
-                      className="border-b border-slate-50 last:border-b-0 text-slate-700"
-                    >
-                      <td className="py-2.5 font-semibold text-slate-800 max-w-[180px] truncate">
-                        {c.cliente}
-                      </td>
-                      <td className="py-2.5 text-right font-mono">{c.tickets}</td>
-                      <td className="py-2.5 text-right font-mono text-slate-500">
-                        {formatarHorasDecimaisLegivel(c.totalHoras)}
-                      </td>
-                      <td className="py-2.5 text-right font-bold text-teal-700 font-mono">
-                        {c.mediaHorasPorChamado !== null
-                          ? formatarHorasDecimaisLegivel(c.mediaHorasPorChamado)
-                          : '—'}
-                      </td>
-                    </tr>
-                  ))}
+                  {visao.porCliente.map((c) => {
+                    const media = mediaMensalDe(c.cliente)
+                    return (
+                      <tr
+                        key={c.cliente}
+                        className="border-b border-slate-50 last:border-b-0 text-slate-700"
+                      >
+                        <td className="py-2.5 font-semibold text-slate-800 max-w-[180px] truncate">
+                          {c.cliente}
+                        </td>
+                        <td className="py-2.5 text-right font-mono">{c.tickets}</td>
+                        <td className="py-2.5 text-right font-mono text-slate-500">
+                          {formatarHorasDecimaisLegivel(c.totalHoras)}
+                        </td>
+                        <td className="py-2.5 text-right font-bold text-teal-700 font-mono">
+                          {c.mediaHorasPorChamado !== null
+                            ? formatarHorasDecimaisLegivel(c.mediaHorasPorChamado)
+                            : '—'}
+                        </td>
+                        <td className="py-2.5 text-right font-mono text-slate-500">
+                          {media?.mediaHorasPorMes != null
+                            ? formatarMediaMensalCompacta(media.mediaHorasPorMes)
+                            : '—'}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
