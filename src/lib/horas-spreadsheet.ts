@@ -4,11 +4,17 @@
  * parseSpreadsheetFile e o casamento de cabeçalhos do módulo de chamados,
  * com sinônimos próprios dos campos de horas.
  */
-import { findBestHeaderMatch, parseSpreadsheetFile, ParsedSpreadsheet } from '@/lib/spreadsheet'
+import {
+  findBestHeaderMatch,
+  parseSpreadsheetFile,
+  parseDateToISO,
+  ParsedSpreadsheet,
+} from '@/lib/spreadsheet'
 import { parseHoras } from '@/lib/tempo-horas'
 import { CAMPOS_HORAS, CampoHoraKey, MappingHoras } from '@/types/horas'
 
-export { parseSpreadsheetFile, ParsedSpreadsheet, parseHoras }
+export { parseSpreadsheetFile, parseDateToISO, parseHoras }
+export type { ParsedSpreadsheet }
 
 const SINONIMOS_HORAS: Record<CampoHoraKey, string[]> = {
   numero_ticket: [

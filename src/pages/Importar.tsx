@@ -44,6 +44,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
+import HorasWizard from '@/components/importar/HorasWizard'
+import { traduzirErro } from '@/lib/erros'
+import { Clock, Ticket } from 'lucide-react'
 
 const EMPTY_MAPPING: Record<StandardFieldKey, string> = {
   cliente: '',
@@ -69,9 +72,18 @@ export default function Importar() {
   const [searchParams] = useSearchParams()
   const preselectedMapeamentoId = searchParams.get('mapeamento')
 
+  // Tipo de importação: chamados (padrão) ou horas trabalhadas
+  const [tipoImportacao, setTipoImportacao] = useState<'chamados' | 'horas'>('chamados')
+
   // Mapeamentos salvos
   const [savedMappings, setSavedMappings] = useState<MapeamentoRecord[]>([])
   const [selectedMappingId, setSelectedMappingId] = useState<string>('auto')
+
+  // Mapeamentos salvos do tipo Horas (prefixo "[Horas]" no nome)
+  const savedMappingsHoras = useMemo(
+    () => savedMappings.filter((m) => m.nome.startsWith('[Horas]')),
+    [savedMappings],
+  )
 
   // Passo do wizard
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1)
@@ -471,7 +483,7 @@ export default function Importar() {
       })
     } catch (err: any) {
       console.error('Erro ao executar importação:', err)
-      setParseError(err.message || 'Erro durante a importação.')
+      setParseError(traduzirErro(err))
     } finally {
       setImporting(false)
     }
@@ -485,690 +497,764 @@ export default function Importar() {
           Importar Planilha
         </h1>
         <p className="text-sm text-slate-500 mt-1">
-          Envie o relatório de atendimentos mensal em Excel ou CSV e mapeie as colunas para o banco
-          de dados.
+          {tipoImportacao === 'horas'
+            ? 'Envie o relatório "Tempo trabalhado nos tickets" do Movidesk e mapeie as colunas para o banco de dados.'
+            : 'Envie o relatório de atendimentos mensal em Excel ou CSV e mapeie as colunas para o banco de dados.'}
         </p>
       </div>
 
-      {/* CARD DO WIZARD */}
-      <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200/80">
-        {/* INDICADOR DE PASSOS */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between max-w-2xl mx-auto relative">
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-slate-200 w-full z-0" />
-            <div
-              className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-teal-600 transition-all duration-300 z-0"
-              style={{
-                width: currentStep === 1 ? '0%' : currentStep === 2 ? '50%' : '100%',
-              }}
-            />
-
-            {[
-              { step: 1, title: '1. Enviar arquivo' },
-              { step: 2, title: '2. Mapear colunas' },
-              { step: 3, title: '3. Revisar e importar' },
-            ].map((s) => {
-              const active = currentStep === s.step
-              const completed = currentStep > s.step || importResult !== null
-
-              return (
-                <div
-                  key={s.step}
-                  className="flex flex-col items-center relative z-10 bg-white px-2"
-                >
-                  <div
-                    className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all shadow-sm ${
-                      completed
-                        ? 'bg-teal-600 text-white ring-4 ring-teal-50'
-                        : active
-                          ? 'bg-teal-600 text-white ring-4 ring-teal-100'
-                          : 'bg-slate-100 text-slate-500'
-                    }`}
-                  >
-                    {completed ? <Check className="w-4 h-4 stroke-[3]" /> : s.step}
-                  </div>
-                  <span
-                    className={`text-xs mt-1.5 font-semibold whitespace-nowrap ${
-                      active ? 'text-teal-700' : 'text-slate-500'
-                    }`}
-                  >
-                    {s.title}
-                  </span>
-                </div>
-              )
-            })}
+      {/* SELETOR DE TIPO DE IMPORTAÇÃO */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={() => setTipoImportacao('chamados')}
+          className={`p-4 rounded-2xl border text-left transition-all flex items-center gap-3 ${
+            tipoImportacao === 'chamados'
+              ? 'border-teal-500 bg-teal-50/60 ring-2 ring-teal-500/20'
+              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+          }`}
+        >
+          <div
+            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+              tipoImportacao === 'chamados'
+                ? 'bg-teal-600 text-white'
+                : 'bg-slate-100 text-slate-500'
+            }`}
+          >
+            <Ticket className="w-5 h-5" />
           </div>
-        </div>
+          <div className="min-w-0">
+            <p
+              className={`text-sm font-bold ${
+                tipoImportacao === 'chamados' ? 'text-teal-800' : 'text-slate-800'
+              }`}
+            >
+              Chamados
+            </p>
+            <p className="text-xs text-slate-500 leading-tight">
+              Relatório de atendimentos (tickets) do Movidesk
+            </p>
+          </div>
+        </button>
 
-        {parseError && (
-          <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-start gap-2.5">
-            <AlertCircle className="w-5 h-5 shrink-0 text-red-500 mt-0.5" />
-            <div className="flex-1">
-              <p className="font-semibold">Erro ao processar planilha</p>
-              <p className="text-xs text-red-600 mt-0.5 leading-relaxed">{parseError}</p>
+        <button
+          type="button"
+          onClick={() => setTipoImportacao('horas')}
+          className={`p-4 rounded-2xl border text-left transition-all flex items-center gap-3 ${
+            tipoImportacao === 'horas'
+              ? 'border-teal-500 bg-teal-50/60 ring-2 ring-teal-500/20'
+              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+          }`}
+        >
+          <div
+            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+              tipoImportacao === 'horas' ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-500'
+            }`}
+          >
+            <Clock className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <p
+              className={`text-sm font-bold ${
+                tipoImportacao === 'horas' ? 'text-teal-800' : 'text-slate-800'
+              }`}
+            >
+              Horas trabalhadas
+            </p>
+            <p className="text-xs text-slate-500 leading-tight">
+              Tempo trabalhado nos tickets (lançamentos por atendente)
+            </p>
+          </div>
+        </button>
+      </div>
+
+      {tipoImportacao === 'horas' && <HorasWizard savedMappings={savedMappingsHoras} />}
+
+      {tipoImportacao === 'chamados' && (
+        <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200/80">
+          {/* INDICADOR DE PASSOS */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between max-w-2xl mx-auto relative">
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-slate-200 w-full z-0" />
+              <div
+                className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-teal-600 transition-all duration-300 z-0"
+                style={{
+                  width: currentStep === 1 ? '0%' : currentStep === 2 ? '50%' : '100%',
+                }}
+              />
+
+              {[
+                { step: 1, title: '1. Enviar arquivo' },
+                { step: 2, title: '2. Mapear colunas' },
+                { step: 3, title: '3. Revisar e importar' },
+              ].map((s) => {
+                const active = currentStep === s.step
+                const completed = currentStep > s.step || importResult !== null
+
+                return (
+                  <div
+                    key={s.step}
+                    className="flex flex-col items-center relative z-10 bg-white px-2"
+                  >
+                    <div
+                      className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all shadow-sm ${
+                        completed
+                          ? 'bg-teal-600 text-white ring-4 ring-teal-50'
+                          : active
+                            ? 'bg-teal-600 text-white ring-4 ring-teal-100'
+                            : 'bg-slate-100 text-slate-500'
+                      }`}
+                    >
+                      {completed ? <Check className="w-4 h-4 stroke-[3]" /> : s.step}
+                    </div>
+                    <span
+                      className={`text-xs mt-1.5 font-semibold whitespace-nowrap ${
+                        active ? 'text-teal-700' : 'text-slate-500'
+                      }`}
+                    >
+                      {s.title}
+                    </span>
+                  </div>
+                )
+              })}
             </div>
           </div>
-        )}
 
-        {/* ========================================================
+          {parseError && (
+            <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-start gap-2.5">
+              <AlertCircle className="w-5 h-5 shrink-0 text-red-500 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-semibold">Erro ao processar planilha</p>
+                <p className="text-xs text-red-600 mt-0.5 leading-relaxed">{parseError}</p>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================
             PASSO 1: ENVIAR ARQUIVO
            ======================================================== */}
-        {currentStep === 1 && (
-          <div className="space-y-6">
-            {!file ? (
-              <div
-                onDragOver={(e) => {
-                  e.preventDefault()
-                  setIsDragOver(true)
-                }}
-                onDragLeave={() => setIsDragOver(false)}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  setIsDragOver(false)
-                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                    handleFileSelect(e.dataTransfer.files[0])
-                  }
-                }}
-                onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-2xl p-10 sm:p-14 text-center cursor-pointer transition-all ${
-                  isDragOver
-                    ? 'border-teal-500 bg-[#F0FDFA] scale-[1.01]'
-                    : 'border-slate-200 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-300'
-                }`}
-              >
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      handleFileSelect(e.target.files[0])
+          {currentStep === 1 && (
+            <div className="space-y-6">
+              {!file ? (
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    setIsDragOver(true)
+                  }}
+                  onDragLeave={() => setIsDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    setIsDragOver(false)
+                    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                      handleFileSelect(e.dataTransfer.files[0])
                     }
                   }}
-                  accept=".xlsx,.xls,.csv"
-                  className="hidden"
-                />
-
-                <div className="w-16 h-16 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center mx-auto mb-4 shadow-sm">
-                  {parsing ? (
-                    <Loader2 className="w-8 h-8 animate-spin" />
-                  ) : (
-                    <UploadCloud className="w-8 h-8" />
-                  )}
-                </div>
-
-                <h3 className="text-base font-bold text-slate-800">
-                  {parsing
-                    ? 'Processando planilha...'
-                    : 'Arraste a planilha aqui ou clique para selecionar'}
-                </h3>
-                <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                  Formatos aceitos:{' '}
-                  <strong className="font-semibold text-slate-700">.xlsx, .xls ou .csv</strong>{' '}
-                  (qualquer layout com cabeçalho na primeira linha)
-                </p>
-              </div>
-            ) : (
-              <div className="p-5 rounded-2xl border border-teal-200 bg-teal-50/40 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center shrink-0">
-                    <FileSpreadsheet className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-slate-900">{file.name}</p>
-                    <p className="text-xs text-slate-500">
-                      {(file.size / 1024).toFixed(1)} KB • {parsedData?.totalRows || 0} linhas de
-                      dados
-                    </p>
-                  </div>
-                </div>
-
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setFile(null)
-                    setParsedData(null)
-                    setParseError(null)
-                  }}
-                  className="text-xs text-slate-600 hover:text-slate-900"
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-2xl p-10 sm:p-14 text-center cursor-pointer transition-all ${
+                    isDragOver
+                      ? 'border-teal-500 bg-[#F0FDFA] scale-[1.01]'
+                      : 'border-slate-200 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-300'
+                  }`}
                 >
-                  Trocar arquivo
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        handleFileSelect(e.target.files[0])
+                      }
+                    }}
+                    accept=".xlsx,.xls,.csv"
+                    className="hidden"
+                  />
 
-        {/* ========================================================
+                  <div className="w-16 h-16 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center mx-auto mb-4 shadow-sm">
+                    {parsing ? (
+                      <Loader2 className="w-8 h-8 animate-spin" />
+                    ) : (
+                      <UploadCloud className="w-8 h-8" />
+                    )}
+                  </div>
+
+                  <h3 className="text-base font-bold text-slate-800">
+                    {parsing
+                      ? 'Processando planilha...'
+                      : 'Arraste a planilha aqui ou clique para selecionar'}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                    Formatos aceitos:{' '}
+                    <strong className="font-semibold text-slate-700">.xlsx, .xls ou .csv</strong>{' '}
+                    (qualquer layout com cabeçalho na primeira linha)
+                  </p>
+                </div>
+              ) : (
+                <div className="p-5 rounded-2xl border border-teal-200 bg-teal-50/40 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center shrink-0">
+                      <FileSpreadsheet className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-900">{file.name}</p>
+                      <p className="text-xs text-slate-500">
+                        {(file.size / 1024).toFixed(1)} KB • {parsedData?.totalRows || 0} linhas de
+                        dados
+                      </p>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setFile(null)
+                      setParsedData(null)
+                      setParseError(null)
+                    }}
+                    className="text-xs text-slate-600 hover:text-slate-900"
+                  >
+                    Trocar arquivo
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ========================================================
             PASSO 2: MAPEAR COLUNAS
            ======================================================== */}
-        {currentStep === 2 && parsedData && (
-          <div className="space-y-6">
-            {/* Mensagem de auto-detecção ou mapeamento salvo */}
-            {autoDetectedMessage && (
-              <div className="p-3.5 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 text-xs flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-teal-600 shrink-0" />
-                  <span className="font-semibold">{autoDetectedMessage}</span>
-                </div>
-              </div>
-            )}
-
-            {/* Dropdown de abas (se houver múltiplas) */}
-            {parsedData.sheetNames.length > 1 && (
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
-                <Layers className="w-4 h-4 text-slate-500" />
-                <Label
-                  htmlFor="sheetSelect"
-                  className="text-xs font-semibold text-slate-700 whitespace-nowrap"
-                >
-                  Aba da planilha:
-                </Label>
-                <select
-                  id="sheetSelect"
-                  value={parsedData.selectedSheet}
-                  onChange={(e) => handleSheetChange(e.target.value)}
-                  className="h-8 text-xs rounded-lg border-slate-200 bg-white px-3 font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                >
-                  {parsedData.sheetNames.map((sheet) => (
-                    <option key={sheet} value={sheet}>
-                      {sheet}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Alternar entre layouts salvos ou auto-detecção */}
-            {savedMappings.length > 0 && (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="text-xs text-slate-600 font-medium">
-                  Usar configuração de layout:
-                </span>
-                <select
-                  value={selectedMappingId}
-                  onChange={(e) => handleSwitchSavedMapping(e.target.value)}
-                  className="h-8 text-xs rounded-lg border-slate-200 bg-white px-3 font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                >
-                  <option value="auto">Detecção automática (sinônimos)</option>
-                  {savedMappings.map((sm) => (
-                    <option key={sm.id} value={sm.id}>
-                      {sm.nome}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* PREVIEW DAS 5 PRIMEIRAS LINHAS */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Prévia da planilha (primeiras 5 linhas)
-                </span>
-                <span className="text-xs text-slate-400">
-                  Total no arquivo: {parsedData.totalRows} linhas
-                </span>
-              </div>
-
-              {/* Alertas de campos mapeados 100% vazios na amostra */}
-              {emptyMappedWarnings.length > 0 && (
-                <div className="mb-3 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-1.5">
-                  <div className="flex items-center gap-2 font-bold text-amber-800">
-                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                    <span>Atenção: coluna(s) mapeada(s) vazias nas linhas analisadas</span>
+          {currentStep === 2 && parsedData && (
+            <div className="space-y-6">
+              {/* Mensagem de auto-detecção ou mapeamento salvo */}
+              {autoDetectedMessage && (
+                <div className="p-3.5 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 text-xs flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-teal-600 shrink-0" />
+                    <span className="font-semibold">{autoDetectedMessage}</span>
                   </div>
-                  <ul className="list-disc list-inside space-y-0.5 text-amber-700 pl-1">
-                    {emptyMappedWarnings.map((w) => (
-                      <li key={w.key}>
-                        <strong>{w.label}</strong> (coluna "{w.column}"): 0 de {w.total} linhas
-                        preenchidas na amostra.
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="text-[11px] text-amber-600">
-                    Verifique se selecionou a coluna correta antes de prosseguir com a gravação.
-                  </p>
                 </div>
               )}
 
-              <div className="border border-slate-200 rounded-xl overflow-x-auto bg-slate-50/50 max-h-48">
-                <table className="w-full text-left text-[11px]">
-                  <thead>
-                    <tr className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200 whitespace-nowrap">
-                      <th className="py-2 px-3 text-slate-400">#</th>
-                      {parsedData.headers.map((h, i) => (
-                        <th key={i} className="py-2 px-3">
-                          {h}
-                        </th>
+              {/* Dropdown de abas (se houver múltiplas) */}
+              {parsedData.sheetNames.length > 1 && (
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                  <Layers className="w-4 h-4 text-slate-500" />
+                  <Label
+                    htmlFor="sheetSelect"
+                    className="text-xs font-semibold text-slate-700 whitespace-nowrap"
+                  >
+                    Aba da planilha:
+                  </Label>
+                  <select
+                    id="sheetSelect"
+                    value={parsedData.selectedSheet}
+                    onChange={(e) => handleSheetChange(e.target.value)}
+                    className="h-8 text-xs rounded-lg border-slate-200 bg-white px-3 font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  >
+                    {parsedData.sheetNames.map((sheet) => (
+                      <option key={sheet} value={sheet}>
+                        {sheet}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Alternar entre layouts salvos ou auto-detecção */}
+              {savedMappings.length > 0 && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                  <span className="text-xs text-slate-600 font-medium">
+                    Usar configuração de layout:
+                  </span>
+                  <select
+                    value={selectedMappingId}
+                    onChange={(e) => handleSwitchSavedMapping(e.target.value)}
+                    className="h-8 text-xs rounded-lg border-slate-200 bg-white px-3 font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  >
+                    <option value="auto">Detecção automática (sinônimos)</option>
+                    {savedMappings.map((sm) => (
+                      <option key={sm.id} value={sm.id}>
+                        {sm.nome}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* PREVIEW DAS 5 PRIMEIRAS LINHAS */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Prévia da planilha (primeiras 5 linhas)
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    Total no arquivo: {parsedData.totalRows} linhas
+                  </span>
+                </div>
+
+                {/* Alertas de campos mapeados 100% vazios na amostra */}
+                {emptyMappedWarnings.length > 0 && (
+                  <div className="mb-3 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-1.5">
+                    <div className="flex items-center gap-2 font-bold text-amber-800">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>Atenção: coluna(s) mapeada(s) vazias nas linhas analisadas</span>
+                    </div>
+                    <ul className="list-disc list-inside space-y-0.5 text-amber-700 pl-1">
+                      {emptyMappedWarnings.map((w) => (
+                        <li key={w.key}>
+                          <strong>{w.label}</strong> (coluna "{w.column}"): 0 de {w.total} linhas
+                          preenchidas na amostra.
+                        </li>
                       ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200/80 bg-white">
-                    {parsedData.rows.slice(0, 5).map((row, rIdx) => (
-                      <tr key={rIdx} className="hover:bg-slate-50 whitespace-nowrap">
-                        <td className="py-1.5 px-3 font-mono text-slate-400 text-[10px]">
-                          {rIdx + 1}
-                        </td>
-                        {parsedData.headers.map((h, cIdx) => (
-                          <td
-                            key={cIdx}
-                            className="py-1.5 px-3 text-slate-700 max-w-[160px] truncate"
-                          >
-                            {row[h] !== null && row[h] !== undefined ? String(row[h]) : '—'}
-                          </td>
+                    </ul>
+                    <p className="text-[11px] text-amber-600">
+                      Verifique se selecionou a coluna correta antes de prosseguir com a gravação.
+                    </p>
+                  </div>
+                )}
+
+                <div className="border border-slate-200 rounded-xl overflow-x-auto bg-slate-50/50 max-h-48">
+                  <table className="w-full text-left text-[11px]">
+                    <thead>
+                      <tr className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200 whitespace-nowrap">
+                        <th className="py-2 px-3 text-slate-400">#</th>
+                        {parsedData.headers.map((h, i) => (
+                          <th key={i} className="py-2 px-3">
+                            {h}
+                          </th>
                         ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* FORMULÁRIO DE MAPEAMENTO */}
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Mapeamento dos Campos
-                </span>
-                <span className="text-xs text-slate-400">
-                  <span className="text-rose-500 font-bold">*</span> Obrigatórios
-                </span>
-              </div>
-
-              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl bg-white overflow-hidden">
-                {STANDARD_FIELDS.map((field) => {
-                  const currentValue = mapping[field.key] || ''
-                  const hasMatch = Boolean(currentValue)
-
-                  return (
-                    <div
-                      key={field.key}
-                      className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 transition-colors"
-                    >
-                      <div className="space-y-0.5 sm:max-w-xs">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold text-slate-800">{field.label}</span>
-                          {field.required && (
-                            <span className="text-[10px] font-bold text-rose-500 bg-rose-50 px-1.5 py-0.2 rounded">
-                              Obrigatório
-                            </span>
-                          )}
-                          {hasMatch && (
-                            <CheckCircle2 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-                          )}
-                        </div>
-                        <p className="text-[11px] text-slate-400 leading-tight">
-                          {field.description}
-                        </p>
-                      </div>
-
-                      <div className="w-full sm:w-64">
-                        <select
-                          value={currentValue}
-                          onChange={(e) =>
-                            setMapping((prev) => ({
-                              ...prev,
-                              [field.key]: e.target.value,
-                            }))
-                          }
-                          className={`w-full h-9 text-xs rounded-xl px-3 font-medium transition-all ${
-                            field.required && !currentValue
-                              ? 'border-rose-300 bg-rose-50/20 text-rose-700 focus:ring-rose-500'
-                              : 'border-slate-200 bg-white text-slate-800 focus:ring-teal-500 focus:border-teal-500'
-                          }`}
-                        >
-                          <option value="">
-                            {field.required
-                              ? '— Selecione a coluna (obrigatório) —'
-                              : '— Não mapear (opcional) —'}
-                          </option>
-                          {parsedData.headers.map((h, i) => (
-                            <option key={i} value={h}>
-                              {h}
-                            </option>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200/80 bg-white">
+                      {parsedData.rows.slice(0, 5).map((row, rIdx) => (
+                        <tr key={rIdx} className="hover:bg-slate-50 whitespace-nowrap">
+                          <td className="py-1.5 px-3 font-mono text-slate-400 text-[10px]">
+                            {rIdx + 1}
+                          </td>
+                          {parsedData.headers.map((h, cIdx) => (
+                            <td
+                              key={cIdx}
+                              className="py-1.5 px-3 text-slate-700 max-w-[160px] truncate"
+                            >
+                              {row[h] !== null && row[h] !== undefined ? String(row[h]) : '—'}
+                            </td>
                           ))}
-                        </select>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* OPÇÕES DE SALVAR MAPEAMENTO */}
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="mappingName" className="text-xs font-semibold text-slate-700">
-                  Nome deste layout / mapeamento
-                </Label>
-                <Input
-                  id="mappingName"
-                  value={mappingName}
-                  onChange={(e) => setMappingName(e.target.value)}
-                  placeholder="Ex.: Relatório Mensal Padrão"
-                  className="h-9 text-xs rounded-xl border-slate-200 bg-white"
-                />
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-1">
-                <Checkbox
-                  id="saveMappingCheckbox"
-                  checked={saveMapping}
-                  onCheckedChange={(checked) => setSaveMapping(Boolean(checked))}
-                  className="data-[state=checked]:bg-teal-600 data-[state=checked]:border-teal-600"
-                />
-                <Label
-                  htmlFor="saveMappingCheckbox"
-                  className="text-xs text-slate-600 font-medium cursor-pointer"
-                >
-                  Salvar este mapeamento para as próximas importações
-                </Label>
-              </div>
-            </div>
+              {/* FORMULÁRIO DE MAPEAMENTO */}
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Mapeamento dos Campos
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    <span className="text-rose-500 font-bold">*</span> Obrigatórios
+                  </span>
+                </div>
 
-            {/* BOTÕES DE NAVEGAÇÃO DO PASSO 2 */}
-            <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentStep(1)}
-                className="text-xs rounded-xl"
-              >
-                <ArrowLeft className="w-3.5 h-3.5 mr-1" />
-                Voltar
-              </Button>
+                <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl bg-white overflow-hidden">
+                  {STANDARD_FIELDS.map((field) => {
+                    const currentValue = mapping[field.key] || ''
+                    const hasMatch = Boolean(currentValue)
 
-              <Button
-                size="sm"
-                disabled={!isRequiredMapped}
-                onClick={() => setCurrentStep(3)}
-                className="text-xs rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold gap-1.5 shadow-sm shadow-teal-600/20"
-              >
-                <span>Continuar para Revisão</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================
-            PASSO 3: REVISAR E IMPORTAR
-           ======================================================== */}
-        {currentStep === 3 && parsedData && file && (
-          <div className="space-y-6">
-            {!importResult ? (
-              <>
-                {/* RESUMO DA IMPORTAÇÃO */}
-                <div className="space-y-4">
-                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <span className="text-[11px] text-slate-400 font-semibold uppercase">
-                        Arquivo
-                      </span>
-                      <p className="text-xs font-bold text-slate-800 truncate">{file.name}</p>
-                    </div>
-                    <div>
-                      <span className="text-[11px] text-slate-400 font-semibold uppercase">
-                        Total de Linhas
-                      </span>
-                      <p className="text-xs font-bold text-slate-800 font-mono">
-                        {parsedData.totalRows} registros
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-[11px] text-slate-400 font-semibold uppercase">
-                        Mapeamento
-                      </span>
-                      <p className="text-xs font-bold text-slate-800 truncate">
-                        {mappingName || 'Padrão'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* CHIPS DOS CAMPOS MAPEADOS */}
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                      Campos Mapeados
-                    </h4>
-                    {emptyMappedWarnings.length > 0 && (
-                      <div className="mb-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
-                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-bold text-amber-800">Colunas vazias mapeadas:</p>
-                          <p className="text-amber-700 text-[11px]">
-                            {emptyMappedWarnings
-                              .map((w) => `${w.label} ("${w.column}"): 0 de ${w.total} preenchidas`)
-                              .join(', ')}
+                    return (
+                      <div
+                        key={field.key}
+                        className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 transition-colors"
+                      >
+                        <div className="space-y-0.5 sm:max-w-xs">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-slate-800">{field.label}</span>
+                            {field.required && (
+                              <span className="text-[10px] font-bold text-rose-500 bg-rose-50 px-1.5 py-0.2 rounded">
+                                Obrigatório
+                              </span>
+                            )}
+                            {hasMatch && (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-tight">
+                            {field.description}
                           </p>
                         </div>
-                      </div>
-                    )}
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {STANDARD_FIELDS.map((f) => {
-                        const col = mapping[f.key]
-                        const isWarn = emptyMappedWarnings.some((w) => w.key === f.key)
-                        return (
-                          <div
-                            key={f.key}
-                            className={`p-2.5 rounded-xl border text-xs flex items-center justify-between ${
-                              isWarn
-                                ? 'bg-amber-50/70 border-amber-300 text-amber-900'
-                                : col
-                                  ? 'bg-teal-50/40 border-teal-200 text-teal-900'
-                                  : 'bg-slate-50 border-slate-200 text-slate-400'
+                        <div className="w-full sm:w-64">
+                          <select
+                            value={currentValue}
+                            onChange={(e) =>
+                              setMapping((prev) => ({
+                                ...prev,
+                                [field.key]: e.target.value,
+                              }))
+                            }
+                            className={`w-full h-9 text-xs rounded-xl px-3 font-medium transition-all ${
+                              field.required && !currentValue
+                                ? 'border-rose-300 bg-rose-50/20 text-rose-700 focus:ring-rose-500'
+                                : 'border-slate-200 bg-white text-slate-800 focus:ring-teal-500 focus:border-teal-500'
                             }`}
                           >
-                            <span className="font-semibold">{f.label}:</span>
-                            <span className="font-mono text-[11px] truncate max-w-[150px]">
-                              {col ? `"${col}"${isWarn ? ' (vazia)' : ''}` : 'Não mapeado'}
-                            </span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-
-                  {/* REGRAS DE NORMALIZAÇÃO EXPLICADAS */}
-                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-500 space-y-1">
-                    <p className="font-semibold text-slate-700 flex items-center gap-1.5">
-                      <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
-                      Regras de normalização automática:
-                    </p>
-                    <p>• Datas serão convertidas para formato padrão (ISO YYYY-MM-DD).</p>
-                    <p>
-                      • Tempo de atendimento aceita minutos puros, decimais ou formatos como "1h30"
-                      e "45min".
-                    </p>
-                    <p>
-                      • Linhas com cliente, técnico ou data vazios/inválidos serão puladas e
-                      reportadas.
-                    </p>
-                    <p>
-                      • Departamento será normalizado para os setores fixos (Windows, Campo, Windows
-                      N2, Ativação, Projetos); valores fora da lista são mantidos como vieram.
-                    </p>
-                    <p>
-                      • Indicador de SLA na resposta será normalizado para status binário: "dentro"
-                      (no prazo) ou "fora" (fora do prazo).
-                    </p>
-                    <p>
-                      • Tempo trabalhado será convertido em horas decimais (ex.: "04:32:12" ou
-                      "4h30" → 4.5h).
-                    </p>
-                    <p>
-                      • Chamados com o mesmo número já existentes no sistema serão atualizados com
-                      os novos dados sem duplicar.
-                    </p>
-                  </div>
-                </div>
-
-                {/* BARRA DE PROGRESSO SE ESTIVER IMPORTANDO */}
-                {importing && (
-                  <div className="p-4 rounded-xl bg-teal-50 border border-teal-200 space-y-2">
-                    <div className="flex items-center justify-between text-xs font-semibold text-teal-900">
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
-                        Gravando registros no Supabase...
-                      </span>
-                      <span className="font-mono">
-                        {importProgress.inserted} / {importProgress.total}
-                      </span>
-                    </div>
-                    <Progress
-                      value={
-                        importProgress.total > 0
-                          ? Math.round((importProgress.inserted / importProgress.total) * 100)
-                          : 0
-                      }
-                      className="h-2 bg-teal-100"
-                    />
-                  </div>
-                )}
-
-                {/* BOTÕES DE AÇÃO DO PASSO 3 */}
-                <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={importing}
-                    onClick={() => setCurrentStep(2)}
-                    className="text-xs rounded-xl"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5 mr-1" />
-                    Voltar e ajustar
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    disabled={importing}
-                    onClick={handleExecuteImport}
-                    className="text-xs rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold gap-2 shadow-md shadow-teal-600/20 px-5"
-                  >
-                    {importing ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Importando...</span>
-                      </>
-                    ) : (
-                      <>
-                        <FileSpreadsheet className="w-4 h-4" />
-                        <span>Importar agora</span>
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </>
-            ) : (
-              /* ========================================================
-                 RESULTADO DA IMPORTAÇÃO (SUCESSO)
-                 ======================================================== */
-              <div className="space-y-6 text-center py-4">
-                <div className="w-16 h-16 rounded-3xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto shadow-inner animate-bounce">
-                  <CheckCircle2 className="w-10 h-10" />
-                </div>
-
-                <div className="space-y-1">
-                  <h3 className="text-xl font-bold text-slate-900">Importação finalizada!</h3>
-                  <p className="text-xs text-slate-500">
-                    Os dados foram processados e vinculados com sucesso à sua conta.
-                  </p>
-                </div>
-
-                {/* CARDS DE RESUMO DO RESULTADO */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-xl mx-auto">
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                    <span className="text-[10px] text-slate-400 uppercase font-semibold">
-                      Total Lidas
-                    </span>
-                    <p className="text-lg font-bold text-slate-800 font-mono">
-                      {importResult.totalLinhas}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
-                    <span className="text-[10px] text-emerald-600 uppercase font-semibold">
-                      Importadas
-                    </span>
-                    <p className="text-lg font-bold text-emerald-700 font-mono">
-                      {importResult.importadas}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200">
-                    <span className="text-[10px] text-amber-600 uppercase font-semibold">
-                      Ignoradas
-                    </span>
-                    <p className="text-lg font-bold text-amber-700 font-mono">
-                      {importResult.ignoradas}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-rose-50 border border-rose-200">
-                    <span className="text-[10px] text-rose-600 uppercase font-semibold">Erros</span>
-                    <p className="text-lg font-bold text-rose-700 font-mono">
-                      {importResult.erros}
-                    </p>
-                  </div>
-                </div>
-
-                {/* LISTA EXPANSÍVEL DE ERROS */}
-                {importResult.detalhesErro && importResult.detalhesErro.length > 0 && (
-                  <div className="max-w-xl mx-auto text-left">
-                    <button
-                      type="button"
-                      onClick={() => setShowErrorList(!showErrorList)}
-                      className="w-full p-3 rounded-xl bg-amber-50/60 border border-amber-200 text-xs font-semibold text-amber-900 flex items-center justify-between"
-                    >
-                      <span>
-                        Ver detalhes das {importResult.detalhesErro.length} linhas ignoradas
-                      </span>
-                      <ChevronDown
-                        className={`w-4 h-4 transition-transform ${showErrorList ? 'rotate-180' : ''}`}
-                      />
-                    </button>
-
-                    {showErrorList && (
-                      <div className="mt-2 p-3 rounded-xl bg-slate-50 border border-slate-200 max-h-48 overflow-y-auto space-y-1.5 text-xs text-slate-600">
-                        {importResult.detalhesErro.map((err, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-center justify-between py-1 border-b border-slate-100 last:border-b-0"
-                          >
-                            <span className="font-mono font-semibold text-rose-600">
-                              Linha {err.linha}:
-                            </span>
-                            <span className="text-slate-600">{err.motivo}</span>
-                          </div>
-                        ))}
+                            <option value="">
+                              {field.required
+                                ? '— Selecione a coluna (obrigatório) —'
+                                : '— Não mapear (opcional) —'}
+                            </option>
+                            {parsedData.headers.map((h, i) => (
+                              <option key={i} value={h}>
+                                {h}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                )}
-
-                {/* BOTÕES DE REDIRECIONAMENTO */}
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
-                  <Button
-                    size="sm"
-                    onClick={() => navigate('/')}
-                    className="w-full sm:w-auto h-10 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold px-6 gap-2 shadow-sm"
-                  >
-                    <span>Ver no dashboard</span>
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate('/importacoes')}
-                    className="w-full sm:w-auto h-10 rounded-xl text-slate-700 px-6"
-                  >
-                    Ver histórico de importações
-                  </Button>
+                    )
+                  })}
                 </div>
               </div>
-            )}
-          </div>
-        )}
-      </div>
+
+              {/* OPÇÕES DE SALVAR MAPEAMENTO */}
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="mappingName" className="text-xs font-semibold text-slate-700">
+                    Nome deste layout / mapeamento
+                  </Label>
+                  <Input
+                    id="mappingName"
+                    value={mappingName}
+                    onChange={(e) => setMappingName(e.target.value)}
+                    placeholder="Ex.: Relatório Mensal Padrão"
+                    className="h-9 text-xs rounded-xl border-slate-200 bg-white"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <Checkbox
+                    id="saveMappingCheckbox"
+                    checked={saveMapping}
+                    onCheckedChange={(checked) => setSaveMapping(Boolean(checked))}
+                    className="data-[state=checked]:bg-teal-600 data-[state=checked]:border-teal-600"
+                  />
+                  <Label
+                    htmlFor="saveMappingCheckbox"
+                    className="text-xs text-slate-600 font-medium cursor-pointer"
+                  >
+                    Salvar este mapeamento para as próximas importações
+                  </Label>
+                </div>
+              </div>
+
+              {/* BOTÕES DE NAVEGAÇÃO DO PASSO 2 */}
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentStep(1)}
+                  className="text-xs rounded-xl"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5 mr-1" />
+                  Voltar
+                </Button>
+
+                <Button
+                  size="sm"
+                  disabled={!isRequiredMapped}
+                  onClick={() => setCurrentStep(3)}
+                  className="text-xs rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold gap-1.5 shadow-sm shadow-teal-600/20"
+                >
+                  <span>Continuar para Revisão</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================
+            PASSO 3: REVISAR E IMPORTAR
+           ======================================================== */}
+          {currentStep === 3 && parsedData && file && (
+            <div className="space-y-6">
+              {!importResult ? (
+                <>
+                  {/* RESUMO DA IMPORTAÇÃO */}
+                  <div className="space-y-4">
+                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <span className="text-[11px] text-slate-400 font-semibold uppercase">
+                          Arquivo
+                        </span>
+                        <p className="text-xs font-bold text-slate-800 truncate">{file.name}</p>
+                      </div>
+                      <div>
+                        <span className="text-[11px] text-slate-400 font-semibold uppercase">
+                          Total de Linhas
+                        </span>
+                        <p className="text-xs font-bold text-slate-800 font-mono">
+                          {parsedData.totalRows} registros
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-[11px] text-slate-400 font-semibold uppercase">
+                          Mapeamento
+                        </span>
+                        <p className="text-xs font-bold text-slate-800 truncate">
+                          {mappingName || 'Padrão'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* CHIPS DOS CAMPOS MAPEADOS */}
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                        Campos Mapeados
+                      </h4>
+                      {emptyMappedWarnings.length > 0 && (
+                        <div className="mb-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-bold text-amber-800">Colunas vazias mapeadas:</p>
+                            <p className="text-amber-700 text-[11px]">
+                              {emptyMappedWarnings
+                                .map(
+                                  (w) => `${w.label} ("${w.column}"): 0 de ${w.total} preenchidas`,
+                                )
+                                .join(', ')}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {STANDARD_FIELDS.map((f) => {
+                          const col = mapping[f.key]
+                          const isWarn = emptyMappedWarnings.some((w) => w.key === f.key)
+                          return (
+                            <div
+                              key={f.key}
+                              className={`p-2.5 rounded-xl border text-xs flex items-center justify-between ${
+                                isWarn
+                                  ? 'bg-amber-50/70 border-amber-300 text-amber-900'
+                                  : col
+                                    ? 'bg-teal-50/40 border-teal-200 text-teal-900'
+                                    : 'bg-slate-50 border-slate-200 text-slate-400'
+                              }`}
+                            >
+                              <span className="font-semibold">{f.label}:</span>
+                              <span className="font-mono text-[11px] truncate max-w-[150px]">
+                                {col ? `"${col}"${isWarn ? ' (vazia)' : ''}` : 'Não mapeado'}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {/* REGRAS DE NORMALIZAÇÃO EXPLICADAS */}
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-500 space-y-1">
+                      <p className="font-semibold text-slate-700 flex items-center gap-1.5">
+                        <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
+                        Regras de normalização automática:
+                      </p>
+                      <p>• Datas serão convertidas para formato padrão (ISO YYYY-MM-DD).</p>
+                      <p>
+                        • Tempo de atendimento aceita minutos puros, decimais ou formatos como
+                        "1h30" e "45min".
+                      </p>
+                      <p>
+                        • Linhas com cliente, técnico ou data vazios/inválidos serão puladas e
+                        reportadas.
+                      </p>
+                      <p>
+                        • Departamento será normalizado para os setores fixos (Windows, Campo,
+                        Windows N2, Ativação, Projetos); valores fora da lista são mantidos como
+                        vieram.
+                      </p>
+                      <p>
+                        • Indicador de SLA na resposta será normalizado para status binário:
+                        "dentro" (no prazo) ou "fora" (fora do prazo).
+                      </p>
+                      <p>
+                        • Tempo trabalhado será convertido em horas decimais (ex.: "04:32:12" ou
+                        "4h30" → 4.5h).
+                      </p>
+                      <p>
+                        • Chamados com o mesmo número já existentes no sistema serão atualizados com
+                        os novos dados sem duplicar.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* BARRA DE PROGRESSO SE ESTIVER IMPORTANDO */}
+                  {importing && (
+                    <div className="p-4 rounded-xl bg-teal-50 border border-teal-200 space-y-2">
+                      <div className="flex items-center justify-between text-xs font-semibold text-teal-900">
+                        <span className="flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
+                          Gravando registros no Supabase...
+                        </span>
+                        <span className="font-mono">
+                          {importProgress.inserted} / {importProgress.total}
+                        </span>
+                      </div>
+                      <Progress
+                        value={
+                          importProgress.total > 0
+                            ? Math.round((importProgress.inserted / importProgress.total) * 100)
+                            : 0
+                        }
+                        className="h-2 bg-teal-100"
+                      />
+                    </div>
+                  )}
+
+                  {/* BOTÕES DE AÇÃO DO PASSO 3 */}
+                  <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={importing}
+                      onClick={() => setCurrentStep(2)}
+                      className="text-xs rounded-xl"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5 mr-1" />
+                      Voltar e ajustar
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      disabled={importing}
+                      onClick={handleExecuteImport}
+                      className="text-xs rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold gap-2 shadow-md shadow-teal-600/20 px-5"
+                    >
+                      {importing ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Importando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <FileSpreadsheet className="w-4 h-4" />
+                          <span>Importar agora</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                /* ========================================================
+                 RESULTADO DA IMPORTAÇÃO (SUCESSO)
+                 ======================================================== */
+                <div className="space-y-6 text-center py-4">
+                  <div className="w-16 h-16 rounded-3xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto shadow-inner animate-bounce">
+                    <CheckCircle2 className="w-10 h-10" />
+                  </div>
+
+                  <div className="space-y-1">
+                    <h3 className="text-xl font-bold text-slate-900">Importação finalizada!</h3>
+                    <p className="text-xs text-slate-500">
+                      Os dados foram processados e vinculados com sucesso à sua conta.
+                    </p>
+                  </div>
+
+                  {/* CARDS DE RESUMO DO RESULTADO */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-xl mx-auto">
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold">
+                        Total Lidas
+                      </span>
+                      <p className="text-lg font-bold text-slate-800 font-mono">
+                        {importResult.totalLinhas}
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+                      <span className="text-[10px] text-emerald-600 uppercase font-semibold">
+                        Importadas
+                      </span>
+                      <p className="text-lg font-bold text-emerald-700 font-mono">
+                        {importResult.importadas}
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200">
+                      <span className="text-[10px] text-amber-600 uppercase font-semibold">
+                        Ignoradas
+                      </span>
+                      <p className="text-lg font-bold text-amber-700 font-mono">
+                        {importResult.ignoradas}
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-rose-50 border border-rose-200">
+                      <span className="text-[10px] text-rose-600 uppercase font-semibold">
+                        Erros
+                      </span>
+                      <p className="text-lg font-bold text-rose-700 font-mono">
+                        {importResult.erros}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* LISTA EXPANSÍVEL DE ERROS */}
+                  {importResult.detalhesErro && importResult.detalhesErro.length > 0 && (
+                    <div className="max-w-xl mx-auto text-left">
+                      <button
+                        type="button"
+                        onClick={() => setShowErrorList(!showErrorList)}
+                        className="w-full p-3 rounded-xl bg-amber-50/60 border border-amber-200 text-xs font-semibold text-amber-900 flex items-center justify-between"
+                      >
+                        <span>
+                          Ver detalhes das {importResult.detalhesErro.length} linhas ignoradas
+                        </span>
+                        <ChevronDown
+                          className={`w-4 h-4 transition-transform ${showErrorList ? 'rotate-180' : ''}`}
+                        />
+                      </button>
+
+                      {showErrorList && (
+                        <div className="mt-2 p-3 rounded-xl bg-slate-50 border border-slate-200 max-h-48 overflow-y-auto space-y-1.5 text-xs text-slate-600">
+                          {importResult.detalhesErro.map((err, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center justify-between py-1 border-b border-slate-100 last:border-b-0"
+                            >
+                              <span className="font-mono font-semibold text-rose-600">
+                                Linha {err.linha}:
+                              </span>
+                              <span className="text-slate-600">{err.motivo}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* BOTÕES DE REDIRECIONAMENTO */}
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
+                    <Button
+                      size="sm"
+                      onClick={() => navigate('/')}
+                      className="w-full sm:w-auto h-10 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold px-6 gap-2 shadow-sm"
+                    >
+                      <span>Ver no dashboard</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate('/importacoes')}
+                      className="w-full sm:w-auto h-10 rounded-xl text-slate-700 px-6"
+                    >
+                      Ver histórico de importações
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

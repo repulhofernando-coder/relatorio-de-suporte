@@ -175,7 +175,7 @@ export default function HorasWizard({ savedMappings }: HorasWizardProps) {
       } else {
         // Executa auto-detecção por sinônimos
         const detected = autoDetectMappingHoras(data.headers)
-        setMapping(detected)
+        setMapping({ ...EMPTY_MAPPING_HORAS, ...detected })
         setSelectedMappingIdLocal('auto')
         setAutoDetectedMessage(
           'Mapeamento detectado automaticamente a partir dos nomes das colunas',
@@ -194,7 +194,7 @@ export default function HorasWizard({ savedMappings }: HorasWizardProps) {
   }
 
   const applySavedMapping = (
-    saved: { nome: string; mapeamento: Record<string, string> },
+    saved: HorasWizardProps['savedMappings'][number],
     matched: boolean,
   ) => {
     const newMap: Record<CampoHoraKey, string> = { ...EMPTY_MAPPING_HORAS }
@@ -220,7 +220,7 @@ export default function HorasWizard({ savedMappings }: HorasWizardProps) {
       const data = await parseSpreadsheetFile(file, sheetName)
       setParsedData(data)
       const detected = autoDetectMappingHoras(data.headers)
-      setMapping(detected)
+      setMapping({ ...EMPTY_MAPPING_HORAS, ...detected })
       setSelectedMappingIdLocal('auto')
     } catch (err) {
       setParseError(traduzirErro(err))
@@ -236,7 +236,7 @@ export default function HorasWizard({ savedMappings }: HorasWizardProps) {
 
     if (mappingId === 'auto') {
       const detected = autoDetectMappingHoras(parsedData.headers)
-      setMapping(detected)
+      setMapping({ ...EMPTY_MAPPING_HORAS, ...detected })
       setAutoDetectedMessage(null)
       setSaveMapping(true)
     } else {
@@ -560,7 +560,7 @@ export default function HorasWizard({ savedMappings }: HorasWizardProps) {
                 ref={fileInputRef}
                 onChange={(e) => {
                   if (e.target.files && e.target.files[0]) {
-                    handleFileSelect(e.dataTransfer.files[0])
+                    handleFileSelect(e.target.files[0])
                   }
                 }}
                 accept=".xlsx,.xls,.csv"

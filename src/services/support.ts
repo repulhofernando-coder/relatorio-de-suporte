@@ -558,19 +558,31 @@ export async function fetchTimeLogs(params?: FetchTimeLogsParams): Promise<TimeL
 export async function insertTimeLogsBatch(
   rows: TimeLogInsert[],
   importId: string,
+  onProgress?: (inserted: number, total: number) => void,
   batchSize = 500,
 ): Promise<number> {
+  const { data: userData } = await supabase.auth.getUser()
+  const userId = userData?.user?.id
+  if (!userId) throw new Error('Usuário não autenticado.')
+
   let inseridas = 0
 
   for (let i = 0; i < rows.length; i += batchSize) {
-    const lote = rows.slice(i, i + batchSize).map((r) => ({ ...r, import_id: importId }))
+    const lote = rows
+      .slice(i, i + batchSize)
+      .map((r) => ({ ...r, import_id: importId, user_id: userId }))
 
     const { error } = await (supabase as any).from('time_logs').insert(lote)
 
     if (error) {
-      throw new Error(`Erro ao gravar lançamentos de horas: ${error.message}`)
+      throw new Error(
+        `Erro ao gravar lote de lançamentos (${i + 1}-${i + lote.length}): ${error.message}`,
+      )
     }
     inseridas += lote.length
+    if (onProgress) {
+      onProgress(inseridas, rows.length)
+    }
   }
 
   return inseridas

@@ -1,15 +1,23 @@
 import { supabase } from '@/lib/supabase/client'
 import type { TimeLogRecord, TimeLogInsert, ImportTipo } from '@/types/horas'
-import type { FetchSupportRecordsParams, MapeamentoInsert } from '@/services/support'
+import type { FetchSupportRecordsParams } from '@/services/support'
 import {
   fetchTimeLogs,
   fetchSupportRecords,
   fetchMinutosPorTicket,
   upsertMapeamento,
+  insertTimeLogsBatch,
 } from '@/services/support'
 import { agregarHorasPorCliente, agregarHorasPorTecnico, TimeLogLike } from '@/lib/tempo-horas'
+import type { MapeamentoInsert } from '@/types/support'
 
-export { fetchTimeLogs, fetchSupportRecords, fetchMinutosPorTicket, upsertMapeamento }
+export {
+  fetchTimeLogs,
+  fetchSupportRecords,
+  fetchMinutosPorTicket,
+  upsertMapeamento,
+  insertTimeLogsBatch,
+}
 export { agregarHorasPorCliente, agregarHorasPorTecnico }
 export type { TimeLogRecord, TimeLogInsert, TimeLogLike, ImportTipo, MapeamentoInsert }
 
