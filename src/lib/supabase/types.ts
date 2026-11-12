@@ -83,6 +83,7 @@ export type Database = {
           mapeamento_nome: string | null
           nome_arquivo: string
           status: string
+          tipo: string
           total_linhas: number
           user_id: string
         }
@@ -96,6 +97,7 @@ export type Database = {
           mapeamento_nome?: string | null
           nome_arquivo: string
           status?: string
+          tipo?: string
           total_linhas?: number
           user_id: string
         }
@@ -109,6 +111,7 @@ export type Database = {
           mapeamento_nome?: string | null
           nome_arquivo?: string
           status?: string
+          tipo?: string
           total_linhas?: number
           user_id?: string
         }
@@ -238,6 +241,68 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "support_records_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "imports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      time_logs: {
+        Row: {
+          cliente: string | null
+          created_at: string
+          data_lancamento: string | null
+          departamento: string | null
+          eh_total_chamado: boolean
+          extras: Json
+          horas_total_chamado: number | null
+          id: string
+          import_id: string
+          minutos: number
+          numero_ticket: string | null
+          origem_arquivo: string | null
+          status: string | null
+          tecnico: string | null
+          user_id: string
+        }
+        Insert: {
+          cliente?: string | null
+          created_at?: string
+          data_lancamento?: string | null
+          departamento?: string | null
+          eh_total_chamado?: boolean
+          extras?: Json
+          horas_total_chamado?: number | null
+          id?: string
+          import_id: string
+          minutos?: number
+          numero_ticket?: string | null
+          origem_arquivo?: string | null
+          status?: string | null
+          tecnico?: string | null
+          user_id?: string
+        }
+        Update: {
+          cliente?: string | null
+          created_at?: string
+          data_lancamento?: string | null
+          departamento?: string | null
+          eh_total_chamado?: boolean
+          extras?: Json
+          horas_total_chamado?: number | null
+          id?: string
+          import_id?: string
+          minutos?: number
+          numero_ticket?: string | null
+          origem_arquivo?: string | null
+          status?: string | null
+          tecnico?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_logs_import_id_fkey"
             columns: ["import_id"]
             isOneToOne: false
             referencedRelation: "imports"

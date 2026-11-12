@@ -87,6 +87,7 @@ export interface ImportRecord {
   erros: number
   status: 'concluído' | 'com erros' | string
   mapeamento_nome: string | null
+  tipo: 'chamados' | 'horas' | string
   detalhes_erro: Array<{ linha: number; motivo: string }> | null
   created_at: string
 }
@@ -98,6 +99,7 @@ export interface ImportRecordInsert {
   ignoradas: number
   erros: number
   status: 'concluído' | 'com erros' | string
+  tipo?: 'chamados' | 'horas' | string
   mapeamento_nome?: string | null
   detalhes_erro?: Array<{ linha: number; motivo: string }> | null
   user_id?: string

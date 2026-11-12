@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase/client'
+import { TimeLogRecord, TimeLogInsert, ImportTipo } from '@/types/horas'
+import { agregarHorasPorCliente, agregarHorasPorTecnico } from '@/lib/tempo-horas'
 import {
   SupportRecord,
   SupportRecordInsert,
@@ -16,11 +18,17 @@ import {
    IMPORTS SERVICE
    ======================================================== */
 
-export async function fetchImports(): Promise<ImportRecord[]> {
-  const { data, error } = await (supabase as any)
+export async function fetchImports(tipo?: ImportTipo): Promise<ImportRecord[]> {
+  let query = (supabase as any)
     .from('imports')
     .select('*')
     .order('created_at', { ascending: false })
+
+  if (tipo) {
+    query = query.eq('tipo', tipo)
+  }
+
+  const { data, error } = await query
 
   if (error) {
     throw new Error(`Erro ao buscar importações: ${error.message}`)
@@ -494,4 +502,110 @@ export async function deleteSavedReport(id: string): Promise<void> {
   if (error) {
     throw new Error(`Erro ao excluir relatório salvo: ${error.message}`)
   }
+}
+
+/* ========================================================
+   TIME LOGS SERVICE (importação de Horas trabalhadas)
+   ======================================================== */
+
+export interface FetchTimeLogsParams {
+  importId?: string
+  startDate?: string // YYYY-MM-DD (data_lancamento)
+  endDate?: string
+}
+
+/** Busca paginada dos lançamentos de horas (time_logs). */
+export async function fetchTimeLogs(params?: FetchTimeLogsParams): Promise<TimeLogRecord[]> {
+  const PAGE = 1000
+  const all: TimeLogRecord[] = []
+  let from = 0
+
+  for (;;) {
+    let query = (supabase as any)
+      .from('time_logs')
+      .select('*')
+      .order('data_lancamento', { ascending: true, nullsFirst: false })
+      .range(from, from + PAGE - 1)
+
+    if (params?.importId) {
+      query = query.eq('import_id', params.importId)
+    }
+    if (params?.startDate) {
+      query = query.gte('data_lancamento', params.startDate)
+    }
+    if (params?.endDate) {
+      query = query.lte('data_lancamento', params.endDate)
+    }
+
+    const { data, error } = await query
+    if (error) {
+      throw new Error(`Erro ao buscar lançamentos de horas: ${error.message}`)
+    }
+
+    const rows = (data as TimeLogRecord[]) || []
+    all.push(...rows)
+    if (rows.length < PAGE) break
+    from += PAGE
+  }
+
+  return all
+}
+
+/**
+ * Insere lançamentos em lotes (Supabase limita inserts grandes).
+ * Retorna o número de linhas inseridas.
+ */
+export async function insertTimeLogsBatch(
+  rows: TimeLogInsert[],
+  importId: string,
+  batchSize = 500,
+): Promise<number> {
+  let inseridas = 0
+
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const lote = rows.slice(i, i + batchSize).map((r) => ({ ...r, import_id: importId }))
+
+    const { error } = await (supabase as any).from('time_logs').insert(lote)
+
+    if (error) {
+      throw new Error(`Erro ao gravar lançamentos de horas: ${error.message}`)
+    }
+    inseridas += lote.length
+  }
+
+  return inseridas
+}
+
+/**
+ * Mapa numero_ticket → minutos do chamado (support_records), para cruzar
+ * o consumo de horas com os chamados já importados.
+ */
+export async function fetchMinutosPorTicket(): Promise<Map<string, number>> {
+  const PAGE = 1000
+  const mapa = new Map<string, number>()
+  let from = 0
+
+  for (;;) {
+    const { data, error } = await (supabase as any)
+      .from('support_records')
+      .select('numero, tempo_atendimento_min')
+      .range(from, from + PAGE - 1)
+
+    if (error) {
+      throw new Error(`Erro ao cruzar chamados: ${error.message}`)
+    }
+
+    const rows =
+      (data as Array<{ numero: string | null; tempo_atendimento_min: number | null }>) || []
+    for (const r of rows) {
+      if (r.numero && r.tempo_atendimento_min !== null) {
+        mapa.set(String(r.numero), r.tempo_atendimento_min)
+      }
+    }
+
+    if (rows.length < PAGE) break
+    from += PAGE
+  }
+
+  return mapa
 }
