@@ -44,10 +44,13 @@ describe('casaDepartamento — casamento semântico sobre o rótulo BRUTO', () =
     expect(casaDepartamento('Datacenter: Linux', 'Linux')).toBe(false) // é Datacenter
   })
 
-  it('filtro com N2 traz TODO rótulo de N2 (Windows - N2 e Linux N1/N2)', () => {
+  it('filtro N2 traz só N2 de time específico; "Linux N1/N2" é APENAS Linux', () => {
     expect(casaDepartamento('Windows - N2', 'Windows N2')).toBe(true)
-    expect(casaDepartamento('Linux N1/N2', 'Windows N2')).toBe(true)
-    expect(casaDepartamento('Linux N2', 'N2')).toBe(true)
+    expect(casaDepartamento('Windows - N2', 'N2')).toBe(true)
+    // Pedido do usuário: "Linux N1/N2 seja apenas Linux" — NÃO entra no filtro N2
+    expect(casaDepartamento('Linux N1/N2', 'N2')).toBe(false)
+    expect(casaDepartamento('Linux N1/N2', 'Windows N2')).toBe(false)
+    expect(casaDepartamento('Linux N2', 'N2')).toBe(false)
     expect(casaDepartamento('Windows', 'Windows N2')).toBe(false)
     expect(casaDepartamento('Linux', 'Windows N2')).toBe(false)
   })

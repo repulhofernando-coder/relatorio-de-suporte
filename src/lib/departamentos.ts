@@ -11,7 +11,9 @@
  * usado para EXIBIR e para montar o filtro. O casamento filtro × log
  * (casaDepartamento) é SEMÂNTICO — por família de rótulo, aplicado sobre o
  * RÓTULO BRUTO (normalizar depois esconderia o N2 de "Linux N1/N2"):
- *   - filtro com "N2"      → qualquer rótulo com "N2" ("Windows - N2", "Linux N1/N2")
+ *   - filtro com "N2"      → rótulos de N2 de time específico ("Windows - N2");
+ *                            "Linux N1/N2" NÃO entra (é do setor Linux — o
+ *                            usuário quer que ele case SOMENTE com o filtro Linux)
  *   - filtro "Linux"       → rótulos do setor Linux ("Linux", "Linux N1/N2")
  *   - filtro "Windows"     → contém "Windows", sem N2 e sem Datacenter
  *   - filtro "Campo"       → contém "Campo"
@@ -65,11 +67,16 @@ export function normalizarDepartamentosEmLogs<T extends { departamento?: string 
   }))
 }
 
+/** true quando o rótulo bruto é de N2 de um time ESPECÍFICO que não seja Linux. */
+function eN2DeTimeNaoLinux(logMin: string): boolean {
+  return logMin.includes('n2') && !logMin.startsWith('linux')
+}
+
 /**
  * true quando o lançamento de horas pertence ao departamento selecionado.
  * Comparação SEMÂNTICA por família de rótulo (ver cabeçalho do arquivo) —
- * "Linux" traz "Linux N1/N2", "Windows N2" traz todo rótulo de N2,
- * "Datacenter" agrupa "Datacenter: Windows" e "Datacenter: Linux".
+ * "Linux" traz "Linux N1/N2" (SOMENTE o filtro Linux o traz), "Windows N2"
+ * traz os N2 de time específico, "Datacenter" agrupa os dois dois-pontos.
  */
 export function casaDepartamento(
   deptoDoLog: string | null | undefined,
@@ -81,8 +88,10 @@ export function casaDepartamento(
   const logMin = minusculeSemAcento(deptoDoLog ?? '')
   if (!logMin) return false
 
-  // N2: qualquer rótulo de N2 (Windows - N2, Linux N1/N2)
-  if (filtroMin.includes('n2')) return logMin.includes('n2')
+  // N2: só rótulos de N2 de time ESPECÍFICO (Windows - N2). "Linux N1/N2"
+  // pertence ao setor Linux e NÃO entra no filtro N2 (pedido do usuário:
+  // "Linux N1/N2 seja apenas Linux" — só o filtro Linux o traz).
+  if (filtroMin.includes('n2')) return eN2DeTimeNaoLinux(logMin)
 
   // Linux: rótulos do setor Linux (não "Datacenter: Linux", que é Datacenter)
   if (filtroMin.includes('linux')) return logMin.startsWith('linux')
