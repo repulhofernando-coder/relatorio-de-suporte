@@ -10,6 +10,7 @@ import {
   fetchSatisfactionResponses,
   fetchChamadoInfoPorNumero,
   carregarDashboardSatisfacao,
+  type ChamadoInfo,
   type DashboardSatisfacao,
   type RankingSatisfacaoItem,
 } from '@/services/satisfacao'
@@ -83,6 +84,7 @@ function NotaChip({ nota }: { nota: number }) {
 
 export default function Satisfacao() {
   const [respostas, setRespostas] = useState<SatisfactionResponse[] | null>(null)
+  const [infoChamados, setInfoChamados] = useState<Map<string, ChamadoInfo> | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -103,6 +105,7 @@ export default function Satisfacao() {
       .then(([r, info]) => {
         if (!ativo) return
         setRespostas(r.map((x) => enriquecer(x, info)))
+        setInfoChamados(info)
       })
       .catch((err) => {
         if (!ativo) return
@@ -124,8 +127,9 @@ export default function Satisfacao() {
       startDate: range.startDate,
       endDate: range.endDate,
       departamento: departamentoFiltro !== 'todos' ? departamentoFiltro : undefined,
+      infoChamados: infoChamados ?? undefined,
     })
-  }, [respostas, range.startDate, range.endDate, departamentoFiltro])
+  }, [respostas, range.startDate, range.endDate, departamentoFiltro, infoChamados])
 
   const handleSelectPreset = (p: PeriodPreset) => {
     if (p === 'personalizado') {
@@ -145,7 +149,10 @@ export default function Satisfacao() {
   const recarregar = () => {
     setRefreshing(true)
     Promise.all([fetchSatisfactionResponses(), fetchChamadoInfoPorNumero()])
-      .then(([r, info]) => setRespostas(r.map((x) => enriquecer(x, info))))
+      .then(([r, info]) => {
+        setRespostas(r.map((x) => enriquecer(x, info)))
+        setInfoChamados(info)
+      })
       .catch((err) => setError(traduzirErro(err)))
       .finally(() => setRefreshing(false))
   }
@@ -387,6 +394,14 @@ export default function Satisfacao() {
                         {c.dataResposta && <span>· {c.dataResposta}</span>}
                       </div>
                     </div>
+                    {c.casouComChamado && (
+                      <span
+                        className="inline-flex items-center rounded-full bg-teal-50 border border-teal-200 text-teal-700 px-2 py-0.5 text-[10px] font-semibold"
+                        title="Este tíquete casou com um chamado da base (support_records)"
+                      >
+                        ✓ na base de chamados
+                      </span>
+                    )}
                     <p className="text-sm text-slate-700 mt-2 whitespace-pre-wrap">
                       {c.comentario}
                     </p>

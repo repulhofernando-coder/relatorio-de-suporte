@@ -420,7 +420,7 @@ export function TecnicoDrillDown({
           <TecnicoTopClientesHoras tecnico={tecnico} timeLogs={timeLogs ?? []} />
 
           {/* Satisfação do técnico (pesquisa Movidesk) — só aparece se houver respostas */}
-          <TecnicoSatisfacao tecnico={tecnico} />
+          <TecnicoSatisfacao tecnico={tecnico} records={records} />
 
           {/* Atendimentos por cliente — estilo Tabela Dinâmica do Excel */}
           <TecnicoClientesTable tecnico={tecnico} records={records} periodoFiltro={periodoFiltro} />

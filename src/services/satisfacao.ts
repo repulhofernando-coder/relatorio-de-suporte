@@ -99,17 +99,20 @@ export async function insertSatisfacaoBatch(
 export interface ChamadoInfo {
   cliente: string | null
   departamento: string | null
+  tecnico: string | null
 }
 
 /** Chave de casamento: somente os dígitos do número do tíquete/chamado. */
-function chaveNumero(valor: string | null | undefined): string {
+export function chaveNumero(valor: string | null | undefined): string {
   return (valor ?? '').replace(/\D/g, '')
 }
 
 /**
- * Carrega numero → { cliente, departamento } de support_records, indexado
- * pelos só-dígitos do número do chamado. Usado pela página /satisfacao para
- * herdar cliente/departamento do chamado quando o tíquete casa.
+ * Carrega numero → { cliente, departamento, tecnico } de support_records,
+ * indexado pelos só-dígitos do número do chamado. Usado pela página
+ * /satisfacao para herdar cliente/departamento do chamado quando o tíquete
+ * casa, e pelo drill-down do técnico para casar respostas com os chamados
+ * que ele atendeu.
  */
 export async function fetchChamadoInfoPorNumero(): Promise<Map<string, ChamadoInfo>> {
   const PAGE = 1000
@@ -119,7 +122,7 @@ export async function fetchChamadoInfoPorNumero(): Promise<Map<string, ChamadoIn
   for (;;) {
     const { data, error } = await (supabase as any)
       .from('support_records')
-      .select('numero, cliente, departamento')
+      .select('numero, cliente, departamento, tecnico')
       .order('data_chamado', { ascending: false })
       .range(from, from + PAGE - 1)
 
@@ -132,13 +135,18 @@ export async function fetchChamadoInfoPorNumero(): Promise<Map<string, ChamadoIn
         numero: string | null
         cliente: string | null
         departamento: string | null
+        tecnico: string | null
       }>) || []
 
     for (const r of rows) {
       const chave = chaveNumero(r.numero)
       // primeiros registros (mais recentes) vencem
       if (chave && !mapa.has(chave)) {
-        mapa.set(chave, { cliente: r.cliente, departamento: r.departamento })
+        mapa.set(chave, {
+          cliente: r.cliente,
+          departamento: r.departamento,
+          tecnico: r.tecnico,
+        })
       }
     }
 
@@ -294,6 +302,8 @@ export interface ComentarioSatisfacao {
   id: string
   nota: number
   numeroTicket: string | null
+  /** true quando o tíquete casou com um chamado da base (support_records) */
+  casouComChamado: boolean
   cliente: string | null
   tecnico: string | null
   dataResposta: string | null
@@ -318,6 +328,8 @@ export interface DashboardSatisfacaoParams {
   startDate?: string
   endDate?: string
   departamento?: string
+  /** mapa numero → chamado; quando passado, marca os comentários que casaram */
+  infoChamados?: Map<string, ChamadoInfo>
 }
 
 /**
@@ -329,6 +341,8 @@ export interface DashboardSatisfacaoParams {
  *     N2 de time específico, via eN2DeTimeNaoLinux em departamentos.ts).
  * Depois agrega reusando resumirSatisfacao, rankingPor* e
  * evolucaoMensalSatisfacao e monta a lista de comentários preenchidos.
+ * Com infoChamados, cada comentário marca se o tíquete casou com a base
+ * de chamados (cruzamento visível na página).
  */
 export function carregarDashboardSatisfacao(
   respostas: SatisfactionRecord[],
@@ -363,12 +377,23 @@ export function carregarDashboardSatisfacao(
         id: r.id,
         nota: r.nota,
         numeroTicket: r.numero_ticket,
+        casouComChamado: casouComChamado(r, params?.infoChamados),
         cliente: r.cliente,
         tecnico: r.tecnico,
         dataResposta: r.data_resposta,
         comentario: r.comentario as string,
       })),
   }
+}
+
+/** true quando o tíquete da resposta existe na base de chamados (support_records). */
+export function casouComChamado(
+  r: Pick<SatisfactionRecord, 'numero_ticket'>,
+  infoChamados?: Map<string, ChamadoInfo>,
+): boolean {
+  if (!infoChamados || infoChamados.size === 0) return false
+  const chave = chaveNumero(r.numero_ticket)
+  return !!chave && infoChamados.has(chave)
 }
 
 /** Alias usado pela página /satisfacao (o tipo de linha é o registro do banco). */
