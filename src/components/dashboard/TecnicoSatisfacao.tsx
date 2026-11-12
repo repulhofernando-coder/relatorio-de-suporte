@@ -6,7 +6,7 @@ import {
   chaveNumero,
   type ChamadoInfo,
 } from '@/services/satisfacao'
-import { emojiNota } from '@/types/satisfacao'
+import { emojiNota, rotuloNota } from '@/types/satisfacao'
 import type { SatisfactionRecord } from '@/types/satisfacao'
 import type { SupportRecord } from '@/types/support'
 import { formatarIndiceMedio, formatarPercentual } from '@/lib/formatar'
@@ -14,7 +14,8 @@ import { formatarIndiceMedio, formatarPercentual } from '@/lib/formatar'
 /**
  * Seção compacta de SATISFAÇÃO dentro do card de detalhe do técnico
  * (Visão Geral e /chamados): índice médio (escala 1–3), número de respostas,
- * % insatisfeito e a LISTA dos chamados avaliados do técnico.
+ * % insatisfeito, contadores por nota (😀/🙂/😠), barra de proporção e os
+ * COMENTÁRIOS recebidos nos chamados avaliados do técnico.
  *
  * A média é baseada nos CHAMADOS que o técnico atendeu e receberam avaliação,
  * juntando duas origens SEM duplicar o mesmo tíquete:
@@ -121,9 +122,15 @@ export function TecnicoSatisfacao({ tecnico, records }: Props) {
     if (!avaliacoes) return null
     let soma = 0
     let insatisfeitos = 0
+    let n1 = 0
+    let n2 = 0
+    let n3 = 0
     for (const a of avaliacoes) {
       soma += a.resposta.nota
       if (a.resposta.nota <= 1) insatisfeitos += 1
+      if (a.resposta.nota >= 3) n3 += 1
+      else if (a.resposta.nota === 2) n2 += 1
+      else n1 += 1
     }
     const n = avaliacoes.length
     return {
@@ -131,12 +138,19 @@ export function TecnicoSatisfacao({ tecnico, records }: Props) {
       respostas: n,
       insatisfeitos,
       pctInsatisfeito: (insatisfeitos / n) * 100,
+      porNota: [n1, n2, n3] as [number, number, number],
     }
   }, [avaliacoes])
 
+  /** Comentários recebidos (a lista completa continua deduplicada por tíquete). */
+  const comentarios = useMemo(
+    () => (avaliacoes ?? []).filter((a) => !!a.resposta.comentario?.trim()),
+    [avaliacoes],
+  )
+
   if (!dados || !avaliacoes) return null
 
-  const visiveis = mostrarTodas ? avaliacoes : avaliacoes.slice(0, 12)
+  const visiveis = mostrarTodas ? comentarios : comentarios.slice(0, 12)
 
   return (
     <div className="rounded-xl border border-slate-200/90 p-3.5 bg-white shadow-xs space-y-2.5">
@@ -150,6 +164,7 @@ export function TecnicoSatisfacao({ tecnico, records }: Props) {
         </span>
       </div>
 
+      {/* Média e % insatisfeito em destaque (lógica de cálculo inalterada) */}
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-lg border border-teal-100 bg-teal-50/60 p-2.5">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-teal-800">
@@ -186,57 +201,127 @@ export function TecnicoSatisfacao({ tecnico, records }: Props) {
         </div>
       </div>
 
-      {/* Chamados avaliados do técnico */}
+      {/* Contadores por nota: 😀 46 · 🙂 4 · 😠 0 */}
+      <div className="grid grid-cols-3 gap-2">
+        <ContadorNota nota={3} contagem={dados.porNota[2]} />
+        <ContadorNota nota={2} contagem={dados.porNota[1]} />
+        <ContadorNota nota={1} contagem={dados.porNota[0]} />
+      </div>
+
+      {/* Barra de proporção das notas (verde / âmbar / vermelho) */}
+      {dados.respostas > 0 && (
+        <div
+          className="flex h-2 w-full overflow-hidden rounded-full bg-slate-100"
+          role="img"
+          aria-label={`Composição das notas: ${dados.porNota[2]} muito satisfeito, ${dados.porNota[1]} satisfeito, ${dados.porNota[0]} insatisfeito`}
+        >
+          {[
+            { n: dados.porNota[2], classe: 'bg-green-500' },
+            { n: dados.porNota[1], classe: 'bg-amber-400' },
+            { n: dados.porNota[0], classe: 'bg-red-500' },
+          ]
+            .filter((s) => s.n > 0)
+            .map((s) => (
+              <div
+                key={s.classe}
+                className={s.classe}
+                style={{ width: `${(s.n / dados.respostas) * 100}%` }}
+              />
+            ))}
+        </div>
+      )}
+
+      {/* Comentários recebidos */}
       <div className="space-y-1.5 pt-0.5">
         <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-1">
           <Hash className="w-3 h-3 text-slate-400" />
-          Chamados avaliados
+          Comentários ({comentarios.length})
         </p>
-        <div className="divide-y divide-slate-100 rounded-lg border border-slate-100 overflow-hidden">
-          {visiveis.map((a, i) => {
-            const r = a.resposta
-            return (
-              <div key={`${r.id}-${i}`} className="px-2.5 py-2 bg-white">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span
-                      className="text-sm shrink-0"
-                      title={a.doChamado ? 'Chamado na base, atendido por este técnico' : undefined}
-                    >
-                      {emojiNota(r.nota)}
-                    </span>
-                    <span className="text-xs font-semibold text-slate-700 font-mono truncate">
-                      {a.chaveTicket ? `#${a.chaveTicket}` : 'sem tíquete'}
-                    </span>
-                    {!a.daPlanilha && a.doChamado && (
-                      <span className="text-[10px] text-slate-400 shrink-0">via chamado</span>
+        {comentarios.length === 0 ? (
+          <p className="text-xs text-slate-400">Nenhum comentário recebido.</p>
+        ) : (
+          <div className="divide-y divide-slate-100 rounded-lg border border-slate-100 overflow-hidden">
+            {visiveis.map((a, i) => {
+              const r = a.resposta
+              return (
+                <div key={`${r.id}-${i}`} className="px-2.5 py-2 bg-white">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span
+                        className="text-sm shrink-0"
+                        title={
+                          a.doChamado ? 'Chamado na base, atendido por este técnico' : undefined
+                        }
+                      >
+                        {emojiNota(r.nota)}
+                      </span>
+                      <span className="text-xs font-semibold text-slate-700 font-mono truncate">
+                        {a.chaveTicket ? `#${a.chaveTicket}` : 'sem tíquete'}
+                      </span>
+                    </div>
+                    {r.data_resposta && (
+                      <span className="text-[10px] text-slate-400 shrink-0">
+                        {r.data_resposta.split('-').reverse().join('/')}
+                      </span>
                     )}
                   </div>
-                  {r.data_resposta && (
-                    <span className="text-[10px] text-slate-400 shrink-0">
-                      {r.data_resposta.split('-').reverse().join('/')}
-                    </span>
-                  )}
-                </div>
-                {r.comentario && r.comentario.trim() && (
                   <p className="text-xs text-slate-600 mt-1 leading-relaxed whitespace-pre-wrap">
                     {r.comentario}
                   </p>
-                )}
-              </div>
-            )
-          })}
-        </div>
-        {avaliacoes.length > 12 && (
+                </div>
+              )
+            })}
+          </div>
+        )}
+        {comentarios.length > 12 && (
           <button
             type="button"
             onClick={() => setMostrarTodas((v) => !v)}
             className="text-[11px] font-semibold text-teal-700 hover:text-teal-800"
           >
-            {mostrarTodas ? 'Mostrar menos' : `Mostrar todas (${avaliacoes.length})`}
+            {mostrarTodas ? 'Mostrar menos' : `Mostrar todas (${comentarios.length})`}
           </button>
         )}
       </div>
+    </div>
+  )
+}
+
+/** Contador grande por nota: emoji + total de respostas daquela nota. */
+function ContadorNota({ nota, contagem }: { nota: number; contagem: number }) {
+  const negativo = nota <= 1
+  const positivo = nota >= 3
+  return (
+    <div
+      className={`rounded-lg border p-2 text-center ${
+        negativo && contagem > 0
+          ? 'border-red-200 bg-red-50'
+          : positivo
+            ? 'border-green-100 bg-green-50/60'
+            : 'border-amber-100 bg-amber-50/60'
+      }`}
+    >
+      <div className={`text-xl leading-none ${contagem === 0 ? 'opacity-40' : ''}`}>
+        {emojiNota(nota)}
+      </div>
+      <p
+        className={`text-base font-extrabold font-mono mt-1 leading-none ${
+          negativo && contagem > 0
+            ? 'text-red-700'
+            : contagem === 0
+              ? 'text-slate-400'
+              : 'text-slate-800'
+        }`}
+      >
+        {contagem}
+      </p>
+      <p
+        className={`text-[9px] font-semibold uppercase tracking-wide ${
+          contagem === 0 ? 'text-slate-400' : 'text-slate-500'
+        }`}
+      >
+        {rotuloNota(nota)}
+      </p>
     </div>
   )
 }

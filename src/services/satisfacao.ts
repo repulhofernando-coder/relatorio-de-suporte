@@ -212,20 +212,33 @@ export interface RankingSatisfacaoItem {
   media: number // 1–3
   insatisfeitos: number
   pctInsatisfeito: number
+  /** contagens por nota (índice 0 = nota 1): [insatisfeito, satisfeito, muito satisfeito] */
+  porNota: [number, number, number]
+}
+
+/** Distribuição compacta das notas: "46 😀 · 4 🙂 · 0 😠" (nota 3 → 1). */
+export function formatarDistribuicaoNotas(porNota: readonly [number, number, number]): string {
+  return `${porNota[2]} 😀 · ${porNota[1]} 🙂 · ${porNota[0]} 😠`
 }
 
 function agregarPor(
   respostas: SatisfactionRecord[],
   chaveDe: (r: SatisfactionRecord) => string | null | undefined,
 ): RankingSatisfacaoItem[] {
-  const mapa = new Map<string, { soma: number; n: number; ins: number }>()
+  const mapa = new Map<
+    string,
+    { soma: number; n: number; ins: number; n1: number; n2: number; n3: number }
+  >()
   for (const r of respostas) {
     const chave = chaveDe(r)?.trim()
     if (!chave) continue
-    const atual = mapa.get(chave) || { soma: 0, n: 0, ins: 0 }
+    const atual = mapa.get(chave) || { soma: 0, n: 0, ins: 0, n1: 0, n2: 0, n3: 0 }
     atual.soma += r.nota
     atual.n += 1
     if (r.nota <= 1) atual.ins += 1
+    if (r.nota >= 3) atual.n3 += 1
+    else if (r.nota === 2) atual.n2 += 1
+    else atual.n1 += 1
     mapa.set(chave, atual)
   }
   return Array.from(mapa.entries())
@@ -235,6 +248,7 @@ function agregarPor(
       media: v.soma / v.n,
       insatisfeitos: v.ins,
       pctInsatisfeito: v.n > 0 ? (v.ins / v.n) * 100 : 0,
+      porNota: [v.n1, v.n2, v.n3] as [number, number, number],
     }))
     .sort((a, b) => b.media - a.media || b.total - a.total)
 }

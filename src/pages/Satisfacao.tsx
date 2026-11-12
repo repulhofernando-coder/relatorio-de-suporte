@@ -12,6 +12,7 @@ import {
   fetchSatisfactionResponses,
   fetchChamadoInfoPorNumero,
   carregarDashboardSatisfacao,
+  formatarDistribuicaoNotas,
   type ChamadoInfo,
   type DashboardSatisfacao,
   type RankingSatisfacaoItem,
@@ -492,7 +493,7 @@ function RankingCard({
             {itens.map((item) => (
               <div
                 key={item.nome}
-                className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 px-3 py-2"
+                className="flex items-center justify-between gap-x-3 gap-y-1 flex-wrap rounded-xl border border-slate-100 px-3 py-2"
               >
                 <span className="text-sm font-semibold text-slate-800 truncate">{item.nome}</span>
                 <div className="flex items-center gap-3 shrink-0">
@@ -504,6 +505,9 @@ function RankingCard({
                     className={`text-xs font-medium ${item.pctInsatisfeito > 0 ? 'text-red-500' : 'text-slate-300'}`}
                   >
                     {formatarPercentual(item.pctInsatisfeito)}% insat.
+                  </span>
+                  <span className="text-xs text-slate-500 tabular-nums whitespace-nowrap">
+                    {formatarDistribuicaoNotas(item.porNota)}
                   </span>
                 </div>
               </div>
