@@ -28,6 +28,7 @@ import { Badge } from '@/components/ui/badge'
 import { CountUp } from '@/components/dashboard/CountUp'
 import { TecnicosPanel, resumoPorTecnico } from '@/components/chamados/TecnicosPanel'
 import { TecnicoAberturaPie } from '@/components/chamados/TecnicoAberturaPie'
+import { ResumoHorasCliente } from '@/components/chamados/ResumoHorasCliente'
 import { classificarTempoTrabalhado, formatarHorasDecimaisLegivel } from '@/lib/duracao'
 import { criarMatcherDepartamento } from '@/lib/departamentos'
 
@@ -119,8 +120,13 @@ export default function Chamados() {
   const [registrosFiltro, setRegistrosFiltro] = useState<SupportRecord[]>([])
   const [loadingRegistros, setLoadingRegistros] = useState(true)
   // Lançamentos de horas (time_logs) do período/departamento ativos — alimenta
-  // o quadro "Onde lança mais horas (Top 3)" do card do técnico.
+  // o quadro "Onde lança mais horas (Top 3)" do card do técnico e o resumo
+  // de horas do cliente pesquisado.
   const [timeLogs, setTimeLogs] = useState<TimeLogRecord[]>([])
+  // Mesmos lançamentos SEM o filtro de cliente (brutos por período/depto) —
+  // o resumo de horas do cliente pesquisado filtra localmente por nome.
+  const [timeLogsBrutos, setTimeLogsBrutos] = useState<TimeLogRecord[]>([])
+  const [timeLogsLoading, setTimeLogsLoading] = useState(true)
 
   const [departamentosEmUso, setDepartamentosEmUso] = useState<string[]>([])
 
@@ -198,6 +204,7 @@ export default function Chamados() {
   useEffect(() => {
     if (!inicializado) return
     let ativo = true
+    setTimeLogsLoading(true)
     fetchTimeLogs()
       .then((logs) => {
         if (!ativo) return
@@ -216,9 +223,15 @@ export default function Chamados() {
           if (casaDepto && !casaDepto(log.departamento)) return false
           return true
         })
+        // Brutos (só período/depto) alimentam o resumo de horas do cliente
+        // pesquisado — filtrados localmente por nome, sem nova query.
+        setTimeLogsBrutos(filtrados)
         setTimeLogs(filtrados)
       })
       .catch((err) => console.error('Erro ao carregar lançamentos de horas:', err))
+      .finally(() => {
+        if (ativo) setTimeLogsLoading(false)
+      })
     return () => {
       ativo = false
     }
@@ -537,6 +550,15 @@ export default function Chamados() {
         </div>
         <p className="text-xs text-slate-400">Período: {range.label}</p>
       </div>
+
+      {/* RESUMO DE HORAS DO CLIENTE PESQUISADO (planilha de horas, time_logs) */}
+      {buscaAplicada.trim() && (
+        <ResumoHorasCliente
+          termo={buscaAplicada}
+          logs={timeLogsBrutos}
+          loading={timeLogsLoading && timeLogsBrutos.length === 0}
+        />
+      )}
 
       {/* RESPONSÁVEIS PELO ATENDIMENTO (+ pizza quando há técnico selecionado) */}
       <div className={`grid grid-cols-1 gap-6 ${tecnicoFiltro ? 'lg:grid-cols-3' : ''}`}>
