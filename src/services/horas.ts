@@ -1,12 +1,32 @@
 import { supabase } from '@/lib/supabase/client'
-import type { TimeLogRecord } from '@/types/horas'
-import type { FetchSupportRecordsParams } from '@/services/support'
-import { fetchTimeLogs, fetchSupportRecords, fetchMinutosPorTicket } from '@/services/support'
+import type { TimeLogRecord, TimeLogInsert, ImportTipo } from '@/types/horas'
+import type { FetchSupportRecordsParams, MapeamentoInsert } from '@/services/support'
+import {
+  fetchTimeLogs,
+  fetchSupportRecords,
+  fetchMinutosPorTicket,
+  upsertMapeamento,
+} from '@/services/support'
 import { agregarHorasPorCliente, agregarHorasPorTecnico, TimeLogLike } from '@/lib/tempo-horas'
 
-export { fetchTimeLogs, fetchSupportRecords, fetchMinutosPorTicket }
+export { fetchTimeLogs, fetchSupportRecords, fetchMinutosPorTicket, upsertMapeamento }
 export { agregarHorasPorCliente, agregarHorasPorTecnico }
-export type { TimeLogRecord, TimeLogLike }
+export type { TimeLogRecord, TimeLogInsert, TimeLogLike, ImportTipo, MapeamentoInsert }
+
+/**
+ * Salva (upsert por nome único) um mapeamento de colunas da planilha de horas.
+ * Gravado na mesma tabela `mapeamentos` do fluxo de chamados — o wizard de
+ * horas prefixa os nomes com "[Horas]" para não conflitar.
+ */
+export async function upsertMapeamentoHoras(record: {
+  nome: string
+  mapeamento: Record<string, string>
+}): Promise<void> {
+  await upsertMapeamento({
+    nome: record.nome,
+    mapeamento: record.mapeamento,
+  } as MapeamentoInsert)
+}
 
 export interface HorasFiltros {
   startDate?: string
