@@ -17,6 +17,7 @@ import Satisfacao from './pages/Satisfacao'
 import Equipes from './pages/Equipes'
 import Usuarios from './pages/Usuarios'
 import Relatorios from './pages/Relatorios'
+import Manual from './pages/Manual'
 import NotFound from './pages/NotFound'
 
 function AdminRoute({ children }: { children: ReactNode }) {
@@ -65,6 +66,7 @@ const App = () => (
               }
             />
             <Route path="/relatorios" element={<Relatorios />} />
+            <Route path="/manual" element={<Manual />} />
           </Route>
 
           {/* Fallback */}

@@ -322,4 +322,13 @@
     break-inside: avoid;
     page-break-inside: avoid;
   }
+  /* Manual: mantém o fundo branco no PDF (sem o cinza do layout) */
+  .min-h-screen.bg-\[\#F1F5F9\],
+  div.flex-1 {
+    background: white !important;
+  }
+  section[id] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
 }

@@ -21,6 +21,7 @@ import {
   Loader2,
   Shield,
   UserCheck,
+  BookOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -38,6 +39,7 @@ const ALL_NAV_ITEMS = [
   { label: 'Satisfação', path: '/satisfacao', icon: Smile, adminOnly: false },
   { label: 'Contratos', path: '/contratos', icon: FileClock, adminOnly: false },
   { label: 'Usuários', path: '/usuarios', icon: UserCog, adminOnly: true },
+  { label: 'Manual', path: '/manual', icon: BookOpen, adminOnly: false },
 ]
 
 export default function Layout() {
