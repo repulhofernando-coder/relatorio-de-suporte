@@ -20,6 +20,11 @@ import { formatarHorasDecimaisLegivel } from '@/lib/duracao'
 import { traduzirErro } from '@/lib/erros'
 import { agregarHorasPorDepartamentoCliente } from '@/lib/tempo-horas'
 import type { HorasPorDepartamento } from '@/lib/tempo-horas'
+import {
+  normalizarDepartamentosEmLogs,
+  uniaoDepartamentosHoras,
+} from '@/lib/departamentos'
+import { fetchDepartmentCapacity } from '@/services/support'
 
 type PeriodPreset =
   | 'este-mes'
@@ -84,18 +89,25 @@ export default function Horas() {
   const [departamentoFiltro, setDepartamentoFiltro] = useState('todos')
   const [departamentosEmUso, setDepartamentosEmUso] = useState<string[]>([])
 
-  // Lista de departamentos disponíveis (de todos os lançamentos, sem filtro)
+  // Lista de departamentos disponíveis: união dos rótulos de time_logs (já
+  // normalizados), das metas de Equipes e dos departamentos de chamados.
   useEffect(() => {
     fetchTimeLogs()
       .then((logs) => {
-        const set = new Set<string>()
-        for (const log of logs) {
-          const d = log.departamento?.trim()
-          if (d) set.add(d)
-        }
-        setDepartamentosEmUso(Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR')))
+        setDepartamentosEmUso(
+          uniaoDepartamentosHoras(
+            normalizarDepartamentosEmLogs(logs).map((l) => l.departamento),
+          ),
+        )
       })
       .catch((err) => console.error('Erro ao buscar departamentos:', err))
+    fetchDepartmentCapacity()
+      .then((caps) => {
+        setDepartamentosEmUso((prev) =>
+          uniaoDepartamentosHoras(prev, caps.map((c) => c.departamento)),
+        )
+      })
+      .catch((err) => console.error('Erro ao buscar metas de equipes:', err))
   }, [])
 
   const carregar = useCallback(

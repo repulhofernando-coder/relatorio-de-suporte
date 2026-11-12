@@ -232,7 +232,7 @@ export function agregarHorasPorDepartamentoCliente(
   const departamentos = new Map<string, Entrada>()
 
   for (const log of logs) {
-    const depto = log.departamento?.trim() || 'Sem departamento'
+    const depto = normalizarDepartamentoHoras(log.departamento) || 'Sem departamento'
     const cliente = log.cliente?.trim() || 'Sem cliente'
     const entrada = departamentos.get(depto) || {
       minutos: 0,

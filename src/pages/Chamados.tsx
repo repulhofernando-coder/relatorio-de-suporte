@@ -29,6 +29,10 @@ import { CountUp } from '@/components/dashboard/CountUp'
 import { TecnicosPanel, resumoPorTecnico } from '@/components/chamados/TecnicosPanel'
 import { TecnicoAberturaPie } from '@/components/chamados/TecnicoAberturaPie'
 import { classificarTempoTrabalhado, formatarHorasDecimaisLegivel } from '@/lib/duracao'
+import {
+  normalizarDepartamentoHoras,
+  variacoesEquivalentesDepto,
+} from '@/lib/departamentos'
 
 type PeriodPreset =
   | 'este-mes'
@@ -200,13 +204,20 @@ export default function Chamados() {
     fetchTimeLogs()
       .then((logs) => {
         if (!ativo) return
+        // Departamento comparado por equivalência de nome — "Linux N1/N2" casa
+        // com o filtro "Linux"; "Windows - N2" com "Windows N2" (time_logs usa
+        // rótulos próprios do Movidesk). Período segue comparação de data.
+        const variacoes =
+          departamentoFiltro !== 'todos'
+            ? variacoesEquivalentesDepto(departamentoFiltro)
+            : null
         const filtrados = logs.filter((log) => {
           if (range.startDate || range.endDate) {
             const data = log.data_lancamento || ''
             if (range.startDate && (!data || data < range.startDate)) return false
             if (range.endDate && (!data || data > range.endDate)) return false
           }
-          if (departamentoFiltro !== 'todos' && (log.departamento || '') !== departamentoFiltro) {
+          if (variacoes && !variacoes.has(normalizarDepartamentoHoras(log.departamento))) {
             return false
           }
           return true

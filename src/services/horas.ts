@@ -15,6 +15,11 @@ import {
   TimeLogLike,
 } from '@/lib/tempo-horas'
 import type { MapeamentoInsert } from '@/types/support'
+import {
+  logPertenceAoDepartamento,
+  normalizarDepartamentosEmLogs,
+  variacoesEquivalentesDepto,
+} from '@/lib/departamentos'
 
 export {
   fetchTimeLogs,
@@ -45,17 +50,22 @@ export async function carregarRankingHorasClientes(
   filtros: HorasFiltros,
   logsFiltrados?: TimeLogRecord[],
 ): Promise<RankingHorasCliente[]> {
-  const logs =
-    logsFiltrados ??
-    (await fetchTimeLogs()).filter((log) => {
-      if (filtros.startDate || filtros.endDate) {
-        const data = log.data_lancamento || ''
-        if (filtros.startDate && (!data || data < filtros.startDate)) return false
-        if (filtros.endDate && (!data || data > filtros.endDate)) return false
-      }
-      if (filtros.departamento && (log.departamento || '') !== filtros.departamento) return false
-      return true
-    })
+  const brutos = logsFiltrados ?? normalizarDepartamentosEmLogs(await fetchTimeLogs())
+  const logs = brutos.filter((log) => {
+    if (filtros.startDate || filtros.endDate) {
+      const data = log.data_lancamento || ''
+      if (filtros.startDate && (!data || data < filtros.startDate)) return false
+      if (filtros.endDate && (!data || data > filtros.endDate)) return false
+    }
+    // Departamento comparado por equivalência de nome ("Linux N1/N2" casa "Linux")
+    if (
+      filtros.departamento &&
+      !logPertenceAoDepartamento(log.departamento, filtros.departamento)
+    ) {
+      return false
+    }
+    return true
+  })
 
   const mapa = new Map<string, { minutos: number; tickets: Set<string> }>()
   for (const log of logs) {
@@ -119,10 +129,17 @@ export interface HorasDashboardData {
 /**
  * Carrega lançamentos de horas com os filtros informados e agrega tudo
  * (ranking de clientes, horas por técnico, resumo e cruzamento com chamados).
+ * Os rótulos de departamento dos logs são normalizados no resultado — os cards
+ * e a seção departamento × cliente passam a exibir o nome natural do setor.
  */
 export async function carregarHorasDashboard(filtros: HorasFiltros): Promise<HorasDashboardData> {
+  // Departamentos equivalentes ao selecionado (ex.: "Linux" ← "Linux N1/N2")
+  const filtroDepto = filtros.departamento
+  const filtroVariacoes =
+    filtroDepto === undefined ? undefined : variacoesEquivalentesDepto(filtroDepto)
+
   const params: FetchSupportRecordsParams = {}
-  if (filtros.departamento) params.departamento = filtros.departamento
+  if (filtroDepto) params.departamento = filtroDepto
 
   // time_logs e support_records são filtrados client-side por data/departamento
   // para permitir cruzamento consistente pelo número do ticket.
@@ -132,13 +149,13 @@ export async function carregarHorasDashboard(filtros: HorasFiltros): Promise<Hor
     fetchMinutosPorTicket(),
   ])
 
-  const logsFiltrados = logs.filter((log) => {
+  const logsFiltrados = normalizarDepartamentosEmLogs(logs).filter((log) => {
     if (filtros.startDate || filtros.endDate) {
       const data = log.data_lancamento || ''
       if (filtros.startDate && (!data || data < filtros.startDate)) return false
       if (filtros.endDate && (!data || data > filtros.endDate)) return false
     }
-    if (filtros.departamento && (log.departamento || '') !== filtros.departamento) {
+    if (filtroVariacoes && !filtroVariacoes.has(log.departamento || '')) {
       return false
     }
     return true

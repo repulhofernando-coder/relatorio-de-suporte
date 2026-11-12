@@ -46,6 +46,11 @@ import {
   Hourglass,
 } from 'lucide-react'
 import { carregarRankingHorasClientes } from '@/services/horas'
+import {
+  normalizarDepartamentoHoras,
+  normalizarDepartamentosEmLogs,
+  uniaoDepartamentosHoras,
+} from '@/lib/departamentos'
 import type { RankingHorasCliente } from '@/services/horas'
 import { fetchTimeLogs } from '@/services/support'
 import type { TimeLogRecord } from '@/types/horas'
@@ -274,11 +279,16 @@ export default function Index() {
   const [timeLogs, setTimeLogs] = useState<TimeLogRecord[]>([])
   const timeLogsFiltrados = useMemo(() => {
     if (!timeLogs.length) return []
+    // Rótulos já normalizados em departamentos.ts ("Linux N1/N2" → "Linux",
+    // "Windows - N2" → "Windows N2", "Datacenter: X" → "Datacenter").
     return timeLogs.filter((log) => {
       const data = log.data_lancamento || ''
       if (activeDateRange.startDate && (!data || data < activeDateRange.startDate)) return false
       if (activeDateRange.endDate && (!data || data > activeDateRange.endDate)) return false
-      if (departamentoFiltro !== 'todos' && (log.departamento || '') !== departamentoFiltro) {
+      if (
+        departamentoFiltro !== 'todos' &&
+        (log.departamento || '') !== normalizarDepartamentoHoras(departamentoFiltro)
+      ) {
         return false
       }
       return true
@@ -449,7 +459,8 @@ export default function Index() {
     let ativo = true
     fetchTimeLogs()
       .then((logs) => {
-        if (ativo) setTimeLogs(logs)
+        // Normaliza os rótulos ("Linux N1/N2" → "Linux" etc.) para casar com o filtro
+        if (ativo) setTimeLogs(normalizarDepartamentosEmLogs(logs))
       })
       .catch((err) => {
         console.error('Erro ao carregar lançamentos de horas:', err)
@@ -469,6 +480,21 @@ export default function Index() {
       .then(setCapacities)
       .catch((err) => console.error('Erro ao buscar capacidade:', err))
   }, [])
+
+  // Filtro de departamento da Visão Geral: união dos setores dos chamados
+  // (support_records), dos lançamentos de horas (time_logs, rótulos
+  // normalizados) e das metas de Equipes — sem duplicar nomes. Assim os
+  // setores que só existem nas horas (Comercial, Datacenter, Laboratório…)
+  // também aparecem e filtram o card "Clientes que mais consumiram horas".
+  const departamentosDisponiveis = useMemo(
+    () =>
+      uniaoDepartamentosHoras(
+        departamentosEmUso,
+        timeLogs.map((l) => l.departamento),
+        capacities.map((c) => c.departamento),
+      ),
+    [departamentosEmUso, timeLogs, capacities],
+  )
 
   // Aplica filtro predefinido (mantém o departamento selecionado — os filtros são independentes)
   const handleSelectPreset = (newPreset: PeriodPreset) => {
@@ -811,9 +837,6 @@ export default function Index() {
       }))
       .sort((a, b) => b.count - a.count)
   }, [records])
-
-  // Departamentos disponíveis no filtro: SOMENTE os que existem nos registros importados
-  const departamentosDisponiveis = departamentosEmUso
 
   // Últimos 10 registros
   const ultimosRegistros = useMemo(() => {
