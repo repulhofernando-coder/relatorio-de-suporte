@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase/client'
 import { traduzirErro } from '@/lib/erros'
+import { normalizarBuscaNome } from '@/lib/busca-horas'
 
 /**
  * Contratos de horas por cliente (tabela client_contracts).
@@ -34,18 +35,44 @@ export async function fetchClientContracts(): Promise<ClientContract[]> {
   return (data ?? []) as ClientContract[]
 }
 
-/** Cadastra ou atualiza o contrato de um cliente (um contrato por cliente). */
+/**
+ * Cadastra ou atualiza o contrato de um cliente (um contrato por cliente).
+ * A unicidade no banco é um índice único sobre a expressão
+ * `lower(trim(cliente))` — o PostgREST não aceita esse alvo no `onConflict`
+ * (erro "no unique or exclusion constraint matching the ON CONFLICT
+ * specification"), então buscamos o contrato existente antes: se houver,
+ * atualiza; se não, insere. O casamento ignora maiúsculas/minúsculas, acentos
+ * e espaços (mesma régua de normalizarBuscaNome), pois o nome é digitado
+ * livremente no formulário.
+ */
 export async function upsertClientContract(record: ClientContractInsert): Promise<void> {
-  const { error } = await supabase.from('client_contracts').upsert(
-    {
-      cliente: record.cliente.trim(),
-      horas_contratadas: record.horas_contratadas,
-      cumulativo: record.cumulativo,
-      periodo_meses: record.cumulativo ? record.periodo_meses : null,
-    },
-    { onConflict: 'cliente' },
-  )
-  if (error) throw traduzirErro(error)
+  const cliente = record.cliente.trim()
+  const chave = normalizarBuscaNome(cliente)
+
+  // A tabela tem poucos contratos: busca todos e casa o nome normalizado.
+  const { data: contratos, error: erroBusca } = await supabase
+    .from('client_contracts')
+    .select('id, cliente')
+  if (erroBusca) throw traduzirErro(erroBusca)
+
+  const existente = (contratos ?? []).find((c) => normalizarBuscaNome(c.cliente) === chave)
+
+  const payload = {
+    cliente,
+    horas_contratadas: record.horas_contratadas,
+    cumulativo: record.cumulativo,
+    periodo_meses: record.cumulativo ? record.periodo_meses : null,
+    updated_at: new Date().toISOString(),
+  }
+
+  if (existente) {
+    const { error } = await supabase.from('client_contracts').update(payload).eq('id', existente.id)
+    if (error) throw traduzirErro(error)
+    return
+  }
+
+  const { error: erroInsert } = await supabase.from('client_contracts').insert(payload)
+  if (erroInsert) throw traduzirErro(erroInsert)
 }
 
 export async function deleteClientContract(id: string): Promise<void> {
