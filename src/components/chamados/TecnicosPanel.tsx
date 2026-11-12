@@ -6,6 +6,8 @@ import { TecnicoClientesTable } from '@/components/dashboard/TecnicoClientesTabl
 import { TecnicoDistribuicaoTable } from '@/components/chamados/TecnicoDistribuicaoTable'
 import { TecnicoSlaCard } from '@/components/chamados/TecnicoSlaCard'
 import { RitmoAtendimentoCard } from '@/components/chamados/RitmoAtendimentoCard'
+import { TecnicoTopClientesHoras } from '@/components/chamados/TecnicoTopClientesHoras'
+import type { TimeLogRecord } from '@/types/horas'
 
 export interface TecnicoResumo {
   nome: string
@@ -45,6 +47,8 @@ interface TecnicosPanelProps {
   departamentoAtivo?: string | null
   startDate?: string // período ativo (para o ritmo de atendimento)
   endDate?: string
+  /** Lançamentos de horas (time_logs) já filtrados pelo período/departamento ativos */
+  timeLogs?: TimeLogRecord[]
 }
 
 export function TecnicosPanel({
@@ -58,6 +62,7 @@ export function TecnicosPanel({
   departamentoAtivo,
   startDate,
   endDate,
+  timeLogs,
 }: TecnicosPanelProps) {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden h-full">
@@ -215,6 +220,9 @@ export function TecnicosPanel({
                         rotuloVazio="Não informado"
                       />
                     </div>
+
+                    {/* Onde lança mais horas (Top 3 clientes por time_logs) */}
+                    <TecnicoTopClientesHoras tecnico={selecionado} timeLogs={timeLogs ?? []} />
 
                     {/* Clientes mais atendidos */}
                     <TecnicoClientesTable

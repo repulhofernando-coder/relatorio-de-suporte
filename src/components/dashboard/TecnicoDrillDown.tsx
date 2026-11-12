@@ -18,7 +18,9 @@ import { Button } from '@/components/ui/button'
 import { TecnicoClientesTable } from '@/components/dashboard/TecnicoClientesTable'
 import { TecnicoDistribuicaoTable } from '@/components/chamados/TecnicoDistribuicaoTable'
 import { RitmoAtendimentoCard } from '@/components/chamados/RitmoAtendimentoCard'
+import { TecnicoTopClientesHoras } from '@/components/chamados/TecnicoTopClientesHoras'
 import { Tag } from 'lucide-react'
+import type { TimeLogRecord } from '@/types/horas'
 
 interface TecnicoDrillDownProps {
   tecnico: string
@@ -27,6 +29,8 @@ interface TecnicoDrillDownProps {
   periodoFiltro?: string // para repassar aos links de /chamados
   startDate?: string // período ativo (para o ritmo de atendimento)
   endDate?: string
+  /** Lançamentos de horas (time_logs) já filtrados pelo período/departamento ativos */
+  timeLogs?: TimeLogRecord[]
 }
 
 function formatShortDate(dateStr: string): string {
@@ -49,6 +53,7 @@ export function TecnicoDrillDown({
   periodoFiltro,
   startDate,
   endDate,
+  timeLogs,
 }: TecnicoDrillDownProps) {
   const stats = useMemo(() => {
     const doTecnico = records.filter((r) => r.tecnico?.trim() === tecnico)
@@ -409,6 +414,9 @@ export function TecnicoDrillDown({
             corGradiente="sky"
             rotuloVazio="Não informado"
           />
+
+          {/* Onde lança mais horas (Top 3 clientes por time_logs) */}
+          <TecnicoTopClientesHoras tecnico={tecnico} timeLogs={timeLogs ?? []} />
 
           {/* Atendimentos por cliente — estilo Tabela Dinâmica do Excel */}
           <TecnicoClientesTable tecnico={tecnico} records={records} periodoFiltro={periodoFiltro} />

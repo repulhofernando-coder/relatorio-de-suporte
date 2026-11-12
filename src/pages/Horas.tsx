@@ -345,6 +345,103 @@ export default function Horas() {
         </div>
       )}
 
+      {/* HORAS POR DEPARTAMENTO × CLIENTE — antes do ranking longo de clientes,
+          para não ficar escondido após centenas de linhas */}
+      {data && porDepto.length > 0 && (
+        <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+              <Layers className="w-4 h-4 text-teal-600" />
+              Horas por departamento × cliente
+            </h2>
+            <Badge className="bg-teal-50 text-teal-700 border border-teal-200 text-[11px]">
+              {porDepto.length} departamento(s)
+            </Badge>
+          </div>
+          <p className="text-xs text-slate-500 -mt-2 mb-4">
+            Total de horas de cada setor no período e os clientes que mais o consumiram (top 5 +
+            Outros) — para validar contratos por departamento.
+          </p>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {porDepto.map((d) => {
+              const maiorClienteHoras = d.clientes.reduce(
+                (acc, c) => Math.max(acc, c.totalHoras),
+                0,
+              )
+              return (
+                <div
+                  key={d.departamento}
+                  className="rounded-xl border border-slate-200/80 p-4 space-y-3 bg-slate-50/40"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-2.5 h-2.5 rounded-full bg-teal-500 shrink-0" />
+                      <span
+                        className="font-bold text-sm text-slate-900 truncate"
+                        title={d.departamento}
+                      >
+                        {d.departamento}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 font-mono text-[11px]">
+                      <span className="text-slate-500">{d.tickets} chamado(s)</span>
+                      <span className="text-slate-400">{d.percent}% do total</span>
+                      <span className="font-bold text-teal-700">
+                        {formatarHorasDecimaisLegivel(d.totalHoras)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {d.clientes.map((c) => (
+                      <div key={`${d.departamento}-${c.cliente}`} className="space-y-1">
+                        <div className="flex items-center justify-between gap-3 text-[11px]">
+                          <span
+                            className={`truncate ${
+                              c.isOutros
+                                ? 'italic text-slate-500 font-medium'
+                                : 'font-semibold text-slate-700'
+                            }`}
+                            title={c.cliente}
+                          >
+                            {c.cliente}
+                          </span>
+                          <span className="shrink-0 font-mono">
+                            <span className="text-slate-400 mr-2">{c.percent}%</span>
+                            <span className="font-bold text-slate-700">
+                              {formatarHorasDecimaisLegivel(c.totalHoras)}
+                            </span>
+                          </span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-slate-200/70 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              c.isOutros ? 'bg-slate-400' : 'bg-teal-500'
+                            }`}
+                            style={{
+                              width:
+                                maiorClienteHoras > 0
+                                  ? `${Math.max(2, (c.totalHoras / maiorClienteHoras) * 100)}%`
+                                  : '0%',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    {d.outrosClientes > 0 && (
+                      <p className="text-[10px] text-slate-400 pt-0.5">
+                        Linha "Outros" agrega {d.outrosClientes} cliente(s) fora do top 5.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {data && data.porCliente.length > 0 && (
         <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
           <div className="flex items-center justify-between mb-4">
@@ -492,96 +589,6 @@ export default function Horas() {
                 </tbody>
               </table>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* HORAS POR DEPARTAMENTO × CLIENTE */}
-      {data && porDepto.length > 0 && (
-        <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-              <Layers className="w-4 h-4 text-teal-600" />
-              Horas por departamento × cliente
-            </h2>
-            <Badge className="bg-teal-50 text-teal-700 border border-teal-200 text-[11px]">
-              {porDepto.length} departamento(s)
-            </Badge>
-          </div>
-          <p className="text-xs text-slate-500 -mt-2 mb-4">
-            Total de horas de cada setor no período e os clientes que mais o consumiram (top 5 +
-            Outros) — para validar contratos por departamento.
-          </p>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {porDepto.map((d) => (
-              <div
-                key={d.departamento}
-                className="rounded-xl border border-slate-200/80 p-4 space-y-3 bg-slate-50/40"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="w-2.5 h-2.5 rounded-full bg-teal-500 shrink-0" />
-                    <span
-                      className="font-bold text-sm text-slate-900 truncate"
-                      title={d.departamento}
-                    >
-                      {d.departamento}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0 font-mono text-[11px]">
-                    <span className="text-slate-500">{d.tickets} chamado(s)</span>
-                    <span className="text-slate-400">{d.percent}% do total</span>
-                    <span className="font-bold text-teal-700">
-                      {formatarHorasDecimaisLegivel(d.totalHoras)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  {d.clientes.map((c) => (
-                    <div key={`${d.departamento}-${c.cliente}`} className="space-y-1">
-                      <div className="flex items-center justify-between gap-3 text-[11px]">
-                        <span
-                          className={`truncate ${
-                            c.isOutros
-                              ? 'italic text-slate-500 font-medium'
-                              : 'font-semibold text-slate-700'
-                          }`}
-                          title={c.cliente}
-                        >
-                          {c.cliente}
-                        </span>
-                        <span className="shrink-0 font-mono">
-                          <span className="text-slate-400 mr-2">{c.percent}%</span>
-                          <span className="font-bold text-slate-700">
-                            {formatarHorasDecimaisLegivel(c.totalHoras)}
-                          </span>
-                        </span>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-slate-200/70 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all duration-500 ${
-                            c.isOutros ? 'bg-slate-400' : 'bg-teal-500'
-                          }`}
-                          style={{
-                            width:
-                              maxHorasDepto > 0
-                                ? `${Math.max(2, (d.totalHoras / maxHorasDepto) * 100)}%`
-                                : '0%',
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                  {d.outrosClientes > 0 && (
-                    <p className="text-[10px] text-slate-400 pt-0.5">
-                      Linha "Outros" agrega {d.outrosClientes} cliente(s) fora do top 5.
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       )}

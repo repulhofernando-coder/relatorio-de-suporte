@@ -47,6 +47,8 @@ import {
 } from 'lucide-react'
 import { carregarRankingHorasClientes } from '@/services/horas'
 import type { RankingHorasCliente } from '@/services/horas'
+import { fetchTimeLogs } from '@/services/support'
+import type { TimeLogRecord } from '@/types/horas'
 import { useToast } from '@/hooks/use-toast'
 import {
   Dialog,
@@ -268,6 +270,21 @@ export default function Index() {
   const [rankingHoras, setRankingHoras] = useState<RankingHorasCliente[]>([])
   const [loadingRankingHoras, setLoadingRankingHoras] = useState(true)
 
+  // Lançamentos de horas (time_logs) — alimentam o Top 3 do card do técnico
+  const [timeLogs, setTimeLogs] = useState<TimeLogRecord[]>([])
+  const timeLogsFiltrados = useMemo(() => {
+    if (!timeLogs.length) return []
+    return timeLogs.filter((log) => {
+      const data = log.data_lancamento || ''
+      if (activeDateRange.startDate && (!data || data < activeDateRange.startDate)) return false
+      if (activeDateRange.endDate && (!data || data > activeDateRange.endDate)) return false
+      if (departamentoFiltro !== 'todos' && (log.departamento || '') !== departamentoFiltro) {
+        return false
+      }
+      return true
+    })
+  }, [timeLogs, activeDateRange.startDate, activeDateRange.endDate, departamentoFiltro])
+
   const loadData = useCallback(
     async (depto: string = departamentoFiltro) => {
       try {
@@ -396,11 +413,14 @@ export default function Index() {
     if (!inicializado) return
     let ativo = true
     setLoadingRankingHoras(true)
-    carregarRankingHorasClientes({
-      startDate: activeDateRange.startDate,
-      endDate: activeDateRange.endDate,
-      departamento: departamentoFiltro !== 'todos' ? departamentoFiltro : undefined,
-    })
+    carregarRankingHorasClientes(
+      {
+        startDate: activeDateRange.startDate,
+        endDate: activeDateRange.endDate,
+        departamento: departamentoFiltro !== 'todos' ? departamentoFiltro : undefined,
+      },
+      timeLogsFiltrados,
+    )
       .then((ranking) => {
         if (ativo) setRankingHoras(ranking)
       })
@@ -414,7 +434,31 @@ export default function Index() {
     return () => {
       ativo = false
     }
-  }, [inicializado, activeDateRange.startDate, activeDateRange.endDate, departamentoFiltro])
+    // Recalcula também quando timeLogsFiltrados muda (chegada dos dados de time_logs)
+  }, [
+    inicializado,
+    timeLogsFiltrados,
+    activeDateRange.startDate,
+    activeDateRange.endDate,
+    departamentoFiltro,
+  ])
+
+  // Lançamentos de horas (time_logs) — para o Top 3 de clientes do card do técnico
+  useEffect(() => {
+    if (!inicializado) return
+    let ativo = true
+    fetchTimeLogs()
+      .then((logs) => {
+        if (ativo) setTimeLogs(logs)
+      })
+      .catch((err) => {
+        console.error('Erro ao carregar lançamentos de horas:', err)
+        if (ativo) setTimeLogs([])
+      })
+    return () => {
+      ativo = false
+    }
+  }, [inicializado])
 
   // Departamentos que realmente existem nos registros (filtro e gráfico dinâmicos)
   useEffect(() => {
@@ -1959,6 +2003,7 @@ export default function Index() {
           periodoFiltro={preset || undefined}
           startDate={activeDateRange.startDate}
           endDate={activeDateRange.endDate}
+          timeLogs={timeLogsFiltrados}
         />
       )}
 

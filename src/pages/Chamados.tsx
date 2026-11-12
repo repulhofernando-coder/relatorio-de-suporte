@@ -16,9 +16,11 @@ import {
   fetchChamados,
   fetchDepartamentosEmUso,
   fetchSupportRecords,
+  fetchTimeLogs,
   FetchChamadosParams,
   FetchSupportRecordsParams,
 } from '@/services/support'
+import type { TimeLogRecord } from '@/types/horas'
 import { SupportRecord } from '@/types/support'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -115,6 +117,9 @@ export default function Chamados() {
   // Todos os registros do filtro atual (sem o filtro de técnico), paginados por fetchSupportRecords
   const [registrosFiltro, setRegistrosFiltro] = useState<SupportRecord[]>([])
   const [loadingRegistros, setLoadingRegistros] = useState(true)
+  // Lançamentos de horas (time_logs) do período/departamento ativos — alimenta
+  // o quadro "Onde lança mais horas (Top 3)" do card do técnico.
+  const [timeLogs, setTimeLogs] = useState<TimeLogRecord[]>([])
 
   const [departamentosEmUso, setDepartamentosEmUso] = useState<string[]>([])
 
@@ -186,6 +191,33 @@ export default function Chamados() {
       setLoadingRegistros(false)
     }
   }, [range, departamentoFiltro, clienteFiltro, buscaAplicada])
+
+  // Lançamentos de horas com os filtros de período e departamento da tela
+  // (sem cliente/busca — o quadro Top 3 acompanha a mesma régua período+depto)
+  useEffect(() => {
+    if (!inicializado) return
+    let ativo = true
+    fetchTimeLogs()
+      .then((logs) => {
+        if (!ativo) return
+        const filtrados = logs.filter((log) => {
+          if (range.startDate || range.endDate) {
+            const data = log.data_lancamento || ''
+            if (range.startDate && (!data || data < range.startDate)) return false
+            if (range.endDate && (!data || data > range.endDate)) return false
+          }
+          if (departamentoFiltro !== 'todos' && (log.departamento || '') !== departamentoFiltro) {
+            return false
+          }
+          return true
+        })
+        setTimeLogs(filtrados)
+      })
+      .catch((err) => console.error('Erro ao carregar lançamentos de horas:', err))
+    return () => {
+      ativo = false
+    }
+  }, [inicializado, range, departamentoFiltro])
 
   // Primeiro load: se vier com searchParams na URL, priorizar os filtros da URL
   useEffect(() => {
@@ -512,6 +544,7 @@ export default function Chamados() {
             records={registrosFiltro}
             startDate={range.startDate}
             endDate={range.endDate}
+            timeLogs={timeLogs}
             onSelectCliente={(cliente) => {
               setClienteFiltro(cliente)
               setPage(1)
