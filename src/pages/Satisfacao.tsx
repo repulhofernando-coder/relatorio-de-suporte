@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { CountUp } from '@/components/dashboard/CountUp'
 import { traduzirErro } from '@/lib/erros'
+import { formatarIndiceMedio, formatarPercentual } from '@/lib/formatar'
 import {
   fetchSatisfactionResponses,
   fetchChamadoInfoPorNumero,
@@ -272,7 +273,10 @@ export default function Satisfacao() {
                 % Muito satisfeito
               </div>
               <p className="text-2xl font-bold text-green-600">
-                <CountUp value={dashboard.resumo.pctMuitoSatisfeito} formatter={(v) => `${v}%`} />
+                <CountUp
+                  value={dashboard.resumo.pctMuitoSatisfeito}
+                  formatter={(v) => formatarPercentual(v) + '%'}
+                />
               </p>
             </div>
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80">
@@ -280,7 +284,10 @@ export default function Satisfacao() {
                 % Insatisfeito
               </div>
               <p className="text-2xl font-bold text-red-600">
-                <CountUp value={dashboard.resumo.pctInsatisfeito} formatter={(v) => `${v}%`} />
+                <CountUp
+                  value={dashboard.resumo.pctInsatisfeito}
+                  formatter={(v) => formatarPercentual(v) + '%'}
+                />
               </p>
             </div>
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80">
@@ -288,15 +295,7 @@ export default function Satisfacao() {
                 Índice médio (1–3)
               </div>
               <p className="text-2xl font-bold text-slate-900">
-                <CountUp
-                  value={dashboard.resumo.mediaGeral ?? 0}
-                  formatter={(v) =>
-                    v.toLocaleString('pt-BR', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })
-                  }
-                />
+                <CountUp value={dashboard.resumo.mediaGeral ?? 0} formatter={formatarIndiceMedio} />
               </p>
             </div>
           </div>
@@ -318,7 +317,7 @@ export default function Satisfacao() {
                     return (
                       <div key={m.mes} className="flex flex-col items-center gap-1 min-w-[64px]">
                         <span className="text-xs font-bold text-slate-700">
-                          {m.media != null ? m.media.toFixed(2) : '—'}
+                          {formatarIndiceMedio(m.media)}
                         </span>
                         <div
                           className="w-8 bg-slate-100 rounded-t-lg relative"
@@ -436,16 +435,13 @@ function RankingCard({
                 <span className="text-sm font-semibold text-slate-800 truncate">{item.nome}</span>
                 <div className="flex items-center gap-3 shrink-0">
                   <span className={`text-sm font-bold ${corNota(Math.round(item.media))}`}>
-                    {item.media.toLocaleString('pt-BR', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
+                    {formatarIndiceMedio(item.media)}
                   </span>
                   <span className="text-xs text-slate-400">{item.total} resp.</span>
                   <span
                     className={`text-xs font-medium ${item.pctInsatisfeito > 0 ? 'text-red-500' : 'text-slate-300'}`}
                   >
-                    {item.pctInsatisfeito}% insat.
+                    {formatarPercentual(item.pctInsatisfeito)}% insat.
                   </span>
                 </div>
               </div>

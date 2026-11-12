@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Smile } from 'lucide-react'
 import { fetchSatisfacaoResponses } from '@/services/satisfacao'
+import { formatarIndiceMedio, formatarPercentual } from '@/lib/formatar'
 
 /**
  * Seção compacta de SATISFAÇÃO dentro do card de detalhe do técnico
@@ -97,10 +98,7 @@ export function TecnicoSatisfacao({ tecnico }: Props) {
             Índice médio (1–3)
           </p>
           <p className="text-lg font-extrabold text-teal-900 font-mono mt-0.5">
-            {dados.media.toLocaleString('pt-BR', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
+            {formatarIndiceMedio(dados.media)}
           </p>
         </div>
         <div
@@ -122,7 +120,7 @@ export function TecnicoSatisfacao({ tecnico }: Props) {
               dados.insatisfeitos > 0 ? 'text-rose-900' : 'text-slate-700'
             }`}
           >
-            {dados.pctInsatisfeito}%
+            {formatarPercentual(dados.pctInsatisfeito)}%
           </p>
           <p className="text-[10px] text-slate-500">
             {dados.insatisfeitos} de {dados.respostas}
