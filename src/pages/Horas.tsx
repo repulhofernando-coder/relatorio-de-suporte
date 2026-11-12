@@ -9,13 +9,16 @@ import {
   Building2,
   Layers,
   ExternalLink,
+  Search,
+  SearchX,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { CountUp } from '@/components/dashboard/CountUp'
-import { carregarHorasDashboard, fetchTimeLogs } from '@/services/horas'
+import { carregarHorasDashboard, fetchTimeLogs, montarDashboardHoras } from '@/services/horas'
 import type { HorasDashboardData } from '@/services/horas'
+import { filtrarLogsPorBusca, normalizarBuscaNome } from '@/lib/busca-horas'
 import { formatarHorasDecimaisLegivel } from '@/lib/duracao'
 import { traduzirErro } from '@/lib/erros'
 import { agregarHorasPorDepartamentoCliente } from '@/lib/tempo-horas'
@@ -85,6 +88,9 @@ export default function Horas() {
   )
   const [departamentoFiltro, setDepartamentoFiltro] = useState('todos')
   const [departamentosEmUso, setDepartamentosEmUso] = useState<string[]>([])
+  // Busca local (sem nova query): filtra os lançamentos já carregados por período/departamento
+  const [buscaCliente, setBuscaCliente] = useState('')
+  const [buscaTecnico, setBuscaTecnico] = useState('')
 
   // Lista de departamentos disponíveis: união dos rótulos de time_logs
   // (normalizados para o nome natural do setor), das metas de Equipes e dos
@@ -149,21 +155,37 @@ export default function Horas() {
     setRange({ startDate: customStart, endDate: customEnd, label: `${customStart} → ${customEnd}` })
   }
 
+  const buscaAtiva = buscaCliente.trim() !== '' || buscaTecnico.trim() !== ''
+  const buscaTecnicoNorm = normalizarBuscaNome(buscaTecnico)
+  const destacaTecnico = (nome: string) =>
+    buscaTecnicoNorm !== '' && normalizarBuscaNome(nome).includes(buscaTecnicoNorm)
+
+  // Visão exibida: os dados carregados, reagregados pelos lançamentos que batem
+  // com a busca de cliente/técnico (período e departamento já vêm aplicados em data.logs)
+  const visao = useMemo<HorasDashboardData | null>(() => {
+    if (!data) return null
+    if (!buscaAtiva) return data
+    return montarDashboardHoras(
+      filtrarLogsPorBusca(data.logs, buscaCliente, buscaTecnico),
+      data.minutosPorTicket,
+    )
+  }, [data, buscaCliente, buscaTecnico, buscaAtiva])
+
   const maxHorasCliente = useMemo(
-    () => data?.porCliente.reduce((acc, c) => Math.max(acc, c.totalHoras), 0) ?? 0,
-    [data],
+    () => visao?.porCliente.reduce((acc, c) => Math.max(acc, c.totalHoras), 0) ?? 0,
+    [visao],
   )
 
   const porDepto = useMemo(
-    () => (data ? agregarHorasPorDepartamentoCliente(data.logs, 5) : []),
-    [data],
+    () => (visao ? agregarHorasPorDepartamentoCliente(visao.logs, 5) : []),
+    [visao],
   )
   const maxHorasDepto = useMemo(
     () => porDepto.reduce((acc, d) => Math.max(acc, d.totalHoras), 0),
     [porDepto],
   )
 
-  const resumo = data?.resumo
+  const resumo = visao?.resumo
 
   const navegarParaChamadosDoCliente = (cliente: string) => {
     const params = new URLSearchParams()
@@ -267,6 +289,27 @@ export default function Horas() {
             </select>
           </div>
         </div>
+        {/* BUSCA POR CLIENTE E TÉCNICO — mesmo padrão de /chamados (nome normalizado, substring) */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            <Input
+              value={buscaCliente}
+              onChange={(e) => setBuscaCliente(e.target.value)}
+              placeholder="Buscar por cliente"
+              className="h-9 pl-9 text-xs rounded-xl border-slate-200 focus:border-teal-500"
+            />
+          </div>
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            <Input
+              value={buscaTecnico}
+              onChange={(e) => setBuscaTecnico(e.target.value)}
+              placeholder="Buscar por técnico"
+              className="h-9 pl-9 text-xs rounded-xl border-slate-200 focus:border-teal-500"
+            />
+          </div>
+        </div>
         <p className="text-xs text-slate-400">Período: {range.label}</p>
       </div>
 
@@ -343,20 +386,48 @@ export default function Horas() {
       )}
 
       {/* RANKING DE CLIENTES + HORAS POR TÉCNICO */}
-      {data && data.porCliente.length === 0 && data.porTecnico.length === 0 && !loading && (
+      {visao && buscaAtiva && visao.logs.length === 0 && !loading && (
         <div className="bg-white rounded-2xl p-10 text-center border border-slate-200/80 shadow-sm">
-          <Clock className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-          <p className="text-sm font-semibold text-slate-700">Nenhum lançamento de horas</p>
+          <SearchX className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+          <p className="text-sm font-semibold text-slate-700">Nenhum lançamento encontrado</p>
           <p className="text-xs text-slate-400 mt-1">
-            Importe a planilha "Tempo trabalhado nos tickets" em Importar Planilha → Horas
-            trabalhadas.
+            Nenhum lançamento
+            {buscaCliente.trim() ? ` do cliente "${buscaCliente.trim()}"` : ''}
+            {buscaTecnico.trim() ? ` do técnico "${buscaTecnico.trim()}"` : ''} em {range.label}
+            {departamentoFiltro !== 'todos' ? ` · ${departamentoFiltro}` : ''}.
           </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setBuscaCliente('')
+              setBuscaTecnico('')
+            }}
+            className="mt-4 h-8 rounded-xl text-xs"
+          >
+            Limpar busca
+          </Button>
         </div>
       )}
 
+      {visao &&
+        !buscaAtiva &&
+        visao.porCliente.length === 0 &&
+        visao.porTecnico.length === 0 &&
+        !loading && (
+          <div className="bg-white rounded-2xl p-10 text-center border border-slate-200/80 shadow-sm">
+            <Clock className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+            <p className="text-sm font-semibold text-slate-700">Nenhum lançamento de horas</p>
+            <p className="text-xs text-slate-400 mt-1">
+              Importe a planilha "Tempo trabalhado nos tickets" em Importar Planilha → Horas
+              trabalhadas.
+            </p>
+          </div>
+        )}
+
       {/* HORAS POR DEPARTAMENTO × CLIENTE — antes do ranking longo de clientes,
           para não ficar escondido após centenas de linhas */}
-      {data && porDepto.length > 0 && (
+      {visao && porDepto.length > 0 && (
         <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
@@ -451,7 +522,7 @@ export default function Horas() {
         </div>
       )}
 
-      {data && data.porCliente.length > 0 && (
+      {visao && visao.porCliente.length > 0 && (
         <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
@@ -459,12 +530,12 @@ export default function Horas() {
               Ranking de clientes por horas
             </h2>
             <Badge className="bg-teal-50 text-teal-700 border border-teal-200 text-[11px]">
-              {data.porCliente.length} cliente(s)
+              {visao.porCliente.length} cliente(s)
             </Badge>
           </div>
 
           <div className="space-y-3">
-            {data.porCliente.map((c, idx) => (
+            {visao.porCliente.map((c, idx) => (
               <div
                 key={c.cliente}
                 className="space-y-1.5 cursor-pointer group rounded-lg -mx-2 px-2 py-1 transition-colors hover:bg-teal-50/60"
@@ -512,7 +583,7 @@ export default function Horas() {
         </div>
       )}
 
-      {data && data.porTecnico.length > 0 && (
+      {visao && visao.porTecnico.length > 0 && (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {/* HORAS POR TÉCNICO */}
           <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
@@ -532,10 +603,12 @@ export default function Horas() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.porTecnico.map((t) => (
+                  {visao.porTecnico.map((t) => (
                     <tr
                       key={t.tecnico}
-                      className="border-b border-slate-50 last:border-b-0 text-slate-700"
+                      className={`border-b border-slate-50 last:border-b-0 text-slate-700 ${
+                        destacaTecnico(t.tecnico) ? 'bg-teal-50/70' : ''
+                      }`}
                     >
                       <td className="py-2.5 font-semibold text-slate-800 max-w-[180px] truncate">
                         {t.tecnico}
@@ -576,7 +649,7 @@ export default function Horas() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.porCliente.map((c) => (
+                  {visao.porCliente.map((c) => (
                     <tr
                       key={c.cliente}
                       className="border-b border-slate-50 last:border-b-0 text-slate-700"

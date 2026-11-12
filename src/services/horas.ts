@@ -119,6 +119,8 @@ export interface ResumoHoras {
 
 export interface HorasDashboardData {
   logs: TimeLogRecord[]
+  /** Minutos por chamado importado (cruzamento) — reaproveitado pela busca em /horas. */
+  minutosPorTicket: Map<string, number>
   porCliente: ReturnType<typeof agregarHorasPorCliente>
   porTecnico: ReturnType<typeof agregarHorasPorTecnico>
   resumo: ResumoHoras
@@ -161,6 +163,18 @@ export async function carregarHorasDashboard(filtros: HorasFiltros): Promise<Hor
     }),
   )
 
+  return montarDashboardHoras(logsFiltrados, minutosPorTicket)
+}
+
+/**
+ * Agrega lançamentos já filtrados (ranking de clientes, horas por técnico,
+ * resumo e cruzamento com chamados). Usado por carregarHorasDashboard e pela
+ * busca de cliente/técnico em /horas, que filtra os logs localmente.
+ */
+export function montarDashboardHoras(
+  logsFiltrados: TimeLogRecord[],
+  minutosPorTicket: Map<string, number>,
+): HorasDashboardData {
   const porCliente = agregarHorasPorCliente(logsFiltrados, minutosPorTicket)
   const porTecnico = agregarHorasPorTecnico(logsFiltrados)
 
@@ -186,6 +200,7 @@ export async function carregarHorasDashboard(filtros: HorasFiltros): Promise<Hor
 
   return {
     logs: logsFiltrados,
+    minutosPorTicket,
     porCliente,
     porTecnico,
     resumo: {
