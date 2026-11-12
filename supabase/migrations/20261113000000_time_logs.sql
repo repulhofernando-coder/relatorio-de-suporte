@@ -29,8 +29,8 @@ create index if not exists time_logs_tecnico_idx on public.time_logs (tecnico);
 create index if not exists time_logs_data_lancamento_idx on public.time_logs (data_lancamento);
 create index if not exists time_logs_numero_ticket_idx on public.time_logs (numero_ticket);
 
--- 2. RLS: mesmos padrões das demais tabelas (dados compartilhados entre
---    usuários autenticados; escrita apenas admin via user_profiles)
+-- 2. RLS: dados compartilhados entre usuários autenticados (mesmo padrão
+--    de support_records); escrita apenas para admin via user_profiles.
 alter table public.time_logs enable row level security;
 
 drop policy if exists "time_logs_select_authenticated" on public.time_logs;
@@ -41,8 +41,7 @@ drop policy if exists "time_logs_insert_admin" on public.time_logs;
 create policy "time_logs_insert_admin" on public.time_logs
   for insert to authenticated
   with check (
-    user_id = auth.uid()
-    and exists (
+    exists (
       select 1 from public.user_profiles up
       where up.id = auth.uid() and up.role = 'admin'
     )
