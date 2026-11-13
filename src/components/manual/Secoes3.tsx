@@ -136,6 +136,12 @@ export function SecaoDepartamentos() {
           Setores que só existem nas horas lançadas (Comercial, Cabeamento, Laboratório, Datacenter
           Windows/Linux etc.) também aparecem nas opções dos filtros.
         </Item>
+        <Item>
+          Os novos setores <Destaque>"Projetos Internos"</Destaque> e{' '}
+          <Destaque>"Ativação"</Destaque> entram como filtros <Destaque>"Projetos"</Destaque> e{' '}
+          <Destaque>"Ativação"</Destaque> — o filtro "Projetos" traz apenas os lançamentos rotulados
+          "Projetos Internos", sem misturar com "Projetos Locais" nem com os demais setores.
+        </Item>
       </ul>
       <Bloco>
         Isso significa que um técnico do "Linux N1/N2" aparece quando você filtra por Linux, mas{' '}

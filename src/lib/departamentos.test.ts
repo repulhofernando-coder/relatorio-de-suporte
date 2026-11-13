@@ -33,6 +33,15 @@ describe('normalizarDepartamentoHoras — rótulos do Movidesk (time_logs)', () 
     expect(normalizarDepartamentoHoras(null)).toBe('')
     expect(normalizarDepartamentoHoras('  ')).toBe('')
   })
+
+  it('mapeia os novos setores "Projetos Internos" e "Ativação"', () => {
+    expect(normalizarDepartamentoHoras('Projetos Internos')).toBe('Projetos')
+    expect(normalizarDepartamentoHoras('projetos internos')).toBe('Projetos')
+    expect(normalizarDepartamentoHoras('Ativação')).toBe('Ativação')
+    expect(normalizarDepartamentoHoras('Ativacao')).toBe('Ativação')
+    // "Projetos Locais" continua sendo outro setor, sem colisão
+    expect(normalizarDepartamentoHoras('Projetos Locais')).toBe('Projetos Locais')
+  })
 })
 
 describe('casaDepartamento — casamento semântico sobre o rótulo BRUTO', () => {
@@ -75,8 +84,42 @@ describe('casaDepartamento — casamento semântico sobre o rótulo BRUTO', () =
     expect(casaDepartamento('Comercial', 'Cabeamento')).toBe(false)
   })
 
-  it('"todos" ou filtro vazio casa tudo', () => {
+  it('filtro "Projetos" casa "Projetos Internos" e não captura outros setores', () => {
+    expect(casaDepartamento('Projetos Internos', 'Projetos')).toBe(true)
+    expect(casaDepartamento('Projetos Internos', 'Projetos Internos')).toBe(true)
+    expect(casaDepartamento('projetos internos ', 'Projetos')).toBe(true) // espaços/caixa
+    // Não captura rótulos de outros setores nem "Projetos Locais" (outro setor)
+    expect(casaDepartamento('Linux N1/N2', 'Projetos')).toBe(false)
+    expect(casaDepartamento('Windows', 'Projetos')).toBe(false)
+    expect(casaDepartamento('Projetos Locais', 'Projetos')).toBe(false)
+    expect(casaDepartamento('Ativação', 'Projetos')).toBe(false)
+    // Filtro "Projetos Locais" continua trazendo apenas "Projetos Locais"
+    expect(casaDepartamento('Projetos Locais', 'Projetos Locais')).toBe(true)
+    expect(casaDepartamento('Projetos Internos', 'Projetos Locais')).toBe(false)
+    // E os filtros existentes não capturam "Projetos Internos"/"Ativação"
+    expect(casaDepartamento('Projetos Internos', 'Linux')).toBe(false)
+    expect(casaDepartamento('Projetos Internos', 'Windows')).toBe(false)
+    expect(casaDepartamento('Projetos Internos', 'Campo')).toBe(false)
+    expect(casaDepartamento('Projetos Internos', 'Datacenter')).toBe(false)
+    expect(casaDepartamento('Projetos Internos', 'N2')).toBe(false)
+    expect(casaDepartamento('Projetos Internos', 'Comercial')).toBe(false)
+    expect(casaDepartamento('Ativação', 'Linux')).toBe(false)
+    expect(casaDepartamento('Ativação', 'Campo')).toBe(false)
+    expect(casaDepartamento('Ativação', 'Datacenter')).toBe(false)
+    expect(casaDepartamento('Ativação', 'N2')).toBe(false)
+  })
+
+  it('filtro "Ativação" casa o rótulo bruto, com ou sem acento', () => {
+    expect(casaDepartamento('Ativação', 'Ativação')).toBe(true)
+    expect(casaDepartamento('Ativacao', 'Ativação')).toBe(true) // sem acento na planilha
+    expect(casaDepartamento('Ativação', 'Projetos')).toBe(false)
+    expect(casaDepartamento('Projetos Internos', 'Ativação')).toBe(false)
+  })
+
+  it('"todos" ou filtro vazio casa tudo (incluindo os novos setores)', () => {
     expect(casaDepartamento('Linux', 'todos')).toBe(true)
+    expect(casaDepartamento('Projetos Internos', 'todos')).toBe(true)
+    expect(casaDepartamento('Ativação', 'todos')).toBe(true)
     expect(casaDepartamento('Comercial', undefined)).toBe(true)
   })
 })
@@ -106,6 +149,17 @@ describe('uniaoDepartamentosHoras — união sem duplicar rótulos', () => {
     expect(uniao).toContain('Laboratório')
     // Sem duplicatas de Linux (chamados + time_logs)
     expect(uniao.filter((d) => d === 'Linux')).toHaveLength(1)
+  })
+
+  it('traz "Projetos Internos" como opção "Projetos" e semeia os novos setores', () => {
+    const uniao = uniaoDepartamentosHoras(['Projetos Internos'], ['Ativacao'])
+    expect(uniao).toContain('Projetos')
+    expect(uniao).not.toContain('Projetos Internos')
+    expect(uniao).toContain('Ativação')
+    // Semeados mesmo sem nenhum lançamento (aparecem no filtro das 4 telas)
+    const vazia = uniaoDepartamentosHoras()
+    expect(vazia).toContain('Projetos')
+    expect(vazia).toContain('Ativação')
   })
 })
 

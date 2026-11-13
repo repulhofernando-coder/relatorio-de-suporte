@@ -51,6 +51,12 @@ export function normalizarDepartamentoHoras(depto: string | null | undefined): s
   // Ponto final deixado pelo Movidesk: "Coordenadores." → "Coordenadores"
   if (min === 'coordenadores.') return 'Coordenadores'
 
+  // Novos setores da planilha de horas: "Projetos Internos" → Projetos
+  if (min === 'projetos internos' || min === 'projetos') return 'Projetos'
+
+  // "Ativacao" sem acento → rótulo canônico com acento
+  if (min === 'ativacao') return 'Ativação'
+
   return bruto
 }
 
@@ -104,6 +110,16 @@ export function casaDepartamento(
   if (filtroMin.includes('campo')) return logMin.includes('campo')
   if (filtroMin.includes('datacenter')) return logMin.includes('datacenter')
 
+  // Projetos: "Projetos Internos" (canônico "Projetos") — NÃO captura
+  // "Projetos Locais", que é outro setor e tem filtro próprio
+  if (filtroMin.startsWith('projetos')) {
+    if (filtroMin.startsWith('projetos locais')) return logMin.startsWith('projetos locais')
+    return logMin.startsWith('projetos') && !logMin.startsWith('projetos locais')
+  }
+
+  // Ativação: setor próprio, não contém (nem é contido por) outros rótulos
+  if (filtroMin.startsWith('ativacao')) return logMin.startsWith('ativacao')
+
   // Demais setores (Comercial, Cabeamento, Laboratório, …): igualdade canônica
   return normalizarDepartamentoHoras(deptoDoLog) === normalizarDepartamentoHoras(filtro)
 }
@@ -129,7 +145,11 @@ export const logPertenceAoDepartamento = casaDepartamento
 export function uniaoDepartamentosHoras(
   ...sources: Array<Array<string | null | undefined>>
 ): string[] {
-  const set = new Set<string>()
+  // Semeia os novos setores ("Projetos" — rótulo bruto "Projetos Internos" —
+  // e "Ativação") para que apareçam nas opções dos filtros das quatro telas
+  // mesmo antes do primeiro lançamento; filtrar sem dados resulta em zero,
+  // igual aos demais setores que só existem nas horas.
+  const set = new Set<string>(['Projetos', 'Ativação'])
   for (const source of sources) {
     for (const bruto of source) {
       const norm = normalizarDepartamentoHoras(bruto)

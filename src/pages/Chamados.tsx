@@ -32,7 +32,7 @@ import { ResumoHorasCliente } from '@/components/chamados/ResumoHorasCliente'
 import { fetchClientContracts } from '@/services/contratos'
 import type { ClientContract } from '@/services/contratos'
 import { classificarTempoTrabalhado, formatarHorasDecimaisLegivel } from '@/lib/duracao'
-import { criarMatcherDepartamento } from '@/lib/departamentos'
+import { criarMatcherDepartamento, uniaoDepartamentosHoras } from '@/lib/departamentos'
 
 type PeriodPreset =
   | 'este-mes'
@@ -137,7 +137,7 @@ export default function Chamados() {
 
   useEffect(() => {
     fetchDepartamentosEmUso()
-      .then(setDepartamentosEmUso)
+      .then((deps) => setDepartamentosEmUso(uniaoDepartamentosHoras(deps)))
       .catch((err) => console.error('Erro ao buscar departamentos:', err))
     fetchClientContracts()
       .then(setContratos)
