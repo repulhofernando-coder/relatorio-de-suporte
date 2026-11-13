@@ -151,11 +151,19 @@ export function SecaoDepartamentos() {
           Datacenter Windows aparece só no filtro "Datacenter Windows".
         </Item>
       </ul>
-      <Bloco tone="amber">
-        <Destaque>Datacenter Windows sem metas:</Destaque> o setor está com as metas{' '}
-        <Destaque>em levantamento</Destaque> pela gestão (técnicos, TMA, produtividade e ocupação).
-        Enquanto isso, o Benchmark da Visão Geral mostra apenas os números reais do setor, sem
-        faixas ideais — cadastre as metas em <Destaque>Equipes</Destaque> quando forem definidas.
+      <Bloco tone="teal">
+        <Destaque>Metas de Datacenter Windows implantadas:</Destaque> benchmark cadastrado pela
+        gestão (tabela "Quadro Atualizado: Datacenter Windows — 170 Chamados/Mês"). <b>Ideal:</b>{' '}
+        volume de <Destaque>100 a 140 chamados/mês</Destaque> (referência para 2,5 técnicos), equipe
+        de <Destaque>3 a 4 analistas + gestor dedicado</Destaque>, produtividade de{' '}
+        <Destaque>1,8 a 2,5 chamados/dia por recurso</Destaque> e ocupação direta de{' '}
+        <Destaque>65% a 75% do tempo</Destaque>. O TMA real por complexidade segue{' '}
+        <Destaque>a levantar</Destaque> — as faixas de SLA alvo já estão implantadas:{' '}
+        <Destaque>Rotinas (RAM/VPN): 45min a 1h30</Destaque> e{' '}
+        <Destaque>Cloud (VPS/Migração/POC): 4h a 12h</Destaque>. O sistema deve separar o tempo de
+        manutenção rápida do tempo de projetos de nuvem. Fontes: Gartner (Cloud Infrastructure &
+        Operations), ITIL 4 (Gerenciamento de Capacidade e Disponibilidade) e Uptime Institute
+        (Padrões de Operação de Datacenter).
       </Bloco>
       <Bloco>
         Isso significa que um técnico do "Linux N1/N2" aparece quando você filtra por Linux, mas{' '}
