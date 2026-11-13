@@ -116,6 +116,30 @@ describe('casaDepartamento — casamento semântico sobre o rótulo BRUTO', () =
     expect(casaDepartamento('Projetos Internos', 'Datacenter Windows')).toBe(false)
   })
 
+  it('filtro "Datacenter Windows" casa a GRAFIA REAL do banco "Datacenter: Windows"', () => {
+    // Regressão do bug "visão geral não traz datacenter": os registros reais
+    // (support_records e time_logs) usam "Datacenter: Windows", nunca
+    // "07-datacenter-windows" — o branch do filtro tem de rodar ANTES do
+    // filtro "Windows", que exclui rótulos com "datacenter".
+    expect(casaDepartamento('Datacenter: Windows', 'Datacenter Windows')).toBe(true)
+    expect(criarMatcherDepartamento('Datacenter Windows')('Datacenter: Windows')).toBe(true)
+    // O filtro "Windows" continua NÃO puxando esses registros...
+    expect(casaDepartamento('Datacenter: Windows', 'Windows')).toBe(false)
+    // ...e "Datacenter Windows" continua não puxando Windows, N2, Linux,
+    // Datacenter Linux, Campo, Projetos e Ativação.
+    expect(casaDepartamento('Windows', 'Datacenter Windows')).toBe(false)
+    expect(casaDepartamento('Windows - N2', 'Datacenter Windows')).toBe(false)
+    expect(casaDepartamento('Linux N1/N2', 'Datacenter Windows')).toBe(false)
+    expect(casaDepartamento('Datacenter: Linux', 'Datacenter Windows')).toBe(false)
+    expect(casaDepartamento('Campo', 'Datacenter Windows')).toBe(false)
+    expect(casaDepartamento('Projetos Internos', 'Datacenter Windows')).toBe(false)
+    expect(casaDepartamento('Ativação', 'Datacenter Windows')).toBe(false)
+    // Complemento: o filtro genérico "Datacenter" continua agrupando
+    // "Datacenter: Windows" e "Datacenter: Linux" (não mudou de comportamento).
+    expect(casaDepartamento('Datacenter: Windows', 'Datacenter')).toBe(true)
+    expect(casaDepartamento('Datacenter: Linux', 'Datacenter')).toBe(true)
+  })
+
   it('filtro "Campo" e setores que só existem nas horas: igualdade canônica', () => {
     expect(casaDepartamento('Campo', 'Campo')).toBe(true)
     expect(casaDepartamento('Comercial', 'Comercial')).toBe(true)

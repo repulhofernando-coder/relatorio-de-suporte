@@ -20,13 +20,17 @@
  *                            "Linux N1/N2" NÃO entra (é do setor Linux — o
  *                            usuário quer que ele case SOMENTE com o filtro Linux)
  *   - filtro "Linux"       → rótulos do setor Linux ("Linux", "Linux N1/N2")
+ *   ORDEM IMPORTA: o filtro "Datacenter Windows" tem de ser testado ANTES do
+ *   filtro "Windows" — este EXCLUI rótulos com "datacenter", o que tornava o
+ *   branch do time de Datacenter Windows inalcançável (bug: filtro vazio).
  *   - filtro "Windows"     → contém "Windows", sem N2 e sem Datacenter
  *                            (o time de Datacenter Windows é distinto e tem
  *                            filtro próprio — não vira "Windows")
  *   - filtro "Campo"       → contém "Campo"
  *   - filtro "Datacenter"  → contém "Datacenter" (agrupa ": Windows" e ": Linux")
  *   - filtro "Datacenter Windows" → rótulos do time de Datacenter Windows
- *                            ("07-datacenter-windows", "Datacenter: Windows",
+ *                            ("07-datacenter-windows", "Datacenter: Windows" —
+ *                            a GRAFIA REAL no banco, ver db 2026-11 —,
  *                            "data center windows"…)
  *   - filtro "Projetos"    → começa com "Projetos" (inclui "Projetos Internos"
  *                            e "Projetos Locais" — mesma fila no Movidesk)
@@ -123,20 +127,22 @@ export function casaDepartamento(
   // Linux: rótulos do setor Linux (não "Datacenter: Linux", que é Datacenter)
   if (filtroMin.includes('linux')) return logMin.startsWith('linux')
 
+  // Datacenter Windows: time próprio — casa os rótulos do time de Datacenter
+  // Windows (o novo "07-datacenter-windows", o "Datacenter: Windows" — a
+  // GRAFIA REAL no banco — e as variações com "data center"). TEM de vir
+  // ANTES do filtro "Windows" (que exclui rótulos com "datacenter" — com a
+  // ordem antiga este branch era inalcançável e o filtro não trazia nada) e
+  // antes do genérico "Datacenter", que agrupa Windows e Linux.
+  if (filtroMin.includes('datacenter') && filtroMin.includes('windows')) {
+    return logMin.includes('datacenter') && logMin.includes('windows')
+  }
+
   // Windows: sem N2 e sem Datacenter (esses têm filtros próprios)
   if (filtroMin.includes('windows')) {
     return logMin.includes('windows') && !logMin.includes('n2') && !logMin.includes('datacenter')
   }
 
   if (filtroMin.includes('campo')) return logMin.includes('campo')
-
-  // Datacenter Windows: time próprio — casa os rótulos do time de Datacenter
-  // Windows (o novo "07-datacenter-windows", "Datacenter: Windows" e as
-  // variações com "data center"). Tem de vir ANTES do filtro genérico
-  // "Datacenter", que continua agrupando Windows e Linux.
-  if (filtroMin.includes('datacenter') && filtroMin.includes('windows')) {
-    return logMin.includes('datacenter') && logMin.includes('windows')
-  }
 
   if (filtroMin.includes('datacenter')) return logMin.includes('datacenter')
 
