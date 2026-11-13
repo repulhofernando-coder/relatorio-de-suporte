@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertCircle, Frown, Meh, RefreshCw, Smile } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { AlertCircle, Frown, Meh, RefreshCw, Search, Smile, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -63,6 +64,15 @@ function getPresetDates(preset: PeriodPreset): {
   }
 }
 
+/** Normaliza para busca tolerante: sem acento e em minúsculas. */
+function normalizarTexto(valor: string): string {
+  return valor
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
 const NOTA_LABEL: Record<number, string> = {
   3: 'Muito satisfeito',
   2: 'Satisfeito',
@@ -91,6 +101,9 @@ export default function Satisfacao() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const navigate = useNavigate()
+  const [buscaTecnico, setBuscaTecnico] = useState('')
+  const termoBusca = normalizarTexto(buscaTecnico)
 
   const [preset, setPreset] = useState<PeriodPreset>('tudo')
   const [customStart, setCustomStart] = useState('')
@@ -157,13 +170,16 @@ export default function Satisfacao() {
 
   const dashboard = useMemo<DashboardSatisfacao | null>(() => {
     if (!respostas) return null
-    return carregarDashboardSatisfacao(respostas, {
+    const base = termoBusca
+      ? respostas.filter((r) => normalizarTexto(r.tecnico ?? '').includes(termoBusca))
+      : respostas
+    return carregarDashboardSatisfacao(base, {
       startDate: range.startDate,
       endDate: range.endDate,
       departamento: departamentoFiltro !== 'todos' ? departamentoFiltro : undefined,
       infoChamados: infoChamados ?? undefined,
     })
-  }, [respostas, range.startDate, range.endDate, departamentoFiltro, infoChamados])
+  }, [respostas, range.startDate, range.endDate, departamentoFiltro, infoChamados, termoBusca])
 
   const handleSelectPreset = (p: PeriodPreset) => {
     if (p === 'personalizado') {
@@ -286,6 +302,17 @@ export default function Satisfacao() {
             )}
           </div>
         </div>
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+          <Input
+            type="search"
+            value={buscaTecnico}
+            onChange={(e) => setBuscaTecnico(e.target.value)}
+            placeholder="Buscar técnico..."
+            aria-label="Buscar técnico"
+            className="h-9 pl-9 text-xs rounded-xl border-slate-200 focus:border-teal-500"
+          />
+        </div>
         <p className="text-xs text-slate-400">Período: {range.label}</p>
       </div>
 
@@ -317,7 +344,7 @@ export default function Satisfacao() {
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80">
               <div className="flex items-center gap-2 text-slate-400 text-[11px] font-semibold uppercase mb-2">
                 <Smile className="w-3.5 h-3.5" />
-                Total de respostas
+                Total de avaliações
               </div>
               <p className="text-2xl font-bold text-slate-900">
                 <CountUp value={dashboard.resumo.total} />
@@ -384,7 +411,7 @@ export default function Satisfacao() {
                           />
                         </div>
                         <span className="text-[10px] text-slate-400 font-medium">{m.mes}</span>
-                        <span className="text-[10px] text-slate-400">{m.total} resp.</span>
+                        <span className="text-[10px] text-slate-400">{m.total} aval.</span>
                       </div>
                     )
                   })}
@@ -398,6 +425,7 @@ export default function Satisfacao() {
             <RankingCard
               titulo="Satisfação por técnico"
               itens={dashboard.porTecnico}
+              aoClicarNome={(nome) => navigate(`/chamados?tecnico=${encodeURIComponent(nome)}`)}
               mostrarDepto={false}
             />
             {/* POR CLIENTE */}
@@ -459,6 +487,22 @@ export default function Satisfacao() {
             </CardContent>
           </Card>
 
+          {termoBusca && dashboard.resumo.total === 0 && (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center space-y-3">
+              <p className="text-sm text-slate-500">
+                Nenhuma avaliação encontrada para "{buscaTecnico.trim()}".
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBuscaTecnico('')}
+                className="h-9 rounded-xl gap-2"
+              >
+                <X className="w-3.5 h-3.5" />
+                Limpar busca
+              </Button>
+            </div>
+          )}
           {departamentoAtivo && dashboard.resumo.total === 0 && (
             <p className="text-xs text-slate-400">
               Nenhuma resposta casou com o departamento "{departamentoFiltro}" — o cruzamento usa o
@@ -475,10 +519,13 @@ export default function Satisfacao() {
 function RankingCard({
   titulo,
   itens,
+  aoClicarNome,
 }: {
   titulo: string
   itens: RankingSatisfacaoItem[]
   mostrarDepto?: boolean
+  /** quando definido, o nome vira link (ex.: técnico → chamados filtrados) */
+  aoClicarNome?: (nome: string) => void
 }) {
   return (
     <Card className="rounded-2xl shadow-sm border-slate-200/80">
@@ -495,12 +542,23 @@ function RankingCard({
                 key={item.nome}
                 className="flex items-center justify-between gap-x-3 gap-y-1 flex-wrap rounded-xl border border-slate-100 px-3 py-2"
               >
-                <span className="text-sm font-semibold text-slate-800 truncate">{item.nome}</span>
+                {aoClicarNome ? (
+                  <button
+                    type="button"
+                    onClick={() => aoClicarNome(item.nome)}
+                    title="Ver chamados deste técnico"
+                    className="text-sm font-semibold text-slate-800 truncate text-left hover:text-teal-700 hover:underline underline-offset-2"
+                  >
+                    {item.nome}
+                  </button>
+                ) : (
+                  <span className="text-sm font-semibold text-slate-800 truncate">{item.nome}</span>
+                )}
                 <div className="flex items-center gap-3 shrink-0">
                   <span className={`text-sm font-bold ${corNota(Math.round(item.media))}`}>
                     {formatarIndiceMedio(item.media)}
                   </span>
-                  <span className="text-xs text-slate-400">{item.total} resp.</span>
+                  <span className="text-xs text-slate-400">{item.total} aval.</span>
                   <span
                     className={`text-xs font-medium ${item.pctInsatisfeito > 0 ? 'text-red-500' : 'text-slate-300'}`}
                   >
