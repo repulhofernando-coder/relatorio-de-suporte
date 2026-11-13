@@ -102,6 +102,39 @@ export interface ChamadoInfo {
   tecnico: string | null
 }
 
+/**
+ * Números de tíquete já presentes em satisfaction_responses (só dígitos).
+ * Usado pelo importador para ignorar tíquetes já importados.
+ */
+export async function fetchTicketsJaImportados(): Promise<Set<string>> {
+  const PAGE = 1000
+  const chaves = new Set<string>()
+  let from = 0
+
+  for (;;) {
+    const { data, error } = await (supabase as any)
+      .from('satisfaction_responses')
+      .select('id, numero_ticket')
+      .not('numero_ticket', 'is', null)
+      .order('id', { ascending: true })
+      .range(from, from + PAGE - 1)
+
+    if (error) {
+      throw new Error(`Erro ao verificar tíquetes já importados: ${error.message}`)
+    }
+
+    const rows = (data as Array<{ numero_ticket: string | null }>) || []
+    for (const r of rows) {
+      const chave = chaveNumero(r.numero_ticket)
+      if (chave) chaves.add(chave)
+    }
+    if (rows.length < PAGE) break
+    from += PAGE
+  }
+
+  return chaves
+}
+
 /** Chave de casamento: somente os dígitos do número do tíquete/chamado. */
 export function chaveNumero(valor: string | null | undefined): string {
   return (valor ?? '').replace(/\D/g, '')

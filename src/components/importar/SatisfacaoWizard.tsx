@@ -6,7 +6,8 @@ import {
   parseNotaSatisfacao,
   sugestaoColunaSatisfacao,
 } from '@/lib/satisfacao-spreadsheet'
-import { insertSatisfacaoBatch } from '@/services/satisfacao'
+import { insertSatisfacaoBatch, fetchTicketsJaImportados } from '@/services/satisfacao'
+import { consolidarRespostasPorTicket } from '@/lib/satisfacao-dedup'
 import { upsertMapeamento, createImportRecord } from '@/services/support'
 import type { MapeamentoRecord } from '@/types/support'
 import {
@@ -104,6 +105,8 @@ export default function SatisfacaoWizard({ savedMappings }: SatisfacaoWizardProp
     importadas: number
     ignoradas: number
     detalhesErro: Array<{ linha: number; motivo: string }>
+    ticketsJaImportados: string[]
+    linhasMescladas: number
   } | null>(null)
   const [showErrorList, setShowErrorList] = useState(false)
 
@@ -299,8 +302,12 @@ export default function SatisfacaoWizard({ savedMappings }: SatisfacaoWizardProp
         })
       }
 
+      // Ignora tíquetes já importados e une as linhas do mesmo tíquete (1 tíquete = 1 avaliação)
+      const jaImportados = await fetchTicketsJaImportados()
+      const consolidacao = consolidarRespostasPorTicket(validRows, jaImportados)
+
       const totalLinhas = parsedData.rows.length
-      const importadas = validRows.length
+      const importadas = consolidacao.consolidadas.length
       const ignoradas = errorList.length
 
       // 1. Criar registro de import (tipo "satisfacao")
@@ -317,10 +324,14 @@ export default function SatisfacaoWizard({ savedMappings }: SatisfacaoWizardProp
       })
 
       // 2. Inserir respostas
-      if (validRows.length > 0) {
-        await insertSatisfacaoBatch(validRows, createdImport.id, (inserted, total) => {
-          setImportProgress({ inserted, total })
-        })
+      if (consolidacao.consolidadas.length > 0) {
+        await insertSatisfacaoBatch(
+          consolidacao.consolidadas,
+          createdImport.id,
+          (inserted, total) => {
+            setImportProgress({ inserted, total })
+          },
+        )
       }
 
       // 3. Salvar mapeamento (prefixo [Satisfação])
@@ -340,6 +351,8 @@ export default function SatisfacaoWizard({ savedMappings }: SatisfacaoWizardProp
         importadas,
         ignoradas,
         detalhesErro: errorList,
+        ticketsJaImportados: consolidacao.ticketsJaImportados,
+        linhasMescladas: consolidacao.linhasMescladas,
       })
       setCurrentStep(3)
     } catch (err: any) {
@@ -721,6 +734,31 @@ export default function SatisfacaoWizard({ savedMappings }: SatisfacaoWizardProp
                   </p>
                 </div>
               </div>
+
+              {importResult.ticketsJaImportados.length > 0 && (
+                <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-xs text-sky-900">
+                  <p className="font-semibold">
+                    {importResult.ticketsJaImportados.length}{' '}
+                    {importResult.ticketsJaImportados.length === 1
+                      ? 'tíquete já importado foi ignorado'
+                      : 'tíquetes já importados foram ignorados'}{' '}
+                    (não duplicados):
+                  </p>
+                  <p className="font-mono mt-1 break-words">
+                    {importResult.ticketsJaImportados.join(', ')}
+                  </p>
+                </div>
+              )}
+
+              {importResult.linhasMescladas > 0 && (
+                <p className="text-xs text-slate-500">
+                  {importResult.linhasMescladas}{' '}
+                  {importResult.linhasMescladas === 1
+                    ? 'linha do mesmo tíquete foi unida'
+                    : 'linhas do mesmo tíquete foram unidas'}{' '}
+                  à avaliação (comentários preservados).
+                </p>
+              )}
 
               {importResult.detalhesErro.length > 0 && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">

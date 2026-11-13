@@ -31,6 +31,14 @@ export function SecaoSatisfacao() {
           chamado importado (ou seja, dá para ver quem atendeu e quando).
         </Item>
       </ul>
+      <Bloco>
+        <Destaque>1 tíquete = 1 avaliação.</Destaque> Um mesmo chamado gera três perguntas na
+        pesquisa, e por isso o sistema conta uma única avaliação por tíquete: a nota é a da pergunta
+        1, e os comentários das outras linhas do mesmo tíquete são unidos a ela. O total de
+        avaliações mostra, portanto, o número de tíquetes avaliados, não o de linhas da planilha. Ao
+        reimportar uma planilha, os tíquetes que já estão na base são ignorados e a tela de
+        importação informa quais foram.
+      </Bloco>
     </SecaoCard>
   )
 }
