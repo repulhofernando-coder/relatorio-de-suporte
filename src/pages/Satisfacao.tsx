@@ -13,6 +13,7 @@ import {
   fetchSatisfactionResponses,
   fetchChamadoInfoPorNumero,
   carregarDashboardSatisfacao,
+  avisarRespostasSemData,
   formatarDistribuicaoNotas,
   type ChamadoInfo,
   type DashboardSatisfacao,
@@ -208,6 +209,13 @@ export default function Satisfacao() {
   }
 
   const departamentoAtivo = departamentoFiltro !== 'todos'
+  // Aviso: com período ativo, respostas sem data_resposta ficam de fora
+  // (importações antigas gravaram a coluna de data vazia — mapeamento errado).
+  const periodoAtivo = Boolean(range.startDate || range.endDate)
+  const respostasSemData = useMemo(
+    () => (respostas && periodoAtivo ? avisarRespostasSemData(respostas, range) : false),
+    [respostas, periodoAtivo, range.startDate, range.endDate],
+  )
 
   return (
     <div className="space-y-6 pb-12">
@@ -315,6 +323,20 @@ export default function Satisfacao() {
         </div>
         <p className="text-xs text-slate-400">Período: {range.label}</p>
       </div>
+
+      {respostasSemData && (
+        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm flex items-start gap-2.5">
+          <AlertCircle className="w-5 h-5 shrink-0 text-amber-500 mt-0.5" />
+          <div>
+            <p className="font-semibold">Respostas sem data de resposta</p>
+            <p className="text-xs mt-0.5">
+              Parte das respostas foi importada sem data (coluna de data vazia ou não mapeada) e só
+              aparece no chip "Tudo". Reimporte a planilha de satisfação com a coluna de data
+              correta para que o período as inclua.
+            </p>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-start gap-2.5">
@@ -577,17 +599,20 @@ function RankingCard({
   )
 }
 
-/** Herda cliente/departamento do chamado quando o número do tíquete casa (tolerante). */
-function enriquecer(
-  r: SatisfactionResponse,
-  info: Map<string, { cliente: string | null; departamento: string | null }>,
-): SatisfactionResponse {
+/**
+ * Herda cliente/departamento do chamado quando o número do tíquete casa
+ * (tolerante) e, na falta de data_resposta, usa a DATA DO CHAMADO como data
+ * da resposta — é ela que alimenta os chips de período (importações antigas
+ * gravaram data_resposta NULL; sem o fallback, a resposta só aparece no "Tudo").
+ */
+function enriquecer(r: SatisfactionResponse, info: Map<string, ChamadoInfo>): SatisfactionResponse {
   const chave = chaveNumero(r.numero_ticket)
   const achou = chave ? info.get(chave) : undefined
   return {
     ...r,
     cliente: r.cliente || achou?.cliente || null,
     departamento: r.departamento || achou?.departamento || null,
+    data_resposta: r.data_resposta || achou?.data_chamado || null,
   }
 }
 

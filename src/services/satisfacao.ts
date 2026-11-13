@@ -4,7 +4,9 @@
  */
 import { supabase } from '@/lib/supabase/client'
 import { SatisfactionInsert, SatisfactionRecord } from '@/types/satisfacao'
-import { criarMatcherDepartamento, normalizarDepartamentoHoras } from '@/lib/departamentos'
+import { normalizarDepartamentoHoras } from '@/lib/departamentos'
+import { filtrarRespostasSatisfacao, temRespostasSemData } from '@/lib/satisfacao-filtros'
+import type { FiltrosPeriodoSatisfacao } from '@/lib/satisfacao-filtros'
 
 /* ========================================================
    BUSCA
@@ -100,6 +102,8 @@ export interface ChamadoInfo {
   cliente: string | null
   departamento: string | null
   tecnico: string | null
+  /** data do chamado (YYYY-MM-DD) — fallback de data para respostas sem data_resposta */
+  data_chamado: string | null
 }
 
 /**
@@ -155,7 +159,7 @@ export async function fetchChamadoInfoPorNumero(): Promise<Map<string, ChamadoIn
   for (;;) {
     const { data, error } = await (supabase as any)
       .from('support_records')
-      .select('numero, cliente, departamento, tecnico')
+      .select('numero, cliente, departamento, tecnico, data_chamado')
       .order('data_chamado', { ascending: false })
       .range(from, from + PAGE - 1)
 
@@ -169,6 +173,7 @@ export async function fetchChamadoInfoPorNumero(): Promise<Map<string, ChamadoIn
         cliente: string | null
         departamento: string | null
         tecnico: string | null
+        data_chamado: string | null
       }>) || []
 
     for (const r of rows) {
@@ -179,6 +184,7 @@ export async function fetchChamadoInfoPorNumero(): Promise<Map<string, ChamadoIn
           cliente: r.cliente,
           departamento: r.departamento,
           tecnico: r.tecnico,
+          data_chamado: r.data_chamado,
         })
       }
     }
@@ -371,21 +377,30 @@ export interface DashboardSatisfacao {
   comentarios: ComentarioSatisfacao[]
 }
 
-export interface DashboardSatisfacaoParams {
-  startDate?: string
-  endDate?: string
-  departamento?: string
+export interface DashboardSatisfacaoParams extends FiltrosPeriodoSatisfacao {
   /** mapa numero → chamado; quando passado, marca os comentários que casaram */
   infoChamados?: Map<string, ChamadoInfo>
 }
 
 /**
+ * true quando o usuário pediu um período e existem respostas sem
+ * data_resposta (elas ficam restritas ao chip "Tudo" — a página exibe aviso).
+ */
+export function avisarRespostasSemData(
+  respostas: SatisfactionRecord[],
+  params?: DashboardSatisfacaoParams,
+): boolean {
+  return temRespostasSemData(respostas, params)
+}
+
+/**
  * Monta o dashboard da página a partir das respostas JÁ CARREGADAS (a página
  * faz a busca uma vez e refiltra no cliente). Filtros aplicados aqui:
- *   - startDate/endDate sobre data_resposta;
+ *   - período sobre data_resposta — resposta SEM data NÃO entra no período
+ *     (convenção das horas: com período ativo, sem data = fora);
  *   - departamento via casaDepartamento sobre o RÓTULO BRUTO (regra v0.0.48:
  *     "Linux N1/N2" casa somente com o filtro Linux; filtro N2 traz apenas
- *     N2 de time específico, via eN2DeTimeNaoLinux em departamentos.ts).
+ *     N2 de time específico) — ver lib/satisfacao-filtros.ts.
  * Depois agrega reusando resumirSatisfacao, rankingPor* e
  * evolucaoMensalSatisfacao e monta a lista de comentários preenchidos.
  * Com infoChamados, cada comentário marca se o tíquete casou com a base
@@ -395,16 +410,7 @@ export function carregarDashboardSatisfacao(
   respostas: SatisfactionRecord[],
   params?: DashboardSatisfacaoParams,
 ): DashboardSatisfacao {
-  const matcher = criarMatcherDepartamento(params?.departamento)
-  const filtradas = respostas.filter((r) => {
-    if (params?.startDate && r.data_resposta && r.data_resposta < params.startDate) return false
-    if (params?.endDate && r.data_resposta && r.data_resposta > params.endDate) return false
-    if (params?.departamento && params.departamento !== 'todos') {
-      // casamento sobre o rótulo BRUTO (resposta ou herdado do chamado)
-      return matcher(r.departamento)
-    }
-    return true
-  })
+  const filtradas = filtrarRespostasSatisfacao(respostas, params)
 
   const resumo = resumirSatisfacao(filtradas)
   return {

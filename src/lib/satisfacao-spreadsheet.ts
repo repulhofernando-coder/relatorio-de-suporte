@@ -114,34 +114,63 @@ const TERMOS_EXCLUIR_DE_RESPONSTA = [
 /** Cabeçalhos da PERGUNTA INTEIRA da pesquisa do Movidesk (casamento por conteúdo). */
 const TERMOS_PERGUNTA_SATISFACAO = ['satisfa', 'avalie', 'experiencia', 'experiência']
 
-/** Auto-detecção de mapeamento para a planilha de satisfação. */
+/**
+ * Auto-detecção de mapeamento para a planilha de satisfação.
+ *
+ * Ordem de reivindicação: comentário e resposta PRIMEIRO — com o loop antigo
+ * ("campos simples" antes da resposta), o sinônimo "data da avaliação" casava
+ * por contenção parcial com o cabeçalho "Avaliação" (que é a RESPOSTA, ex. 😀)
+ * e a coluna de data ficava sem mapeamento: as respostas eram gravadas com
+ * data_resposta NULL e o filtro de período em /satisfação parava de funcionar.
+ * Cada campo agora só escolhe entre cabeçalhos ainda não reivindicados, e
+ * guardas de cabeçalho impedem a coluna de resposta de virar data (e vice-versa).
+ */
 export function autoDetectMappingSatisfacao(headers: string[]): MappingSatisfacao {
   const out = {} as MappingSatisfacao
   const usados = new Set<string>()
 
-  // Campos "simples" primeiro — assim um cabeçalho tipo "Satisfação e comentários"
-  // já pertence a "comentário" antes de a resposta tentar capturá-lo.
-  for (const campo of CAMPOS_SATISFACAO) {
-    if (campo === 'resposta_satisfacao') continue
-    const matched = findBestHeaderMatch(headers, SINONIMOS_SATISFACAO[campo])
+  const ordem: CampoSatisfacaoKey[] = [
+    'comentario',
+    'resposta_satisfacao',
+    'numero_ticket',
+    'cliente',
+    'tecnico',
+    'departamento',
+    'data_resposta',
+  ]
+
+  for (const campo of ordem) {
+    const livres = headers.filter((h) => !usados.has(h))
+    const matched = findBestHeaderMatch(livres, SINONIMOS_SATISFACAO[campo])
     out[campo] = matched || ''
     if (matched) usados.add(matched)
   }
 
-  // resposta_satisfacao: sinônimos diretos; se falhar (ou cair em cabeçalho já
-  // usado), tenta casar a PERGUNTA INTEIRA por conteúdo ("satisfa", "avalie",
-  // "experiência"), sem roubar cabeçalhos de outros campos nem de comentário.
-  let resposta = findBestHeaderMatch(headers, SINONIMOS_SATISFACAO.resposta_satisfacao)
-  if (!resposta || usados.has(resposta)) {
-    resposta =
+  // resposta_satisfacao: se falhou, tenta casar a PERGUNTA INTEIRA por conteúdo
+  // ("satisfa", "avalie", "experiência"), sem roubar cabeçalhos de outros
+  // campos nem de comentário.
+  if (!out.resposta_satisfacao) {
+    out.resposta_satisfacao =
       headers.find((h) => {
         if (usados.has(h)) return false
         const norm = normalizeHeader(h)
         if (TERMOS_EXCLUIR_DE_RESPONSTA.some((t) => norm.includes(t))) return false
         return TERMOS_PERGUNTA_SATISFACAO.some((t) => norm.includes(t))
-      }) || null
+      }) || ''
   }
-  out.resposta_satisfacao = resposta || ''
+
+  // Guarda: um cabeçalho que fala em "data" é data, não resposta
+  // (ex.: só existe a coluna "Data da avaliação" na planilha).
+  if (out.resposta_satisfacao && normalizeHeader(out.resposta_satisfacao).includes('data')) {
+    if (!out.data_resposta) out.data_resposta = out.resposta_satisfacao
+    out.resposta_satisfacao = ''
+  }
+
+  // Guarda inversa: a coluna de data PRECISA falar em "data" — "Avaliação"
+  // (resposta 😀/😠) nunca é data, mesmo casando por contenção parcial.
+  if (out.data_resposta && !normalizeHeader(out.data_resposta).includes('data')) {
+    out.data_resposta = ''
+  }
 
   return out
 }

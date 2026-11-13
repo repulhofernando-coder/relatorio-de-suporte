@@ -224,6 +224,15 @@ export default function SatisfacaoWizard({ savedMappings }: SatisfacaoWizardProp
 
   const totalIgnoradas = linhasValidas.filter((l) => l.nota === null).length
 
+  // Aviso: data_resposta mapeada mas sem datas reconhecíveis — sem ela, o
+  // filtro de período em /satisfação não traz as respostas (bug de 2026-11:
+  // a coluna "Avaliação" (resposta 😀) fora mapeada como data).
+  const avisoDataResposta = useMemo(() => {
+    if (!parsedData || !mapping.data_resposta) return false
+    const comNota = linhasValidas.filter((l) => l.nota !== null)
+    return comNota.length > 0 && comNota.every((l) => !parseDateToISO(l.row[mapping.data_resposta]))
+  }, [parsedData, mapping.data_resposta, linhasValidas])
+
   // Diagnóstico do passo 3: quando NENHUMA nota é reconhecida, revela os
   // valores brutos distintos da coluna mapeada como resposta de satisfação e,
   // se for o caso, sugere a coluna alternativa que "parece" conter as respostas.
@@ -547,6 +556,17 @@ export default function SatisfacaoWizard({ savedMappings }: SatisfacaoWizardProp
               satisfeito"/"Satisfeito"/"Insatisfeito"). O motivo aparece no resultado da importação.
             </div>
           </div>
+
+          {avisoDataResposta && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+              <div>
+                <strong>Nenhuma data reconhecida</strong> na coluna "{mapping.data_resposta}". Sem
+                data de resposta, o filtro de período em /satisfação não traz estas respostas.
+                Verifique se esta é realmente a coluna de data da avaliação.
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center gap-3">
             <Checkbox

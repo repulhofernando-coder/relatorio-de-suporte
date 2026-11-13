@@ -131,5 +131,30 @@ describe('autoDetectMappingSatisfacao — pergunta inteira do Movidesk', () => {
   it('não captura cabeçalho já usado por outro campo', () => {
     const m = autoDetectMappingSatisfacao(['Data', 'Avaliação do atendimento', 'Comentário'])
     expect(m.resposta_satisfacao).toBe('Avaliação do atendimento')
+    expect(m.data_resposta).toBe('Data')
+  })
+
+  it('cabeçalho "Avaliação" vira resposta, NUNCA data_resposta (bug do período em /satisfação)', () => {
+    const m = autoDetectMappingSatisfacao([
+      'Ticket',
+      'Organização',
+      'Responsável',
+      'Equipe',
+      'Avaliação',
+      'Comentário',
+    ])
+    expect(m.resposta_satisfacao).toBe('Avaliação')
+    expect(m.data_resposta).toBe('')
+  })
+
+  it('"Data da avaliação" é data mesmo quando a resposta é a pergunta inteira', () => {
+    const m = autoDetectMappingSatisfacao([
+      'Nº do Ticket',
+      'Atendente',
+      'Data da avaliação',
+      'Como você avalia o atendimento? (Pesquisa de satisfação)',
+    ])
+    expect(m.data_resposta).toBe('Data da avaliação')
+    expect(m.resposta_satisfacao).toBe('Como você avalia o atendimento? (Pesquisa de satisfação)')
   })
 })
