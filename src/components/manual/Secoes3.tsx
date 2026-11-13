@@ -137,10 +137,11 @@ export function SecaoDepartamentos() {
           Windows/Linux etc.) também aparecem nas opções dos filtros.
         </Item>
         <Item>
-          Os novos setores <Destaque>"Projetos Internos"</Destaque> e{' '}
-          <Destaque>"Ativação"</Destaque> entram como filtros <Destaque>"Projetos"</Destaque> e{' '}
-          <Destaque>"Ativação"</Destaque> — o filtro "Projetos" traz apenas os lançamentos rotulados
-          "Projetos Internos", sem misturar com "Projetos Locais" nem com os demais setores.
+          Os setores <Destaque>"Projetos Internos"</Destaque> e <Destaque>"Ativação"</Destaque>{' '}
+          entram como filtros <Destaque>"Projetos"</Destaque> e <Destaque>"Ativação"</Destaque> — os
+          rótulos <em>"Projetos"</em>, <em>"Projetos Internos"</em> e <em>"Projetos Locais"</em> da
+          planilha são <Destaque>a mesma fila</Destaque> no Movidesk e aparecem somados no filtro{' '}
+          "Projetos", sem misturar com os demais setores.
         </Item>
       </ul>
       <Bloco>

@@ -5,7 +5,11 @@
  * (support_records: Windows, Linux, Campo, Windows N2). Valores reais em
  * time_logs.departamento: "Linux N1/N2", "Windows - N2", "Datacenter: Windows",
  * "Datacenter: Linux", "Coordenadores." — além de "Comercial", "Cabeamento",
- * "Laboratório", "Projetos Locais", "Ativação", "Alocado", "Financeiro".
+ * "Laboratório", "Projetos", "Ativação", "Alocado", "Financeiro".
+ *
+ * "Projetos", "Projetos Internos" e "Projetos Locais" são a MESMA fila no
+ * Movidesk (pedido do usuário): os três rótulos caem no filtro canônico
+ * "Projetos" e no rótulo canônico de exibição "Projetos".
  *
  * O rótulo canônico (normalizarDepartamentoHoras) é o "nome natural" do setor,
  * usado para EXIBIR e para montar o filtro. O casamento filtro × log
@@ -18,6 +22,8 @@
  *   - filtro "Windows"     → contém "Windows", sem N2 e sem Datacenter
  *   - filtro "Campo"       → contém "Campo"
  *   - filtro "Datacenter"  → contém "Datacenter" (agrupa ": Windows" e ": Linux")
+ *   - filtro "Projetos"    → começa com "Projetos" (inclui "Projetos Internos"
+ *                            e "Projetos Locais" — mesma fila no Movidesk)
  *   - demais               → igualdade canônica (Comercial, Cabeamento…)
  *
  * IMPORTANTE: vale APENAS para time_logs. Os relatórios de chamados
@@ -51,8 +57,9 @@ export function normalizarDepartamentoHoras(depto: string | null | undefined): s
   // Ponto final deixado pelo Movidesk: "Coordenadores." → "Coordenadores"
   if (min === 'coordenadores.') return 'Coordenadores'
 
-  // Novos setores da planilha de horas: "Projetos Internos" → Projetos
-  if (min === 'projetos internos' || min === 'projetos') return 'Projetos'
+  // Projetos: "Projetos", "Projetos Internos" e "Projetos Locais" são a
+  // mesma fila no Movidesk → rótulo canônico único "Projetos"
+  if (/^projetos(\s+(internos|locais))?$/.test(min)) return 'Projetos'
 
   // "Ativacao" sem acento → rótulo canônico com acento
   if (min === 'ativacao') return 'Ativação'
@@ -110,12 +117,9 @@ export function casaDepartamento(
   if (filtroMin.includes('campo')) return logMin.includes('campo')
   if (filtroMin.includes('datacenter')) return logMin.includes('datacenter')
 
-  // Projetos: "Projetos Internos" (canônico "Projetos") — NÃO captura
-  // "Projetos Locais", que é outro setor e tem filtro próprio
-  if (filtroMin.startsWith('projetos')) {
-    if (filtroMin.startsWith('projetos locais')) return logMin.startsWith('projetos locais')
-    return logMin.startsWith('projetos') && !logMin.startsWith('projetos locais')
-  }
+  // Projetos: mesma fila no Movidesk — captura "Projetos", "Projetos
+  // Internos" e "Projetos Locais" (qualquer rótulo que comece com "Projetos")
+  if (filtroMin.startsWith('projetos')) return logMin.startsWith('projetos')
 
   // Ativação: setor próprio, não contém (nem é contido por) outros rótulos
   if (filtroMin.startsWith('ativacao')) return logMin.startsWith('ativacao')
@@ -140,15 +144,17 @@ export const logPertenceAoDepartamento = casaDepartamento
  * nomes. Alimenta o filtro de departamento das telas que mostram horas
  * (/horas e o filtro da Visão Geral que alimenta o card de horas), incluindo
  * os setores que só existem nas horas (Comercial, Datacenter, Cabeamento,
- * Laboratório, Projetos Locais, Coordenadores, Ativação, Alocado, Financeiro).
+ * Laboratório, Projetos, Coordenadores, Ativação, Alocado, Financeiro).
  */
 export function uniaoDepartamentosHoras(
   ...sources: Array<Array<string | null | undefined>>
 ): string[] {
-  // Semeia os novos setores ("Projetos" — rótulo bruto "Projetos Internos" —
-  // e "Ativação") para que apareçam nas opções dos filtros das quatro telas
+  // Semeia os setores novos ("Projetos" — abrange os rótulos brutos
+  // "Projetos", "Projetos Internos" e "Projetos Locais", mesma fila — e
+  // "Ativação") para que apareçam nas opções dos filtros das quatro telas
   // mesmo antes do primeiro lançamento; filtrar sem dados resulta em zero,
-  // igual aos demais setores que só existem nas horas.
+  // igual aos demais setores que só existem nas horas. "Projetos Locais"
+  // já entra normalizado como "Projetos" — nunca vira opção separada.
   const set = new Set<string>(['Projetos', 'Ativação'])
   for (const source of sources) {
     for (const bruto of source) {
