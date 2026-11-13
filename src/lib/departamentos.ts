@@ -5,7 +5,8 @@
  * (support_records: Windows, Linux, Campo, Windows N2). Valores reais em
  * time_logs.departamento: "Linux N1/N2", "Windows - N2", "Datacenter: Windows",
  * "Datacenter: Linux", "Coordenadores." — além de "Comercial", "Cabeamento",
- * "Laboratório", "Projetos", "Ativação", "Alocado", "Financeiro".
+ * "Laboratório", "Projetos", "Ativação", "Alocado", "Financeiro" e do novo
+ * "07-datacenter-windows" (time de Datacenter Windows).
  *
  * "Projetos", "Projetos Internos" e "Projetos Locais" são a MESMA fila no
  * Movidesk (pedido do usuário): os três rótulos caem no filtro canônico
@@ -20,8 +21,13 @@
  *                            usuário quer que ele case SOMENTE com o filtro Linux)
  *   - filtro "Linux"       → rótulos do setor Linux ("Linux", "Linux N1/N2")
  *   - filtro "Windows"     → contém "Windows", sem N2 e sem Datacenter
+ *                            (o time de Datacenter Windows é distinto e tem
+ *                            filtro próprio — não vira "Windows")
  *   - filtro "Campo"       → contém "Campo"
  *   - filtro "Datacenter"  → contém "Datacenter" (agrupa ": Windows" e ": Linux")
+ *   - filtro "Datacenter Windows" → rótulos do time de Datacenter Windows
+ *                            ("07-datacenter-windows", "Datacenter: Windows",
+ *                            "data center windows"…)
  *   - filtro "Projetos"    → começa com "Projetos" (inclui "Projetos Internos"
  *                            e "Projetos Locais" — mesma fila no Movidesk)
  *   - demais               → igualdade canônica (Comercial, Cabeamento…)
@@ -50,6 +56,14 @@ export function normalizarDepartamentoHoras(depto: string | null | undefined): s
 
   // "Windows - N2" → Windows N2 (mesmo rótulo de support_records/metas)
   if (/^windows\s*-\s*n2$/.test(min)) return 'Windows N2'
+
+  // Time de Datacenter Windows: rótulo novo na planilha ("07-datacenter-windows")
+  // e variações tolerantes (sem o prefixo "07-", maiúsculas, "data center
+  // windows", separadores -/_/espaço) → setor canônico "Datacenter Windows",
+  // distinto do filtro "Windows". "Datacenter: Windows" (rótulo antigo já
+  // coberto pelo grupo "Datacenter") continua no grupo.
+  if (/^(\d{1,2}-)?datacenterwindows$/.test(min.replace(/[\s_-]+/g, '')))
+    return 'Datacenter Windows'
 
   // "Datacenter: Windows" e "Datacenter: Linux" → grupo único "Datacenter"
   if (/^datacenter\s*:\s*(windows|linux)$/.test(min)) return 'Datacenter'
@@ -115,6 +129,15 @@ export function casaDepartamento(
   }
 
   if (filtroMin.includes('campo')) return logMin.includes('campo')
+
+  // Datacenter Windows: time próprio — casa os rótulos do time de Datacenter
+  // Windows (o novo "07-datacenter-windows", "Datacenter: Windows" e as
+  // variações com "data center"). Tem de vir ANTES do filtro genérico
+  // "Datacenter", que continua agrupando Windows e Linux.
+  if (filtroMin.includes('datacenter') && filtroMin.includes('windows')) {
+    return logMin.includes('datacenter') && logMin.includes('windows')
+  }
+
   if (filtroMin.includes('datacenter')) return logMin.includes('datacenter')
 
   // Projetos: mesma fila no Movidesk — captura "Projetos", "Projetos
@@ -150,12 +173,13 @@ export function uniaoDepartamentosHoras(
   ...sources: Array<Array<string | null | undefined>>
 ): string[] {
   // Semeia os setores novos ("Projetos" — abrange os rótulos brutos
-  // "Projetos", "Projetos Internos" e "Projetos Locais", mesma fila — e
-  // "Ativação") para que apareçam nas opções dos filtros das quatro telas
+  // "Projetos", "Projetos Internos" e "Projetos Locais", mesma fila —
+  // "Ativação" e "Datacenter Windows", rótulo bruto "07-datacenter-windows")
+  // para que apareçam nas opções dos filtros das quatro telas
   // mesmo antes do primeiro lançamento; filtrar sem dados resulta em zero,
   // igual aos demais setores que só existem nas horas. "Projetos Locais"
   // já entra normalizado como "Projetos" — nunca vira opção separada.
-  const set = new Set<string>(['Projetos', 'Ativação'])
+  const set = new Set<string>(['Projetos', 'Ativação', 'Datacenter Windows'])
   for (const source of sources) {
     for (const bruto of source) {
       const norm = normalizarDepartamentoHoras(bruto)

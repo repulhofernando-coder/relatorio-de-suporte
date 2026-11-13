@@ -77,6 +77,11 @@ export async function deleteImportRecord(id: string): Promise<void> {
  */
 const FILTROS_DEPARTAMENTO_CHAMADOS: Record<string, string[]> = {
   Projetos: ['Projetos', 'Projetos Internos', 'Projetos Locais'],
+  // Time de Datacenter Windows: a planilha grava o rótulo bruto
+  // "07-datacenter-windows" (e pode gravar variações — sem o prefixo "07-",
+  // com maiúsculas etc.); o filtro canônico expande para os rótulos que o
+  // banco pode ter. O filtro "Windows" NÃO puxa esses registros.
+  'Datacenter Windows': ['Datacenter Windows', '07-datacenter-windows'],
 }
 
 function rotulosChamadosDoFiltro(departamento: string): string[] {
