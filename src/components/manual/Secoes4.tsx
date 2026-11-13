@@ -84,6 +84,12 @@ export function SecaoEquipes() {
           </tbody>
         </table>
       </div>
+      <Bloco tone="amber">
+        <Destaque>Linux (misto):</Destaque> volume de referência de ~351 chamados/mês com equipe
+        ideal de <Destaque>2 a 3 técnicos</Destaque> (a operação real atual tem 7, dimensionada para
+        alta disponibilidade, projetos e margem de crescimento). SLA por complexidade: 30–45 min
+        para cPanel/PHP (N1) e 1h30–3h para Fortigate/UniFi (N2).
+      </Bloco>
       <Bloco tone="red">
         <Destaque>Outliers não são filtrados.</Destaque> Registros de tempo muito curtos podem ser
         preenchimento errado, então um TMA abaixo de <Destaque>5 minutos</Destaque> é{' '}

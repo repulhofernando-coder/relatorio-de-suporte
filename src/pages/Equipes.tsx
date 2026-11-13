@@ -44,7 +44,10 @@ const DEFAULT_LINUX_CHAMADOS_MIN = 4
 const DEFAULT_LINUX_CHAMADOS_MAX = 7
 const DEFAULT_LINUX_OCUPACAO_MIN = 65
 const DEFAULT_LINUX_OCUPACAO_MAX = 75
-const DEFAULT_LINUX_TECNICOS = 7
+// Ideal: 2 a 3 técnicos (a operação real hoje tem 7 — ver BenchmarkPanel)
+const DEFAULT_LINUX_TECNICOS_IDEAL_MIN = 2
+const DEFAULT_LINUX_TECNICOS_IDEAL_MAX = 3
+const DEFAULT_LINUX_TECNICOS_REAL = 7
 
 function isLinuxDepartment(depto: string): boolean {
   const norm = depto
@@ -140,7 +143,7 @@ function toDraft(departamento: string, existing?: DepartmentCapacityRecord): Dra
           ? DEFAULT_N2_CHAMADOS_MAX
           : DEFAULT_N1_CHAMADOS_MAX)
 
-  const fallbackQtd = isLinux ? String(DEFAULT_LINUX_TECNICOS) : ''
+  const fallbackQtd = isLinux ? String(DEFAULT_LINUX_TECNICOS_REAL) : ''
 
   return {
     departamento,
@@ -531,8 +534,13 @@ export default function Equipes() {
 
                     <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
                       <label className="block">
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                          Qtd. de técnicos
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 flex items-center justify-between">
+                          <span>Qtd. de técnicos</span>
+                          {isLinux && (
+                            <span className="text-[9px] text-slate-400 font-normal lowercase">
+                              ideal 2 a 3
+                            </span>
+                          )}
                         </span>
                         <Input
                           type="number"
@@ -540,7 +548,12 @@ export default function Equipes() {
                           value={draft.qtd_tecnicos}
                           onChange={(e) => updateDraft(depto, 'qtd_tecnicos', e.target.value)}
                           className="h-9 mt-1 rounded-xl border-slate-200 text-xs font-mono"
-                          placeholder={isLinux ? '7' : 'Ex.: 3'}
+                          placeholder={isLinux ? '7 (real)' : 'Ex.: 3'}
+                          title={
+                            isLinux
+                              ? `Operação real: ${DEFAULT_LINUX_TECNICOS_REAL} técnicos — cenário ideal: ${DEFAULT_LINUX_TECNICOS_IDEAL_MIN} a ${DEFAULT_LINUX_TECNICOS_IDEAL_MAX}`
+                              : undefined
+                          }
                         />
                       </label>
 
@@ -664,25 +677,68 @@ export default function Equipes() {
                     )}
                   </div>
 
-                  {/* Linha informativa de SLA por complexidade para Linux */}
+                  {/* Linha informativa de SLA por complexidade para Linux (cenário real vs ideal) */}
                   {isLinux && (
-                    <div className="rounded-xl border border-purple-100 bg-purple-50/60 px-3.5 py-2.5 text-xs text-purple-900 flex flex-col md:flex-row md:items-center justify-between gap-2">
+                    <div className="rounded-xl border border-purple-100 bg-purple-50/60 px-3.5 py-2.5 text-xs text-purple-900 space-y-1.5">
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                         <span className="font-bold text-purple-950 flex items-center gap-1.5">
                           <span className="w-1.5 h-1.5 rounded-full bg-purple-600 inline-block" />
                           SLA Alvo por Complexidade:
                         </span>
                         <span className="text-purple-800">
-                          <b>N1 (cPanel / PHP):</b> 30 a 45 min
+                          <b>Operação real:</b> mix de atendimentos
                         </span>
                         <span className="text-purple-400 hidden md:inline">•</span>
                         <span className="text-purple-800">
-                          <b>N2 (Fortigate / UniFi):</b> 1h30 a 3h
+                          <b>Ideal — N1 (cPanel / PHP):</b> 30 a 45 min
+                        </span>
+                        <span className="text-purple-400 hidden md:inline">•</span>
+                        <span className="text-purple-800">
+                          <b>Ideal — N2 (Fortigate / UniFi):</b> 1h30 a 3h
                         </span>
                       </div>
-                      <span className="text-[11px] text-purple-700 italic">
-                        Alerta: quebrar o TMA por categoria para monitorar estouros individuais.
-                      </span>
+                      <p className="text-[11px] text-purple-700 italic">
+                        O sistema deve validar o estouro de tempo de acordo com a categoria do
+                        ticket (alerta: quebrar o TMA por categoria para monitorar estouros
+                        individuais).
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Quadro real vs ideal do Linux (tabela "Cenário Real vs. Cenário Ideal") */}
+                  {isLinux && (
+                    <div className="rounded-xl border border-purple-100 bg-white px-3.5 py-2.5 text-[11px] text-slate-600 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                      <div>
+                        <p className="font-bold text-purple-900">Tamanho da equipe</p>
+                        <p>
+                          <b>Real:</b> {DEFAULT_LINUX_TECNICOS_REAL} técnicos • <b>Ideal:</b>{' '}
+                          {DEFAULT_LINUX_TECNICOS_IDEAL_MIN} a {DEFAULT_LINUX_TECNICOS_IDEAL_MAX}{' '}
+                          técnicos
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-purple-900">TMA</p>
+                        <p>
+                          <b>Real:</b> 42 min (0,71h) • <b>Ideal:</b> 30 a 50 min (média)
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-purple-900">Produtividade diária</p>
+                        <p>
+                          <b>Real:</b> ~2,2 chamados/dia • <b>Ideal:</b> 4 a 7 chamados/dia
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-purple-900">Ocupação em tickets</p>
+                        <p>
+                          <b>Real:</b> ~20,2% do tempo • <b>Ideal:</b> 65% a 75% do tempo
+                        </p>
+                      </div>
+                      <p className="sm:col-span-2 lg:col-span-4 text-purple-700 italic">
+                        Volume de chamados: 351/mês (real e ideal) — volume saudável para ambientes
+                        corporativos e hospedagem. Equipe atual dimensionada para alta
+                        disponibilidade, projetos e margem de crescimento.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -755,10 +811,13 @@ export default function Equipes() {
               <br />• <b>MetricNet</b> — Infrastructure and Network Support Benchmarks (TMA geral
               misto de 30–50 min).
               <br />
-              <b>Metas padrão:</b> TMA geral de <b>30 a 50 min/chamado</b> (referência 42 min /
-              0,71h), produtividade de <b>4 a 7 chamados/dia/técnico</b> e ocupação direta em
-              tickets de <b>65% a 75%</b> (referência: <b>7 especialistas</b> para ~351
-              chamados/mês).
+              <b>Metas padrão:</b> TMA geral de <b>30 a 50 min/chamado</b> (operação real: 42 min /
+              0,71h), produtividade de <b>4 a 7 chamados/dia/técnico</b> (operação real: ~2,2) e
+              ocupação direta em tickets de <b>65% a 75%</b> (operação real: ~20,2%). Volume de
+              referência: ~351 chamados/mês — <b>equipe ideal de 2 a 3 técnicos</b> (operação real
+              atual: 7 técnicos, dimensionada para alta disponibilidade, projetos e margem de
+              crescimento). Foco preventivo: tempo livre investido em segurança, tuning, backups e
+              melhorias.
             </p>
           </div>
 

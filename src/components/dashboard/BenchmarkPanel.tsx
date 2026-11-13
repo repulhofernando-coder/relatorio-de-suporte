@@ -225,25 +225,23 @@ export function BenchmarkPanel({
         status: 'informativo',
         statusTexto: 'Informativo',
         diagnostico:
-          'Operação mista (Intelligent Swarming): rotinas ágeis de cPanel/PHP convivendo com investigações aprofundadas de redes e infraestrutura (Fortigate/UniFi).',
+          'Volume saudável para ambientes corporativos e hospedagem. Operação mista (Intelligent Swarming): rotinas ágeis de cPanel/PHP convivendo com investigações aprofundadas de redes e infraestrutura (Fortigate/UniFi).',
       })
 
-      // 2. Tamanho da Equipe e Dimensionamento
+      // 2. Tamanho da Equipe Necessária (ideal 2 a 3 técnicos; 7 = operação real atual)
       const eqAtual = dados.tecnicosEquipe
-      const eqIdeal = 7
-      const eqDentro = eqAtual >= 6 && eqAtual <= 8
+      const eqDentro = eqAtual >= 2 && eqAtual <= 3
       list.push({
-        indicador: 'Tamanho da Equipe / Especialistas',
+        indicador: 'Tamanho da Equipe Necessária',
         descricao: 'Dimensionamento da equipe Linux para cobrir a operação especializada mista',
-        real: `${eqAtual} especialista${eqAtual > 1 ? 's' : ''}`,
+        real: `${eqAtual} técnicos (operação real)`,
         realNum: eqAtual,
-        ideal: `${eqIdeal} especialistas (equipe de referência)`,
-        status: eqDentro || eqAtual >= eqIdeal ? 'verde' : 'vermelho',
-        statusTexto: eqDentro || eqAtual >= eqIdeal ? 'Equipe adequada' : 'Abaixo do ideal',
-        diagnostico:
-          eqAtual >= eqIdeal
-            ? `Equipe de ${eqAtual} especialistas atende a demanda especializada e permite rotatividade sem filas de escalonamento.`
-            : `Equipe atual com ${eqAtual} especialista(s) está abaixo da referência de 7 técnicos, gerando gargalo em chamados de maior complexidade.`,
+        ideal: '2 a 3 técnicos',
+        status: eqDentro ? 'verde' : 'vermelho',
+        statusTexto: eqDentro ? 'Dentro da meta' : 'Acima do ideal',
+        diagnostico: eqDentro
+          ? `Equipe de ${eqAtual} técnicos dentro do dimensionamento ideal para o volume da operação.`
+          : `Equipe atual de ${eqAtual} técnicos dimensionada para alta disponibilidade, projetos e margem de crescimento — acima do cenário ideal de 2 a 3 técnicos para ${dados.totalChamados.toLocaleString('pt-BR')} chamados/mês.`,
       })
 
       // 3. Tempo Médio de Atendimento (TMA)
@@ -299,13 +297,13 @@ export function BenchmarkPanel({
       list.push({
         indicador: 'SLA Alvo por Complexidade',
         descricao: 'Referência por categoria: rotinas de painel vs redes e firewalls',
-        real: 'cPanel: 30–45 min | UniFi: 1h30–3h',
+        real: 'Mix de atendimentos',
         realNum: null,
-        ideal: 'Quebra por tópico (Consortium / HDI)',
+        ideal: 'N1 (cPanel/PHP): 30 a 45 min • N2 (Fortigate/UniFi): 1h30 a 3h',
         status: 'informativo',
         statusTexto: 'Referência',
         diagnostico:
-          'Operação mista sem filas rígidas de N1/N2: tickets de cPanel/PHP devem fechar entre 30 e 45 min; chamados de Fortigate/UniFi têm tolerância entre 1h30 e 3h para causa raiz.',
+          'O sistema deve validar o estouro de tempo de acordo com a categoria do ticket: rotinas de cPanel/PHP fecham entre 30 e 45 min; chamados de Fortigate/UniFi têm tolerância entre 1h30 e 3h para causa raiz.',
       })
 
       // 5. Produtividade Diária (Chamados/Técnico)
@@ -325,7 +323,7 @@ export function BenchmarkPanel({
         if (dentro) {
           diagnostico = `Produtividade equilibrada para o perfil misto (${prodFormat} chamados/dia vs meta ${metaChMin} a ${metaChMax} chamados/dia).`
         } else if (abaixo) {
-          diagnostico = `Média de ${prodFormat} chamados/dia abaixo de 4. Indica dedicação a projetos de infraestrutura ou resolução de poucos incidentes de alta complexidade.`
+          diagnostico = `Média de ${prodFormat} chamados/dia abaixo da faixa ideal de ${metaChMin} a ${metaChMax}. Foco em resolução definitiva no primeiro contato sem sobrecarga de fila.`
         } else {
           diagnostico = `Produtividade acima de 7 chamados/dia (${prodFormat}). Volume elevado: monitorar se a equipe não está sobrecarregada ou focada apenas em tarefas rápidas.`
         }
@@ -367,7 +365,7 @@ export function BenchmarkPanel({
         if (dentro) {
           diagnostico = `Ocupação saudável (${ocupFormat} do tempo em tickets). Restante (~25% a 35%) preservado para manutenções, scripts e automação de servidores.`
         } else if (abaixo) {
-          diagnostico = `Ocupação em tickets de ${ocupFormat}. Mais de um terço do tempo disponível para projetos de datacenter, infraestrutura e hardening.`
+          diagnostico = `Ocupação em tickets de ${ocupFormat}. Foco Preventivo (~80%): tempo livre investido em segurança, tuning, backups e melhorias.`
         } else {
           diagnostico = `A equipe está gastando ${ocupFormat} do expediente em tickets. Risco de negligenciar atualizações preventivas e automações de infra.`
         }
