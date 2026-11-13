@@ -68,6 +68,21 @@ export async function deleteImportRecord(id: string): Promise<void> {
    SUPPORT RECORDS SERVICE
    ======================================================== */
 
+/**
+ * Rótulos brutos de chamados (support_records) que compõem cada filtro
+ * canônico de departamento. A fila única de Projetos (v0.0.69) unifica
+ * "Projetos", "Projetos Internos" e "Projetos Locais" — o banco grava os
+ * rótulos brutos da planilha, então o filtro canônico precisa casar com
+ * TODAS as variantes (eq exato nunca traria nada para "Projetos").
+ */
+const FILTROS_DEPARTAMENTO_CHAMADOS: Record<string, string[]> = {
+  Projetos: ['Projetos', 'Projetos Internos', 'Projetos Locais'],
+}
+
+function rotulosChamadosDoFiltro(departamento: string): string[] {
+  return FILTROS_DEPARTAMENTO_CHAMADOS[departamento] ?? [departamento]
+}
+
 export interface FetchSupportRecordsParams {
   startDate?: string // YYYY-MM-DD
   endDate?: string // YYYY-MM-DD
@@ -101,7 +116,12 @@ export async function fetchSupportRecords(
       query = query.lte('data_chamado', params.endDate)
     }
     if (params?.departamento) {
-      query = query.eq('departamento', params.departamento)
+      const rotulos = rotulosChamadosDoFiltro(params.departamento)
+      if (rotulos.length === 1) {
+        query = query.eq('departamento', rotulos[0])
+      } else {
+        query = query.in('departamento', rotulos)
+      }
     }
     if (params?.tecnico) {
       query = query.eq('tecnico', params.tecnico)
@@ -331,7 +351,12 @@ export async function fetchChamados(params?: FetchChamadosParams): Promise<Fetch
     query = query.lte('data_chamado', params.endDate)
   }
   if (params?.departamento) {
-    query = query.eq('departamento', params.departamento)
+    const rotulos = rotulosChamadosDoFiltro(params.departamento)
+    if (rotulos.length === 1) {
+      query = query.eq('departamento', rotulos[0])
+    } else {
+      query = query.in('departamento', rotulos)
+    }
   }
   if (params?.tecnico) {
     query = query.eq('tecnico', params.tecnico)
