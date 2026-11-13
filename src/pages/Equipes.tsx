@@ -2,6 +2,24 @@ import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { Users, Save, Trash2, Plus, Info, Award, ShieldCheck } from 'lucide-react'
 import {
+  FONTES_PROJETOS,
+  FONTES_ATIVACAO,
+  PROJETOS_TECNICOS_IDEAL,
+  PROJETOS_VOLUME_MIN,
+  PROJETOS_VOLUME_MAX,
+  PROJETOS_TMA_MIN_MINUTOS,
+  PROJETOS_TMA_MAX_MINUTOS,
+  PROJETOS_BLOQUEIO_MAX_PERCENTUAL,
+  PROJETOS_OCUPACAO_MIN,
+  PROJETOS_OCUPACAO_MAX,
+  ATIVACAO_LEAD_TIME_MIN_DIAS_UTEIS,
+  ATIVACAO_LEAD_TIME_MAX_DIAS_UTEIS,
+  ATIVACAO_HANDOVER_MIN_PERCENTUAL,
+  ATIVACAO_IMPACTO_MAX_PERCENTUAL,
+  ATIVACAO_TECNICOS_IDEAL,
+  formatarHorasProjetos,
+} from '@/lib/benchmarks-projetos-ativacao'
+import {
   fetchDepartmentCapacity,
   upsertDepartmentCapacity,
   deleteDepartmentCapacity,
@@ -82,6 +100,42 @@ function isCampoDepartment(depto: string): boolean {
   )
 }
 
+// Defaults Projetos (fila única) e Ativação — metas cadastradas pela gestão
+const DEFAULT_PROJETOS_TMA_MIN = PROJETOS_TMA_MIN_MINUTOS // 480 (8h)
+const DEFAULT_PROJETOS_TMA_MAX = PROJETOS_TMA_MAX_MINUTOS // 960 (16h)
+// Volume 25–35 projetos/mês ÷ 20 dias úteis = 1,25–1,75 por dia (equipe toda)
+const DEFAULT_PROJETOS_DIA_MIN = 1.25
+const DEFAULT_PROJETOS_DIA_MAX = 1.75
+const DEFAULT_PROJETOS_OCUPACAO_MIN = PROJETOS_OCUPACAO_MIN
+const DEFAULT_PROJETOS_OCUPACAO_MAX = PROJETOS_OCUPACAO_MAX
+const DEFAULT_PROJETOS_DIAS_UTEIS = 20
+
+const DEFAULT_ATIVACAO_DIA_MIN = 0.5
+const DEFAULT_ATIVACAO_DIA_MAX = 0.75
+const DEFAULT_ATIVACAO_OCUPACAO_MIN = 0
+const DEFAULT_ATIVACAO_OCUPACAO_MAX = ATIVACAO_IMPACTO_MAX_PERCENTUAL
+const DEFAULT_ATIVACAO_DIAS_UTEIS = 20
+
+// Fila única de Projetos: o card/cadastro trata "Projetos", "Projetos Internos"
+// e "Projetos Locais" como o MESMO departamento (casam com a constante FILA_PROJETOS_ROTULOS)
+function isProjetosDepartment(depto: string): boolean {
+  const norm = depto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+  return norm === 'projetos' || norm.includes('projet')
+}
+
+function isAtivacaoDepartment(depto: string): boolean {
+  const norm = depto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+  return norm === 'ativacao' || norm.includes('ativac')
+}
+
 interface DraftRow {
   departamento: string
   qtd_tecnicos: string
@@ -98,6 +152,8 @@ function toDraft(departamento: string, existing?: DepartmentCapacityRecord): Dra
   const isLinux = isLinuxDepartment(departamento)
   const isN2 = isN2Department(departamento)
   const isCampo = isCampoDepartment(departamento)
+  const isProjetos = isProjetosDepartment(departamento)
+  const isAtivacao = isAtivacaoDepartment(departamento)
 
   // TMA
   const tmaMin =
@@ -109,7 +165,11 @@ function toDraft(departamento: string, existing?: DepartmentCapacityRecord): Dra
         ? DEFAULT_CAMPO_TMA_MIN
         : isN2
           ? DEFAULT_N2_TMA_MIN
-          : DEFAULT_N1_TMA_MIN)
+          : isProjetos
+            ? DEFAULT_PROJETOS_TMA_MIN
+            : isAtivacao
+              ? null
+              : DEFAULT_N1_TMA_MIN)
 
   const tmaMax =
     existing?.meta_tma_max_num ??
@@ -119,7 +179,11 @@ function toDraft(departamento: string, existing?: DepartmentCapacityRecord): Dra
         ? DEFAULT_CAMPO_TMA_MAX
         : isN2
           ? DEFAULT_N2_TMA_MAX
-          : DEFAULT_N1_TMA_MAX)
+          : isProjetos
+            ? DEFAULT_PROJETOS_TMA_MAX
+            : isAtivacao
+              ? null
+              : DEFAULT_N1_TMA_MAX)
 
   // Chamados/dia
   const chamadosMin =
@@ -131,7 +195,11 @@ function toDraft(departamento: string, existing?: DepartmentCapacityRecord): Dra
         ? DEFAULT_CAMPO_CHAMADOS_MIN
         : isN2
           ? DEFAULT_N2_CHAMADOS_MIN
-          : DEFAULT_N1_CHAMADOS_MIN)
+          : isProjetos
+            ? DEFAULT_PROJETOS_DIA_MIN
+            : isAtivacao
+              ? DEFAULT_ATIVACAO_DIA_MIN
+              : DEFAULT_N1_CHAMADOS_MIN)
 
   const chamadosMax =
     existing?.meta_chamados_dia_max ??
@@ -141,21 +209,33 @@ function toDraft(departamento: string, existing?: DepartmentCapacityRecord): Dra
         ? DEFAULT_CAMPO_CHAMADOS_MAX
         : isN2
           ? DEFAULT_N2_CHAMADOS_MAX
-          : DEFAULT_N1_CHAMADOS_MAX)
+          : isProjetos
+            ? DEFAULT_PROJETOS_DIA_MAX
+            : isAtivacao
+              ? DEFAULT_ATIVACAO_DIA_MAX
+              : DEFAULT_N1_CHAMADOS_MAX)
 
-  const fallbackQtd = isLinux ? String(DEFAULT_LINUX_TECNICOS_REAL) : ''
+  const fallbackQtd = isLinux
+    ? String(DEFAULT_LINUX_TECNICOS_REAL)
+    : isProjetos
+      ? String(PROJETOS_TECNICOS_IDEAL)
+      : isAtivacao
+        ? String(ATIVACAO_TECNICOS_IDEAL)
+        : ''
 
   return {
     departamento,
     qtd_tecnicos: existing?.qtd_tecnicos != null ? String(existing.qtd_tecnicos) : fallbackQtd,
     dias_uteis:
-      existing?.dias_uteis != null ? String(existing.dias_uteis) : String(DEFAULT_DIAS_UTEIS),
+      existing?.dias_uteis != null
+        ? String(existing.dias_uteis)
+        : String(isProjetos || isAtivacao ? DEFAULT_PROJETOS_DIAS_UTEIS : DEFAULT_DIAS_UTEIS),
     limite_diario:
       existing?.limite_diario != null
         ? String(existing.limite_diario)
-        : String(DEFAULT_LIMITE_DIARIO),
-    meta_tma_min: String(tmaMin),
-    meta_tma_max: String(tmaMax),
+        : String(isProjetos || isAtivacao ? chamadosMax : DEFAULT_LIMITE_DIARIO),
+    meta_tma_min: tmaMin == null ? '' : String(tmaMin),
+    meta_tma_max: tmaMax == null ? '' : String(tmaMax),
     meta_chamados_dia_min: String(chamadosMin).replace('.', ','),
     meta_chamados_dia_max: String(chamadosMax).replace('.', ','),
     existing,
@@ -196,7 +276,8 @@ export default function Equipes() {
         if (!map[c.departamento]) map[c.departamento] = toDraft(c.departamento, c)
       })
 
-      // Se Linux, N2 ou Campo ainda não estiverem mapeados nem salvos, garante presença para configuração fácil
+      // Se Linux, N2, Campo, Projetos ou Ativação ainda não estiverem mapeados
+      // nem salvos, garante presença para configuração fácil
       if (!map['Linux']) {
         map['Linux'] = toDraft('Linux')
       }
@@ -205,6 +286,12 @@ export default function Equipes() {
       }
       if (!map['Campo']) {
         map['Campo'] = toDraft('Campo')
+      }
+      if (!map['Projetos']) {
+        map['Projetos'] = toDraft('Projetos')
+      }
+      if (!map['Ativação']) {
+        map['Ativação'] = toDraft('Ativação')
       }
 
       setDrafts(map)
@@ -252,6 +339,8 @@ export default function Equipes() {
     const isLinux = isLinuxDepartment(depto)
     const isN2 = isN2Department(depto)
     const isCampo = isCampoDepartment(depto)
+    const isProjetos = isProjetosDepartment(depto)
+    const isAtivacao = isAtivacaoDepartment(depto)
     const tmaMin = parseFloat(draft.meta_tma_min.replace(',', '.'))
     const tmaMax = parseFloat(draft.meta_tma_max.replace(',', '.'))
     const chMin = parseFloat(draft.meta_chamados_dia_min.replace(',', '.'))
@@ -263,28 +352,40 @@ export default function Equipes() {
         ? DEFAULT_CAMPO_TMA_MIN
         : isN2
           ? DEFAULT_N2_TMA_MIN
-          : DEFAULT_N1_TMA_MIN
+          : isProjetos
+            ? DEFAULT_PROJETOS_TMA_MIN
+            : DEFAULT_N1_TMA_MIN
     const defaultTmaMax = isLinux
       ? DEFAULT_LINUX_TMA_MAX
       : isCampo
         ? DEFAULT_CAMPO_TMA_MAX
         : isN2
           ? DEFAULT_N2_TMA_MAX
-          : DEFAULT_N1_TMA_MAX
+          : isProjetos
+            ? DEFAULT_PROJETOS_TMA_MAX
+            : DEFAULT_N1_TMA_MAX
     const defaultChMin = isLinux
       ? DEFAULT_LINUX_CHAMADOS_MIN
       : isCampo
         ? DEFAULT_CAMPO_CHAMADOS_MIN
         : isN2
           ? DEFAULT_N2_CHAMADOS_MIN
-          : DEFAULT_N1_CHAMADOS_MIN
+          : isProjetos
+            ? DEFAULT_PROJETOS_DIA_MIN
+            : isAtivacao
+              ? DEFAULT_ATIVACAO_DIA_MIN
+              : DEFAULT_N1_CHAMADOS_MIN
     const defaultChMax = isLinux
       ? DEFAULT_LINUX_CHAMADOS_MAX
       : isCampo
         ? DEFAULT_CAMPO_CHAMADOS_MAX
         : isN2
           ? DEFAULT_N2_CHAMADOS_MAX
-          : DEFAULT_N1_CHAMADOS_MAX
+          : isProjetos
+            ? DEFAULT_PROJETOS_DIA_MAX
+            : isAtivacao
+              ? DEFAULT_ATIVACAO_DIA_MAX
+              : DEFAULT_N1_CHAMADOS_MAX
 
     const finalTmaMin = !isNaN(tmaMin) && tmaMin > 0 ? tmaMin : defaultTmaMin
     const finalTmaMax = !isNaN(tmaMax) && tmaMax >= finalTmaMin ? tmaMax : defaultTmaMax
@@ -297,26 +398,36 @@ export default function Equipes() {
         ? DEFAULT_CAMPO_OCUPACAO_MIN
         : isN2
           ? DEFAULT_N2_OCUPACAO_MIN
-          : 70
+          : isProjetos
+            ? DEFAULT_PROJETOS_OCUPACAO_MIN
+            : isAtivacao
+              ? DEFAULT_ATIVACAO_OCUPACAO_MIN
+              : 70
     const ocupMax = isLinux
       ? DEFAULT_LINUX_OCUPACAO_MAX
       : isCampo
         ? DEFAULT_CAMPO_OCUPACAO_MAX
         : isN2
           ? DEFAULT_N2_OCUPACAO_MAX
-          : 85
+          : isProjetos
+            ? DEFAULT_PROJETOS_OCUPACAO_MAX
+            : isAtivacao
+              ? DEFAULT_ATIVACAO_OCUPACAO_MAX
+              : 85
 
     setSaving(depto)
     setError(null)
     try {
+      const tmaFallback = isAtivacao ? null : isProjetos ? DEFAULT_PROJETOS_TMA_MIN : finalTmaMin
+      const tmaMaxFallback = isAtivacao ? null : isProjetos ? DEFAULT_PROJETOS_TMA_MAX : finalTmaMax
       const saved = await upsertDepartmentCapacity({
         departamento: depto,
         qtd_tecnicos: qtd,
         dias_uteis: !isNaN(dias) && dias > 0 ? dias : DEFAULT_DIAS_UTEIS,
         limite_diario: !isNaN(limite) && limite > 0 ? limite : DEFAULT_LIMITE_DIARIO,
-        meta_tma_min: finalTmaMin,
-        meta_tma_min_num: finalTmaMin,
-        meta_tma_max_num: finalTmaMax,
+        meta_tma_min: tmaFallback ?? undefined,
+        meta_tma_min_num: tmaFallback ?? undefined,
+        meta_tma_max_num: tmaMaxFallback ?? undefined,
         meta_chamados_dia: finalChMin,
         meta_chamados_dia_min: finalChMin,
         meta_chamados_dia_max: finalChMax,
@@ -467,6 +578,8 @@ export default function Equipes() {
               const isLinux = isLinuxDepartment(depto)
               const isN2 = isN2Department(depto)
               const isCampo = isCampoDepartment(depto)
+              const isProjetos = isProjetosDepartment(depto)
+              const isAtivacao = isAtivacaoDepartment(depto)
 
               return (
                 <div
@@ -479,6 +592,14 @@ export default function Equipes() {
                         <p className="text-sm font-bold text-slate-800 truncate" title={depto}>
                           {depto}
                         </p>
+                        {(isProjetos || isAtivacao) && (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] font-semibold border-cyan-200 text-cyan-700 bg-cyan-50 shrink-0"
+                          >
+                            {isProjetos ? 'Fila única de Projetos' : 'Ativação'}
+                          </Badge>
+                        )}
                         {isLinux && (
                           <Badge
                             variant="outline"
@@ -527,7 +648,11 @@ export default function Equipes() {
                               ? 'Fontes: MetricNet / CompTIA'
                               : isN2
                                 ? 'Fontes: ITIL 4 / Gartner'
-                                : 'Fontes: HDI / MetricNet'}
+                                : isProjetos
+                                  ? `Fontes: ${FONTES_PROJETOS}`
+                                  : isAtivacao
+                                    ? `Fontes: ${FONTES_ATIVACAO}`
+                                    : 'Fontes: HDI / MetricNet'}
                         </span>
                       </div>
                     </div>
@@ -741,6 +866,79 @@ export default function Equipes() {
                       </p>
                     </div>
                   )}
+
+                  {/* Quadro real vs ideal — Projetos (fila única) */}
+                  {isProjetos && (
+                    <div className="rounded-xl border border-cyan-100 bg-white px-3.5 py-2.5 text-[11px] text-slate-600 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                      <div>
+                        <p className="font-bold text-cyan-900">Tamanho da equipe</p>
+                        <p>
+                          <b>Real:</b> {draft?.qtd_tecnicos || '—'} técnicos • <b>Ideal:</b>{' '}
+                          {PROJETOS_TECNICOS_IDEAL} técnicos
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-cyan-900">TMA por projeto</p>
+                        <p>
+                          <b>Meta:</b> {formatarHorasProjetos(PROJETOS_TMA_MIN_MINUTOS)} a{' '}
+                          {formatarHorasProjetos(PROJETOS_TMA_MAX_MINUTOS)} líquidas
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-cyan-900">Volume mensal</p>
+                        <p>
+                          <b>Meta:</b> {PROJETOS_VOLUME_MIN} a {PROJETOS_VOLUME_MAX} projetos/mês
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-cyan-900">Ocupação</p>
+                        <p>
+                          <b>Meta:</b> {PROJETOS_OCUPACAO_MIN}% a {PROJETOS_OCUPACAO_MAX}% do tempo
+                        </p>
+                      </div>
+                      <p className="sm:col-span-2 lg:col-span-4 text-cyan-700 italic">
+                        Taxa de bloqueio: menos de {PROJETOS_BLOQUEIO_MAX_PERCENTUAL}% do tempo em
+                        projetos paralisados. Fontes: {FONTES_PROJETOS}.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Quadro real vs ideal — Ativação */}
+                  {isAtivacao && (
+                    <div className="rounded-xl border border-cyan-100 bg-white px-3.5 py-2.5 text-[11px] text-slate-600 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                      <div>
+                        <p className="font-bold text-cyan-900">Tamanho da equipe</p>
+                        <p>
+                          <b>Real:</b> {draft?.qtd_tecnicos || '—'} técnicos • <b>Ideal:</b>{' '}
+                          {ATIVACAO_TECNICOS_IDEAL} técnico
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-cyan-900">Lead time</p>
+                        <p>
+                          <b>Meta:</b> {ATIVACAO_LEAD_TIME_MIN_DIAS_UTEIS} a{' '}
+                          {ATIVACAO_LEAD_TIME_MAX_DIAS_UTEIS} dias úteis
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-cyan-900">Handover</p>
+                        <p>
+                          <b>Meta:</b> acima de {ATIVACAO_HANDOVER_MIN_PERCENTUAL}%
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-cyan-900">Impacto na capacidade</p>
+                        <p>
+                          <b>Meta:</b> até {ATIVACAO_IMPACTO_MAX_PERCENTUAL}% da capacidade
+                        </p>
+                      </div>
+                      <p className="sm:col-span-2 lg:col-span-4 text-cyan-700 italic">
+                        Indicadores de fluxo (lead time, handover e impacto) ainda não são medidos
+                        pelo sistema — exibidos como referência de benchmark. Fontes:{' '}
+                        {FONTES_ATIVACAO}.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -748,14 +946,14 @@ export default function Equipes() {
         )}
       </div>
 
-      {/* RODAPÉ COM NOTAS DE FONTE BENCHMARK (N1 HDI + METRICNET | N2 AXELOS/ITIL 4 + GARTNER | LINUX CONSORTIUM/HDI/METRICNET | CAMPO METRICNET + COMPTIA) */}
+      {/* RODAPÉ COM NOTAS DE FONTE BENCHMARK (N1 HDI + METRICNET | N2 AXELOS/ITIL 4 + GARTNER | LINUX CONSORTIUM/HDI/METRICNET | CAMPO METRICNET + COMPTIA | PROJETOS PMI + SERVICE LEADERSHIP | ATIVAÇÃO ITIL 4 + COMPTIA) */}
       <footer className="mt-8 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-5 text-xs text-slate-600 space-y-3">
         <div className="flex items-center gap-2 text-slate-800 font-bold">
           <Award className="w-4 h-4 text-teal-600" />
           <span>Fontes oficiais de referência e metodologia das metas</span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-1">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-1">
           <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
             <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
               <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
@@ -840,6 +1038,48 @@ export default function Equipes() {
               <br />
               <b>Contexto:</b> Atendimentos presenciais corporativos/PMEs com deslocamento, antenas,
               relatórios técnicos e rotinas de laboratório.
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-cyan-600" />
+              <span>Projetos (Fila única de Projetos)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fontes oficiais:</b>
+              <br />• <b>PMI / PMBOK Guide</b> — Project Management Body of Knowledge (gestão de
+              projetos por entregas; lead time e bloqueio como indicadores de fluxo).
+              <br />• <b>Service Leadership</b> — IT/Low-Voltage Industry Benchmarks (ocupação de
+              40% a 90% da equipe em projetos — margem para documentação, testes e reuniões).
+              <br />
+              <b>Metas padrão:</b> equipe de <b>3 técnicos</b>, <b>25 a 35 projetos/mês</b>, TMA de{' '}
+              <b>8h a 16h líquidas por projeto</b>, taxa de bloqueio <b>abaixo de 30%</b> do tempo e
+              ocupação de <b>40% a 90%</b>.
+              <br />
+              <b>Contexto:</b> a fila única soma os rótulos "Projetos", "Projetos Internos" e
+              "Projetos Locais" da planilha.
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Ativação (Implantação / Onboarding)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fontes oficiais:</b>
+              <br />• <b>AXELOS/PeopleCert (ITIL 4 Framework)</b> — Practice Guide: Service
+              Transition (lead time controlado e handover formal entre equipes).
+              <br />• <b>CompTIA</b> — Best Practices for Onboarding & Deployment (impacto
+              controlado na capacidade operacional para não drenar o suporte).
+              <br />
+              <b>Metas padrão:</b> equipe de <b>2 técnicos</b>, lead time de{' '}
+              <b>7 a 15 dias úteis</b>, handover <b>acima de 90%</b> e impacto de até{' '}
+              <b>25% da capacidade</b> da operação.
+              <br />
+              <b>Contexto:</b> indicadores de fluxo (lead time, handover, impacto) ainda não medidos
+              pelo sistema — exibidos como referência de benchmark.
             </p>
           </div>
         </div>

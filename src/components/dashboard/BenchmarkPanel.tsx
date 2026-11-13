@@ -2,6 +2,25 @@ import { useMemo } from 'react'
 import { Award, AlertCircle, CheckCircle2, Info, Layers } from 'lucide-react'
 import { SupportRecord, DepartmentCapacityRecord } from '@/types/support'
 import { Badge } from '@/components/ui/badge'
+import {
+  FONTES_PROJETOS,
+  FONTES_ATIVACAO,
+  PROJETOS_TECNICOS_IDEAL,
+  PROJETOS_VOLUME_MIN,
+  PROJETOS_VOLUME_MAX,
+  PROJETOS_TMA_MIN_MINUTOS,
+  PROJETOS_TMA_MAX_MINUTOS,
+  PROJETOS_BLOQUEIO_MAX_PERCENTUAL,
+  PROJETOS_OCUPACAO_MIN,
+  PROJETOS_OCUPACAO_MAX,
+  ATIVACAO_LEAD_TIME_MIN_DIAS_UTEIS,
+  ATIVACAO_LEAD_TIME_MAX_DIAS_UTEIS,
+  ATIVACAO_HANDOVER_MIN_PERCENTUAL,
+  ATIVACAO_IMPACTO_MAX_PERCENTUAL,
+  ATIVACAO_TECNICOS_IDEAL,
+  isProjetos,
+  isAtivacao,
+} from '@/lib/benchmarks-projetos-ativacao'
 
 interface BenchmarkPanelProps {
   records: SupportRecord[]
@@ -74,16 +93,21 @@ export function BenchmarkPanel({
   const isFilterLinux = useMemo(() => isLinux(selectedDepartamento), [selectedDepartamento])
   const isFilterN2 = useMemo(() => isN2(selectedDepartamento), [selectedDepartamento])
   const isFilterCampo = useMemo(() => isCampo(selectedDepartamento), [selectedDepartamento])
+  const isFilterProjetos = useMemo(() => isProjetos(selectedDepartamento), [selectedDepartamento])
+  const isFilterAtivacao = useMemo(() => isAtivacao(selectedDepartamento), [selectedDepartamento])
 
-  // Busca configuração específica do departamento filtrado se houver
+  // Busca configuração específica do departamento filtrado se houver.
+  // Fila única de Projetos: aceita "Projetos", "Projetos Internos" ou "Projetos Locais"
   const activeCapacity = useMemo(() => {
     if (!selectedDepartamento || selectedDepartamento === 'todos') return null
     return (
       capacities.find(
         (c) => c.departamento.toLowerCase().trim() === selectedDepartamento.toLowerCase().trim(),
-      ) || null
+      ) ||
+      (isFilterProjetos ? capacities.find((c) => isProjetos(c.departamento)) || null : null) ||
+      (isFilterAtivacao ? capacities.find((c) => isAtivacao(c.departamento)) || null : null)
     )
-  }, [capacities, selectedDepartamento])
+  }, [capacities, selectedDepartamento, isFilterProjetos, isFilterAtivacao])
 
   const dados = useMemo(() => {
     const totalChamados = records.length
@@ -757,6 +781,207 @@ export function BenchmarkPanel({
       return list
     }
 
+    if (isFilterProjetos) {
+      // =========================================================
+      // MODO PROJETOS (fila única: Projetos + Projetos Internos + Projetos Locais)
+      // =========================================================
+      const metaTmaMin = activeCapacity?.meta_tma_min_num ?? PROJETOS_TMA_MIN_MINUTOS
+      const metaTmaMax = activeCapacity?.meta_tma_max_num ?? PROJETOS_TMA_MAX_MINUTOS
+
+      // 1. Volume de Projetos / Mês
+      list.push({
+        indicador: 'Volume de Projetos no Período',
+        descricao: 'Demanda de projetos (fila única) absorvida pela equipe no recorte',
+        real: `${dados.totalChamados.toLocaleString('pt-BR')} lançamentos`,
+        realNum: dados.totalChamados,
+        ideal: `${PROJETOS_VOLUME_MIN} a ${PROJETOS_VOLUME_MAX} projetos/mês`,
+        status: 'informativo',
+        statusTexto: 'Informativo',
+        diagnostico:
+          'Fila única de Projetos: soma os rótulos "Projetos", "Projetos Internos" e "Projetos Locais" da planilha.',
+      })
+
+      // 2. Tamanho da Equipe Necessária (ideal 3 técnicos)
+      const eqAtual = dados.tecnicosEquipe
+      const eqDentro = eqAtual >= PROJETOS_TECNICOS_IDEAL
+      list.push({
+        indicador: 'Tamanho da Equipe Necessária',
+        descricao: 'Dimensionamento da equipe de projetos para o volume da operação',
+        real: `${eqAtual} técnico${eqAtual > 1 ? 's' : ''}`,
+        realNum: eqAtual,
+        ideal: `${PROJETOS_TECNICOS_IDEAL} técnicos`,
+        status: eqDentro ? 'verde' : 'vermelho',
+        statusTexto: eqDentro ? 'Dentro da meta' : 'Abaixo do ideal',
+        diagnostico: eqDentro
+          ? `Equipe de ${eqAtual} técnicos dentro do dimensionamento ideal (${PROJETOS_TECNICOS_IDEAL} técnicos).`
+          : `Equipe atual de ${eqAtual} técnico(s) abaixo do ideal de ${PROJETOS_TECNICOS_IDEAL} técnicos para ${PROJETOS_VOLUME_MIN} a ${PROJETOS_VOLUME_MAX} projetos/mês.`,
+      })
+
+      // 3. TMA por projeto (horas líquidas apontadas)
+      if (dados.tmaRealMin !== null) {
+        const tmaRound = Math.round(dados.tmaRealMin)
+        const tmaFormat = formatMinutesToHours(tmaRound)
+
+        const dentroFaixa = tmaRound >= metaTmaMin && tmaRound <= metaTmaMax
+        const abaixo = tmaRound < metaTmaMin
+        const acima = tmaRound > metaTmaMax
+
+        const status: 'verde' | 'vermelho' = dentroFaixa ? 'verde' : 'vermelho'
+        const statusTexto = dentroFaixa
+          ? 'Dentro da meta'
+          : abaixo
+            ? 'Abaixo da faixa'
+            : 'Acima da meta'
+
+        const diagnostico = dentroFaixa
+          ? `Excelente. TMA em ${tmaFormat}, dentro da faixa de 8h a 16h líquidas por projeto.`
+          : abaixo
+            ? `Média de ${tmaFormat}, abaixo de 8h líquidas. Projetos pequenos ou apontamento parcial do tempo real (documentação, testes e reuniões fora do lançamento).`
+            : `Média de ${tmaFormat}, acima de 16h líquidas. Projetos longos ou gargalo na execução — monitorar a taxa de bloqueio (meta: abaixo de ${PROJETOS_BLOQUEIO_MAX_PERCENTUAL}%).`
+
+        list.push({
+          indicador: 'Tempo Médio por Projeto (TMA)',
+          descricao: 'Horas líquidas apontadas por projeto concluído',
+          real: tmaFormat,
+          realNum: tmaRound,
+          ideal: `8h a 16h líquidas (${metaTmaMin / 60}h a ${metaTmaMax / 60}h)`,
+          status,
+          statusTexto,
+          diagnostico,
+        })
+      } else {
+        list.push({
+          indicador: 'Tempo Médio por Projeto (TMA)',
+          descricao: 'Horas líquidas apontadas por projeto concluído',
+          real: 'Sem apontamento',
+          realNum: null,
+          ideal: '8h a 16h líquidas por projeto',
+          status: 'vermelho',
+          statusTexto: 'Sem dados',
+          diagnostico:
+            'Os lançamentos de Projetos no período não possuem apontamento de tempo trabalhado.',
+        })
+      }
+
+      // 4. Taxa de Bloqueio (indicador ainda não medido — referência)
+      list.push({
+        indicador: 'Taxa de Bloqueio',
+        descricao: 'Percentual do tempo com projetos paralisados (aguardando cliente/approvação)',
+        real: 'Não medido',
+        realNum: null,
+        ideal: `Abaixo de ${PROJETOS_BLOQUEIO_MAX_PERCENTUAL}% do tempo`,
+        status: 'informativo',
+        statusTexto: 'Referência',
+        diagnostico: `Meta cadastrada como referência: manter o tempo em bloqueio abaixo de ${PROJETOS_BLOQUEIO_MAX_PERCENTUAL}%. O sistema ainda não mede este indicador — exigiria status de bloqueio no lançamento.`,
+      })
+
+      // 5. Ocupação da equipe em projetos
+      if (dados.taxaOcupacaoPercent !== null) {
+        const ocup = Math.round(dados.taxaOcupacaoPercent * 10) / 10
+        const ocupFormat = `${ocup.toLocaleString('pt-BR')}%`
+        const dentro = ocup >= PROJETOS_OCUPACAO_MIN && ocup <= PROJETOS_OCUPACAO_MAX
+
+        const status: 'verde' | 'vermelho' = dentro ? 'verde' : 'vermelho'
+        const statusTexto = dentro
+          ? 'Dentro da meta'
+          : ocup < PROJETOS_OCUPACAO_MIN
+            ? 'Abaixo da meta'
+            : 'Acima da meta'
+
+        const diagnostico = dentro
+          ? `Ocupação saudável (${ocupFormat} do tempo em projetos). Restante preservado para documentação, testes e reuniões.`
+          : ocup < PROJETOS_OCUPACAO_MIN
+            ? `Ocupação de ${ocupFormat}, abaixo da faixa de ${PROJETOS_OCUPACAO_MIN}% a ${PROJETOS_OCUPACAO_MAX}%. Equipe com margem — avaliar absorção de novos projetos.`
+            : `Ocupação de ${ocupFormat}, acima de ${PROJETOS_OCUPACAO_MAX}%. Risco de sobrecarga e de drenar técnicos do suporte operacional.`
+
+        list.push({
+          indicador: 'Ocupação da Equipe em Projetos',
+          descricao: 'Percentual do expediente investido diretamente na execução de projetos',
+          real: `~${ocupFormat} do tempo`,
+          realNum: ocup,
+          ideal: `${PROJETOS_OCUPACAO_MIN}% a ${PROJETOS_OCUPACAO_MAX}% do tempo`,
+          status,
+          statusTexto,
+          diagnostico,
+        })
+      }
+
+      return list
+    }
+
+    if (isFilterAtivacao) {
+      // =========================================================
+      // MODO ATIVAÇÃO (implantação / onboarding)
+      // =========================================================
+
+      // 1. Volume de Ativações no Período
+      list.push({
+        indicador: 'Volume de Ativações no Período',
+        descricao: 'Implantações/onboardings conduzidos pela equipe no recorte',
+        real: `${dados.totalChamados.toLocaleString('pt-BR')} lançamentos`,
+        realNum: dados.totalChamados,
+        ideal: 'Fluxo contínuo conforme demanda comercial',
+        status: 'informativo',
+        statusTexto: 'Informativo',
+        diagnostico:
+          'Lead time de 7 a 15 dias úteis por ativação — pouco fluxo simultâneo por técnico.',
+      })
+
+      // 2. Tamanho da Equipe Necessária (ideal 2 técnicos)
+      const eqAtual = dados.tecnicosEquipe
+      const eqDentro = eqAtual >= ATIVACAO_TECNICOS_IDEAL
+      list.push({
+        indicador: 'Tamanho da Equipe Necessária',
+        descricao: 'Dimensionamento da equipe de ativação/implantação',
+        real: `${eqAtual} técnico${eqAtual > 1 ? 's' : ''}`,
+        realNum: eqAtual,
+        ideal: `${ATIVACAO_TECNICOS_IDEAL} técnicos`,
+        status: eqDentro ? 'verde' : 'vermelho',
+        statusTexto: eqDentro ? 'Dentro da meta' : 'Abaixo do ideal',
+        diagnostico: eqDentro
+          ? `Equipe de ${eqAtual} técnicos dentro do dimensionamento ideal (${ATIVACAO_TECNICOS_IDEAL} técnicos).`
+          : `Equipe atual de ${eqAtual} técnico(s) abaixo do ideal de ${ATIVACAO_TECNICOS_IDEAL} técnicos.`,
+      })
+
+      // 3. Lead Time (indicador ainda não medido — referência)
+      list.push({
+        indicador: 'Lead Time de Ativação',
+        descricao: 'Prazo do pedido comercial até a entrega em produção',
+        real: 'Não medido',
+        realNum: null,
+        ideal: `${ATIVACAO_LEAD_TIME_MIN_DIAS_UTEIS} a ${ATIVACAO_LEAD_TIME_MAX_DIAS_UTEIS} dias úteis`,
+        status: 'informativo',
+        statusTexto: 'Referência',
+        diagnostico: `Meta cadastrada como referência: concluir cada ativação entre ${ATIVACAO_LEAD_TIME_MIN_DIAS_UTEIS} e ${ATIVACAO_LEAD_TIME_MAX_DIAS_UTEIS} dias úteis. O sistema ainda não mede este indicador — exigiria datas de pedido e de entrega no lançamento.`,
+      })
+
+      // 4. Handover (indicador ainda não medido — referência)
+      list.push({
+        indicador: 'Handover para o Suporte',
+        descricao: 'Percentual de ativações transferidas sem falhas para a operação',
+        real: 'Não medido',
+        realNum: null,
+        ideal: `Acima de ${ATIVACAO_HANDOVER_MIN_PERCENTUAL}%`,
+        status: 'informativo',
+        statusTexto: 'Referência',
+        diagnostico: `Meta cadastrada como referência: handover formal sem falhas acima de ${ATIVACAO_HANDOVER_MIN_PERCENTUAL}%. O sistema ainda não mede este indicador — exigiria checklist de transferência por ativação.`,
+      })
+
+      // 5. Impacto na Capacidade (indicador ainda não medido — referência)
+      list.push({
+        indicador: 'Impacto na Capacidade',
+        descricao: 'Percentual da capacidade do time consumido por ativações',
+        real: 'Não medido',
+        realNum: null,
+        ideal: `Até ${ATIVACAO_IMPACTO_MAX_PERCENTUAL}% da capacidade`,
+        status: 'informativo',
+        statusTexto: 'Referência',
+        diagnostico: `Meta cadastrada como referência: ativações não devem consumir mais de ${ATIVACAO_IMPACTO_MAX_PERCENTUAL}% da capacidade da operação. O sistema ainda não mede este indicador.`,
+      })
+
+      return list
+    }
+
     // =========================================================
     // MODO N1 / CONSOLIDADO: Padrão HDI / MetricNet para N1 Remoto
     // =========================================================
@@ -909,7 +1134,15 @@ export function BenchmarkPanel({
     })
 
     return list
-  }, [dados, isFilterLinux, isFilterN2, isFilterCampo, activeCapacity])
+  }, [
+    dados,
+    isFilterLinux,
+    isFilterN2,
+    isFilterCampo,
+    isFilterProjetos,
+    isFilterAtivacao,
+    activeCapacity,
+  ])
 
   // Título e cabeçalhos dinâmicos
   const cenarioIdealTitulo = isFilterLinux
@@ -918,9 +1151,13 @@ export function BenchmarkPanel({
       ? 'Cenário Ideal (Field Service)'
       : isFilterN2
         ? 'Cenário Ideal (N2 Remoto)'
-        : selectedDepartamento && selectedDepartamento !== 'todos'
-          ? `Cenário Ideal (${selectedDepartamento})`
-          : 'Cenário Ideal (N1 Remoto)'
+        : isFilterProjetos
+          ? 'Cenário Ideal (Fila única de Projetos)'
+          : isFilterAtivacao
+            ? 'Cenário Ideal (Ativação / Implantação)'
+            : selectedDepartamento && selectedDepartamento !== 'todos'
+              ? `Cenário Ideal (${selectedDepartamento})`
+              : 'Cenário Ideal (N1 Remoto)'
 
   return (
     <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80 flex flex-col">
@@ -935,7 +1172,9 @@ export function BenchmarkPanel({
                     ? 'bg-blue-50 text-blue-600'
                     : isFilterN2
                       ? 'bg-amber-50 text-amber-600'
-                      : 'bg-teal-50 text-teal-600'
+                      : isFilterProjetos || isFilterAtivacao
+                        ? 'bg-cyan-50 text-cyan-600'
+                        : 'bg-teal-50 text-teal-600'
               }`}
             >
               <Award className="w-4 h-4" />
@@ -967,6 +1206,22 @@ export function BenchmarkPanel({
                     Perfil N2 Ativo
                   </Badge>
                 )}
+                {isFilterProjetos && (
+                  <Badge
+                    variant="outline"
+                    className="bg-cyan-50 text-cyan-700 border-cyan-200 text-[10px] font-semibold"
+                  >
+                    Fila única de Projetos
+                  </Badge>
+                )}
+                {isFilterAtivacao && (
+                  <Badge
+                    variant="outline"
+                    className="bg-cyan-50 text-cyan-700 border-cyan-200 text-[10px] font-semibold"
+                  >
+                    Perfil Ativação
+                  </Badge>
+                )}
               </h3>
               <p className="text-xs text-slate-500">
                 {isFilterLinux
@@ -975,7 +1230,11 @@ export function BenchmarkPanel({
                     ? 'Comparação com os benchmarks de gestão para operação Campo (deslocamento, laboratório e atendimento presencial)'
                     : isFilterN2
                       ? 'Comparação com os benchmarks de gestão para operação N2 (baixo volume, infraestrutura e projetos)'
-                      : 'Comparação entre a operação real e as referências de mercado N1 Remoto (HDI/MetricNet)'}
+                      : isFilterProjetos
+                        ? 'Comparação com as metas internas da fila única de Projetos (execução de projetos e demandas internas/locais)'
+                        : isFilterAtivacao
+                          ? 'Comparação com as metas internas de Ativação (implantações e onboarding de clientes)'
+                          : 'Comparação entre a operação real e as referências de mercado N1 Remoto (HDI/MetricNet)'}
               </p>
             </div>
           </div>
@@ -1002,6 +1261,16 @@ export function BenchmarkPanel({
               <span className="font-medium text-slate-700">
                 Fontes: ITIL 4 (AXELOS) & Gartner (N2)
               </span>
+            </>
+          ) : isFilterProjetos ? (
+            <>
+              <Layers className="w-3.5 h-3.5 text-cyan-600" />
+              <span className="font-medium text-slate-700">Fontes: {FONTES_PROJETOS}</span>
+            </>
+          ) : isFilterAtivacao ? (
+            <>
+              <Layers className="w-3.5 h-3.5 text-cyan-600" />
+              <span className="font-medium text-slate-700">Fontes: {FONTES_ATIVACAO}</span>
             </>
           ) : (
             <>
@@ -1097,7 +1366,11 @@ export function BenchmarkPanel({
               ? 'Fontes oficiais de Campo (Field Service): MetricNet — Field Service Benchmarks (1,2–1,8 ch/dia; 70–80% ocupação com trânsito) e CompTIA — Workforce & Tech Support Trends (metodologia de laboratório e swap de máquinas vs ineficiência de formatações in loco de 5h–6h).'
               : isFilterN2
                 ? 'Fontes oficiais de N2: AXELOS/PeopleCert — ITIL 4 Framework (Incident Management: TMA 1h–2h30 para diagnóstico de causa raiz e investigação técnica) e Gartner — ITSM Research Reports (disponibilidade vs incidentes recorrentes; modo proativo/preventivo).'
-                : 'Fontes oficiais de N1: HDI (Help Desk Institute) — Service Desk Benchmarking Report (TMA 15–25 min para resolução remota rápida) e MetricNet — Desktop Support and Service Desk Benchmarks (produtividade 12–18 chamados/dia).'}
+                : isFilterProjetos
+                  ? `Fontes oficiais de Projetos: Project Management Institute — PMBOK Guide (dimensionamento de equipe e TMA de 8h a 16h líquidas por projeto) e Service Leadership ( benchmarks de lucratividade e ocupação de equipes de projetos: 40–90%).`
+                  : isFilterAtivacao
+                    ? 'Fontes oficiais de Ativação: AXELOS/PeopleCert — ITIL 4 Framework (lead time e handover de implantação: 7–15 dias úteis; transferência formal acima de 90%) e CompTIA — Workforce & Tech Support Trends (impacto de projetos na capacidade: até 25%).'
+                    : 'Fontes oficiais de N1: HDI (Help Desk Institute) — Service Desk Benchmarking Report (TMA 15–25 min para resolução remota rápida) e MetricNet — Desktop Support and Service Desk Benchmarks (produtividade 12–18 chamados/dia).'}
         </span>
         <span className="font-medium text-slate-500 shrink-0">
           Metas customizáveis no menu Equipes

@@ -87,7 +87,6 @@ on conflict (departamento) do update set
   meta_tma_max_num = excluded.meta_tma_max_num,
   meta_chamados_dia = excluded.meta_chamados_dia,
   meta_chamados_dia_min = excluded.meta_chamados_dia_min,
-  meta_chamados_dia_min = excluded.meta_chamados_dia_min,
   meta_chamados_dia_max = excluded.meta_chamados_dia_max,
   meta_ocupacao_min = excluded.meta_ocupacao_min,
   meta_ocupacao_max = excluded.meta_ocupacao_max,
