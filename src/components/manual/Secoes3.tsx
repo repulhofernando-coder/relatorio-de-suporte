@@ -143,7 +143,20 @@ export function SecaoDepartamentos() {
           planilha são <Destaque>a mesma fila</Destaque> no Movidesk e aparecem somados no filtro{' '}
           "Projetos", sem misturar com os demais setores.
         </Item>
+        <Item>
+          O rótulo da planilha <Destaque>"07-datacenter-windows"</Destaque> (e variações, com ou sem
+          hífen/número) é reconhecido como o setor <Destaque>"Datacenter Windows"</Destaque>, com
+          filtro próprio. É <Destaque>fila separada</Destaque>: o filtro{' '}
+          <Destaque>"Windows"</Destaque> <b>não</b> puxa os lançamentos de datacenter — um time de
+          Datacenter Windows aparece só no filtro "Datacenter Windows".
+        </Item>
       </ul>
+      <Bloco tone="amber">
+        <Destaque>Datacenter Windows sem metas:</Destaque> o setor está com as metas{' '}
+        <Destaque>em levantamento</Destaque> pela gestão (técnicos, TMA, produtividade e ocupação).
+        Enquanto isso, o Benchmark da Visão Geral mostra apenas os números reais do setor, sem
+        faixas ideais — cadastre as metas em <Destaque>Equipes</Destaque> quando forem definidas.
+      </Bloco>
       <Bloco>
         Isso significa que um técnico do "Linux N1/N2" aparece quando você filtra por Linux, mas{' '}
         <Destaque>não</Destaque> quando filtra por N2 — o N2 do filtro é só o de times específicos

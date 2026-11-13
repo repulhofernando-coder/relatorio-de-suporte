@@ -136,6 +136,18 @@ function isAtivacaoDepartment(depto: string): boolean {
   return norm === 'ativacao' || norm.includes('ativac')
 }
 
+// Datacenter Windows: setor DISTINTO do filtro "Windows" e do grupo "Datacenter".
+// Casa rótulos com datacenter + windows (ex.: "07-datacenter-windows", "Datacenter Windows").
+function isDatacenterWindowsDepartment(depto: string): boolean {
+  const norm = depto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\s_-]+/g, '')
+    .trim()
+  return norm.includes('datacenter') && norm.includes('windows')
+}
+
 interface DraftRow {
   departamento: string
   qtd_tecnicos: string
@@ -292,6 +304,14 @@ export default function Equipes() {
       }
       if (!map['Ativação']) {
         map['Ativação'] = toDraft('Ativação')
+      }
+      // Datacenter Windows: sem metas cadastradas — entra só com os campos reais
+      // (qtd_tecnicos, dias úteis) para o usuário cadastrar quando levantar as metas
+      if (
+        !map['Datacenter Windows'] &&
+        !caps.some((c) => isDatacenterWindowsDepartment(c.departamento))
+      ) {
+        map['Datacenter Windows'] = toDraft('Datacenter Windows')
       }
 
       setDrafts(map)
@@ -580,6 +600,7 @@ export default function Equipes() {
               const isCampo = isCampoDepartment(depto)
               const isProjetos = isProjetosDepartment(depto)
               const isAtivacao = isAtivacaoDepartment(depto)
+              const isDatacenterWindows = isDatacenterWindowsDepartment(depto)
 
               return (
                 <div
@@ -598,6 +619,14 @@ export default function Equipes() {
                             className="text-[10px] font-semibold border-cyan-200 text-cyan-700 bg-cyan-50 shrink-0"
                           >
                             {isProjetos ? 'Fila única de Projetos' : 'Ativação'}
+                          </Badge>
+                        )}
+                        {isDatacenterWindows && (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] font-semibold border-indigo-200 text-indigo-700 bg-indigo-50 shrink-0"
+                          >
+                            Datacenter Windows
                           </Badge>
                         )}
                         {isLinux && (
@@ -652,7 +681,9 @@ export default function Equipes() {
                                   ? `Fontes: ${FONTES_PROJETOS}`
                                   : isAtivacao
                                     ? `Fontes: ${FONTES_ATIVACAO}`
-                                    : 'Fontes: HDI / MetricNet'}
+                                    : isDatacenterWindows
+                                      ? 'Fontes: em definição (metas em levantamento)'
+                                      : 'Fontes: HDI / MetricNet'}
                         </span>
                       </div>
                     </div>
@@ -936,6 +967,24 @@ export default function Equipes() {
                         Indicadores de fluxo (lead time, handover e impacto) ainda não são medidos
                         pelo sistema — exibidos como referência de benchmark. Fontes:{' '}
                         {FONTES_ATIVACAO}.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Aviso — Datacenter Windows (sem metas cadastradas ainda) */}
+                  {isDatacenterWindows && (
+                    <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 px-3.5 py-2.5 text-xs text-indigo-900 space-y-1.5">
+                      <p className="font-bold text-indigo-950 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 inline-block" />
+                        Metas em levantamento — cadastre em Equipes quando definidas
+                      </p>
+                      <p className="text-[11px] text-indigo-800 leading-relaxed">
+                        O rótulo da planilha <b>"07-datacenter-windows"</b> (e variações) casa com o
+                        filtro <b>"Datacenter Windows"</b> — fila própria do time de Datacenter
+                        Windows, que <b>não</b> soma com o filtro "Windows" (são filas separadas).
+                        Ainda não existem faixas de TMA, produtividade ou ocupação cadastradas para
+                        este setor: quando as metas forem levantadas, preencha os campos acima e
+                        clique em <b>Salvar</b> para que a Visão Geral use os valores.
                       </p>
                     </div>
                   )}

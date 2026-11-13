@@ -76,6 +76,17 @@ function isCampo(depto?: string | null): boolean {
   )
 }
 
+function isDatacenterWindows(depto?: string | null): boolean {
+  if (!depto) return false
+  const norm = depto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\s_-]+/g, '')
+    .trim()
+  return norm.includes('datacenter') && norm.includes('windows')
+}
+
 function formatMinutesToHours(min: number): string {
   const h = Math.floor(min / 60)
   const m = Math.round(min % 60)
@@ -95,6 +106,10 @@ export function BenchmarkPanel({
   const isFilterCampo = useMemo(() => isCampo(selectedDepartamento), [selectedDepartamento])
   const isFilterProjetos = useMemo(() => isProjetos(selectedDepartamento), [selectedDepartamento])
   const isFilterAtivacao = useMemo(() => isAtivacao(selectedDepartamento), [selectedDepartamento])
+  const isFilterDatacenterWindows = useMemo(
+    () => isDatacenterWindows(selectedDepartamento),
+    [selectedDepartamento],
+  )
 
   // Busca configuração específica do departamento filtrado se houver.
   // Fila única de Projetos: aceita "Projetos", "Projetos Internos" ou "Projetos Locais"
@@ -982,6 +997,57 @@ export function BenchmarkPanel({
       return list
     }
 
+    if (isFilterDatacenterWindows) {
+      // =========================================================
+      // MODO DATACENTER WINDOWS (setor novo — metas em levantamento)
+      // Sem faixas numéricas inventadas: só números reais do setor.
+      // =========================================================
+
+      // 1. Volume de lançamentos no período
+      list.push({
+        indicador: 'Volume de Lançamentos no Período',
+        descricao: 'Demanda do time de Datacenter Windows registrada no recorte',
+        real: `${dados.totalChamados.toLocaleString('pt-BR')} lançamentos`,
+        realNum: dados.totalChamados,
+        ideal: 'Metas em levantamento',
+        status: 'informativo',
+        statusTexto: 'Informativo',
+        diagnostico:
+          'Fila própria do time de Datacenter Windows: os lançamentos com o rótulo "07-datacenter-windows" (e variações) não entram no filtro "Windows". Metas em levantamento — cadastre em Equipes quando definidas.',
+      })
+
+      // 2. TMA real (sem faixa alvo cadastrada)
+      if (dados.tmaRealMin !== null) {
+        const tmaRound = Math.round(dados.tmaRealMin)
+        list.push({
+          indicador: 'Tempo Médio de Atendimento (TMA)',
+          descricao: 'Duração média apontada por chamado no setor',
+          real: formatMinutesToHours(tmaRound),
+          realNum: tmaRound,
+          ideal: 'Metas em levantamento',
+          status: 'informativo',
+          statusTexto: 'Informativo',
+          diagnostico:
+            'Valor apontado na planilha, exibido apenas como referência: ainda não existe faixa de meta cadastrada para o setor. Metas em levantamento — cadastre em Equipes quando definidas.',
+        })
+      }
+
+      // 3. Tamanho da equipe (real, sem ideal)
+      const eqAtual = dados.tecnicosEquipe
+      list.push({
+        indicador: 'Tamanho da Equipe',
+        descricao: 'Técnicos com lançamentos no período (ou cadastrados em Equipes)',
+        real: `${eqAtual} técnico${eqAtual > 1 ? 's' : ''}`,
+        realNum: eqAtual,
+        ideal: 'Metas em levantamento',
+        status: 'informativo',
+        statusTexto: 'Informativo',
+        diagnostico: `Dimensionamento atual: ${eqAtual} técnico(s) envolvido(s) no recorte. Metas em levantamento — cadastre em Equipes quando definidas.`,
+      })
+
+      return list
+    }
+
     // =========================================================
     // MODO N1 / CONSOLIDADO: Padrão HDI / MetricNet para N1 Remoto
     // =========================================================
@@ -1141,6 +1207,7 @@ export function BenchmarkPanel({
     isFilterCampo,
     isFilterProjetos,
     isFilterAtivacao,
+    isFilterDatacenterWindows,
     activeCapacity,
   ])
 
@@ -1155,9 +1222,11 @@ export function BenchmarkPanel({
           ? 'Cenário Ideal (Fila única de Projetos)'
           : isFilterAtivacao
             ? 'Cenário Ideal (Ativação / Implantação)'
-            : selectedDepartamento && selectedDepartamento !== 'todos'
-              ? `Cenário Ideal (${selectedDepartamento})`
-              : 'Cenário Ideal (N1 Remoto)'
+            : isFilterDatacenterWindows
+              ? 'Metas em Levantamento (Datacenter Windows)'
+              : selectedDepartamento && selectedDepartamento !== 'todos'
+                ? `Cenário Ideal (${selectedDepartamento})`
+                : 'Cenário Ideal (N1 Remoto)'
 
   return (
     <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80 flex flex-col">
@@ -1172,9 +1241,11 @@ export function BenchmarkPanel({
                     ? 'bg-blue-50 text-blue-600'
                     : isFilterN2
                       ? 'bg-amber-50 text-amber-600'
-                      : isFilterProjetos || isFilterAtivacao
-                        ? 'bg-cyan-50 text-cyan-600'
-                        : 'bg-teal-50 text-teal-600'
+                      : isFilterDatacenterWindows
+                        ? 'bg-indigo-50 text-indigo-600'
+                        : isFilterProjetos || isFilterAtivacao
+                          ? 'bg-cyan-50 text-cyan-600'
+                          : 'bg-teal-50 text-teal-600'
               }`}
             >
               <Award className="w-4 h-4" />
@@ -1222,6 +1293,14 @@ export function BenchmarkPanel({
                     Perfil Ativação
                   </Badge>
                 )}
+                {isFilterDatacenterWindows && (
+                  <Badge
+                    variant="outline"
+                    className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px] font-semibold"
+                  >
+                    Perfil Datacenter Windows
+                  </Badge>
+                )}
               </h3>
               <p className="text-xs text-slate-500">
                 {isFilterLinux
@@ -1234,7 +1313,9 @@ export function BenchmarkPanel({
                         ? 'Comparação com as metas internas da fila única de Projetos (execução de projetos e demandas internas/locais)'
                         : isFilterAtivacao
                           ? 'Comparação com as metas internas de Ativação (implantações e onboarding de clientes)'
-                          : 'Comparação entre a operação real e as referências de mercado N1 Remoto (HDI/MetricNet)'}
+                          : isFilterDatacenterWindows
+                            ? 'Metas do time de Datacenter Windows em levantamento — abaixo, apenas os números reais do setor'
+                            : 'Comparação entre a operação real e as referências de mercado N1 Remoto (HDI/MetricNet)'}
               </p>
             </div>
           </div>
@@ -1272,6 +1353,13 @@ export function BenchmarkPanel({
               <Layers className="w-3.5 h-3.5 text-cyan-600" />
               <span className="font-medium text-slate-700">Fontes: {FONTES_ATIVACAO}</span>
             </>
+          ) : isFilterDatacenterWindows ? (
+            <>
+              <Layers className="w-3.5 h-3.5 text-indigo-600" />
+              <span className="font-medium text-slate-700">
+                Fontes: em definição (metas em levantamento)
+              </span>
+            </>
           ) : (
             <>
               <Info className="w-3.5 h-3.5 text-slate-400" />
@@ -1280,6 +1368,18 @@ export function BenchmarkPanel({
           )}
         </div>
       </div>
+
+      {isFilterDatacenterWindows && (
+        <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-800">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <p className="leading-relaxed">
+            <b>Datacenter Windows:</b> Metas em levantamento — cadastre em Equipes quando definidas.
+            Enquanto isso, o comparativo mostra apenas os números reais do setor, sem faixas ideais.
+            O filtro <b>"Datacenter Windows"</b> é fila própria e <b>não</b> soma com o filtro
+            "Windows".
+          </p>
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-2 py-4">
@@ -1370,7 +1470,9 @@ export function BenchmarkPanel({
                   ? `Fontes oficiais de Projetos: Project Management Institute — PMBOK Guide (dimensionamento de equipe e TMA de 8h a 16h líquidas por projeto) e Service Leadership ( benchmarks de lucratividade e ocupação de equipes de projetos: 40–90%).`
                   : isFilterAtivacao
                     ? 'Fontes oficiais de Ativação: AXELOS/PeopleCert — ITIL 4 Framework (lead time e handover de implantação: 7–15 dias úteis; transferência formal acima de 90%) e CompTIA — Workforce & Tech Support Trends (impacto de projetos na capacidade: até 25%).'
-                    : 'Fontes oficiais de N1: HDI (Help Desk Institute) — Service Desk Benchmarking Report (TMA 15–25 min para resolução remota rápida) e MetricNet — Desktop Support and Service Desk Benchmarks (produtividade 12–18 chamados/dia).'}
+                    : isFilterDatacenterWindows
+                      ? 'Datacenter Windows: metas ainda em levantamento pela gestão — as fontes de benchmark serão citadas aqui junto com o cadastro das metas em Equipes.'
+                      : 'Fontes oficiais de N1: HDI (Help Desk Institute) — Service Desk Benchmarking Report (TMA 15–25 min para resolução remota rápida) e MetricNet — Desktop Support and Service Desk Benchmarks (produtividade 12–18 chamados/dia).'}
         </span>
         <span className="font-medium text-slate-500 shrink-0">
           Metas customizáveis no menu Equipes
