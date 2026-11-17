@@ -21,6 +21,7 @@ import { RelatorioCliente } from '@/components/relatorios/RelatorioCliente'
 import { ClienteCombobox } from '@/components/relatorios/ClienteCombobox'
 import { fetchTimeLogs } from '@/services/horas'
 import { dedupeHoras } from '@/lib/horas-dedupe'
+import { filtrarLogsPorBusca } from '@/lib/busca-horas'
 import {
   FileText,
   Calendar,
@@ -123,6 +124,10 @@ export default function Relatorios() {
   const [registrosCliente, setRegistrosCliente] = useState<SupportRecord[] | null>(null)
   const [carregandoCliente, setCarregandoCliente] = useState(false)
   const [logsCliente, setLogsCliente] = useState<TimeLogRecord[] | null>(null)
+  // Filtro de técnico do relatório de cliente ('' = todos). Quando ativo,
+  // vale para os CHAMADOS (support_records) e para os LANÇAMENTOS
+  // (time_logs) — o Tempo total passa a refletir só aquele técnico (v0.0.87).
+  const [tecnicoCliente, setTecnicoCliente] = useState('')
 
   // Período do relatório de cliente (chips + datas personalizadas)
   const [periodoCliente, setPeriodoCliente] = useState<SavedReportPeriodChip>('este_mes')
@@ -246,11 +251,18 @@ export default function Relatorios() {
           if (fim && (!data || data > fim)) return false
           return true
         })
+        // Filtro de técnico NOS LANÇAMENTOS — mesmo matcher do /horas
+        // (nome normalizado, casamento por substring). Feito ANTES da dedupe:
+        // ela agrupa por (ticket, técnico), então o recorte não separa partes
+        // de um mesmo grupo — e a agregação nunca vê técnico alheio (v0.0.87).
+        const doTecnico = tecnicoCliente.trim()
+          ? filtrarLogsPorBusca(filtrados, '', tecnicoCliente)
+          : filtrados
         // MESMA régua do /horas: dedupe por sobreposição (intervalo que cobre
         // o de outros substitui as partes; sem início/fim, soma exata) — feita
         // ANTES do recorte do cliente para que as partes/consolidada do mesmo
         // tíquete+técnico se enxerguem (v0.0.86).
-        setLogsCliente(dedupeHoras(filtrados).logs)
+        setLogsCliente(dedupeHoras(doTecnico).logs)
         // Logs de TODOS os clientes chegam aqui; o casamento com os do
         // cliente selecionado (casados por numero_ticket dos chamados dele
         // + órfãos pelo nome no log) é feito dentro do RelatorioCliente
@@ -263,6 +275,7 @@ export default function Relatorios() {
       })
     fetchSupportRecords({
       cliente: clienteSelecionado,
+      tecnico: tecnicoCliente.trim() || undefined,
       startDate: periodoClienteStart || undefined,
       endDate: periodoClienteEnd || undefined,
     })
@@ -288,7 +301,7 @@ export default function Relatorios() {
       void buscaLogs
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clienteSelecionado, periodoClienteStart, periodoClienteEnd])
+  }, [clienteSelecionado, tecnicoCliente, periodoClienteStart, periodoClienteEnd])
 
   const handleOpenReport = (report: SavedReportRecord) => {
     const f = report.filters
@@ -298,6 +311,7 @@ export default function Relatorios() {
       setPeriodoCliente(f.periodo || 'este_mes')
       setStartCliente(f.startDate || '')
       setEndCliente(f.endDate || '')
+      setTecnicoCliente(f.tecnico && f.tecnico !== 'todos' ? f.tecnico : '')
       toast({
         title: 'Relatório de cliente aberto',
         description: `"${report.name}" — ${f.cliente}`,
@@ -468,8 +482,26 @@ export default function Relatorios() {
           <ClienteCombobox
             clientes={clientes}
             value={clienteSelecionado}
-            onChange={setClienteSelecionado}
+            onChange={(v) => {
+              setClienteSelecionado(v)
+              // Trocar de cliente reseta o técnico (evita recorte vazio
+              // escondido — "Mercado Violeta" com filtro de outro cliente).
+              setTecnicoCliente('')
+            }}
           />
+          <select
+            value={tecnicoCliente}
+            onChange={(e) => setTecnicoCliente(e.target.value)}
+            className="h-9 rounded-xl border border-slate-200 bg-white px-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+            title="Filtrar por técnico (aplica a chamados E lançamentos de horas)"
+          >
+            <option value="">Todos os técnicos</option>
+            {tecnicos.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
           <div className="flex flex-wrap items-center gap-1.5">
             {(
               [
@@ -667,6 +699,7 @@ export default function Relatorios() {
           periodoLabel={periodoClienteLabel}
           loading={carregandoCliente}
           logs={logsCliente ?? undefined}
+          tecnico={tecnicoCliente.trim() || undefined}
         />
       )}
 

@@ -1,6 +1,7 @@
 import type { SupportRecord } from '@/types/support'
 import type { TimeLogLike } from '@/lib/tempo-horas'
 import { formatarPercentual } from '@/lib/formatar'
+import { normalizarBuscaNome } from '@/lib/busca-horas'
 import {
   minutosPorTicket,
   ticketsComLancamento,
@@ -329,8 +330,30 @@ export function rankingTecnicos(
   records: SupportRecord[],
   limite = 10,
   mapaMinutos?: Map<string, number>,
+  minutosTecnico?: Map<string, number>,
 ): LinhaRanking[] {
-  return ranking(records, (r) => r.tecnico, limite, mapaMinutos)
+  const linhas = ranking(records, (r) => r.tecnico, limite, mapaMinutos)
+  if (!minutosTecnico || minutosTecnico.size === 0) return linhas
+  // Com lançamentos de horas (time_logs), o tempo de CADA técnico vem dos
+  // logs DELE (casamento pelo nome normalizado) — e não do total do tíquete,
+  // que repetiria os minutos dos outros técnicos em cada linha (v0.0.87).
+  return linhas.map((l) => {
+    const min = minutosTecnico.get(normalizarBuscaNome(l.nome))
+    return min !== undefined ? { ...l, minutos: min } : l
+  })
+}
+
+/** Mapa nome de técnico (normalizado) → minutos somados nos logs dele. */
+export function minutosPorTecnico(logs: TimeLogLike[]): Map<string, number> {
+  const mapa = new Map<string, number>()
+  for (const log of logs) {
+    const nome = log.tecnico?.trim()
+    if (!nome) continue
+    const chave = normalizarBuscaNome(nome)
+    if (!chave) continue
+    mapa.set(chave, (mapa.get(chave) || 0) + (log.minutos || 0))
+  }
+  return mapa
 }
 
 /** Limite de linhas da tabela de chamados no PDF. */

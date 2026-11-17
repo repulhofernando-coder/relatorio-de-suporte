@@ -32,6 +32,7 @@ import {
   granularidadeEvolucao,
   rankingAssuntos,
   rankingTecnicos,
+  minutosPorTecnico,
   ultimosChamados,
   formatarMinutos,
   formatarDataISO,
@@ -53,6 +54,12 @@ interface RelatorioClienteProps {
    * lançamento (v0.0.81).
    */
   logs?: TimeLogLike[]
+  /**
+   * Técnico filtrado (opcional): quando ativo, os chamados E os lançamentos
+   * já chegam recortados por ele — o tempo/TMA/rankings refletem só aquele
+   * profissional (v0.0.87).
+   */
+  tecnico?: string
   /** Período em formato legível (ex.: "01/11/2026 — 30/11/2026" ou "Histórico completo"). */
   periodoLabel: string
   loading: boolean
@@ -102,6 +109,7 @@ export function RelatorioCliente({
   cliente,
   records,
   logs,
+  tecnico,
   periodoLabel,
   loading,
 }: RelatorioClienteProps) {
@@ -128,9 +136,10 @@ export function RelatorioCliente({
     () => rankingAssuntos(records, 10, mapaMinutos),
     [records, mapaMinutos],
   )
+  const minutosTecnico = useMemo(() => minutosPorTecnico(logsCliente), [logsCliente])
   const tecnicos: LinhaRanking[] = useMemo(
-    () => rankingTecnicos(records, 10, mapaMinutos),
-    [records, mapaMinutos],
+    () => rankingTecnicos(records, 10, mapaMinutos, minutosTecnico),
+    [records, mapaMinutos, minutosTecnico],
   )
   const tabela = useMemo(() => ultimosChamados(records), [records])
 
@@ -178,6 +187,11 @@ export function RelatorioCliente({
               <div>
                 <h3 className="text-lg font-extrabold text-slate-900 leading-tight">{cliente}</h3>
                 <p className="text-xs text-slate-500 font-medium">Relatório de atendimentos</p>
+                {tecnico?.trim() && (
+                  <p className="text-xs text-indigo-600 font-semibold mt-0.5">
+                    Técnico: {tecnico.trim()}
+                  </p>
+                )}
               </div>
             </div>
             <div className="text-right">
@@ -509,7 +523,8 @@ export function RelatorioCliente({
 
         {/* Rodapé de impressão */}
         <p className="text-center text-[10px] text-slate-400 print:block hidden">
-          Relatório gerado pelo sistema de suporte — {cliente} — {periodoLabel}
+          Relatório gerado pelo sistema de suporte — {cliente}
+          {tecnico?.trim() ? ` — técnico ${tecnico.trim()}` : ''} — {periodoLabel}
         </p>
       </div>
     </div>
