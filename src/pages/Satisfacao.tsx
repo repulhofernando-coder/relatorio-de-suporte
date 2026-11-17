@@ -75,19 +75,21 @@ function normalizarTexto(valor: string): string {
 }
 
 const NOTA_LABEL: Record<number, string> = {
-  3: 'Muito satisfeito',
-  2: 'Satisfeito',
-  1: 'Insatisfeito',
+  5: 'Ótimo',
+  4: 'Bom',
+  3: 'Neutro',
+  2: 'Ruim',
+  1: 'Péssimo',
 }
 
 function corNota(nota: number) {
-  if (nota >= 3) return 'text-green-600'
-  if (nota === 2) return 'text-amber-600'
+  if (nota >= 4) return 'text-green-600'
+  if (nota === 3) return 'text-amber-600'
   return 'text-red-600'
 }
 
 function NotaChip({ nota }: { nota: number }) {
-  const Icone = nota >= 3 ? Smile : nota === 2 ? Meh : Frown
+  const Icone = nota >= 4 ? Smile : nota === 3 ? Meh : Frown
   return (
     <span className={`inline-flex items-center gap-1 ${corNota(nota)}`}>
       <Icone className="w-4 h-4" />
@@ -328,11 +330,11 @@ export default function Satisfacao() {
         <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm flex items-start gap-2.5">
           <AlertCircle className="w-5 h-5 shrink-0 text-amber-500 mt-0.5" />
           <div>
-            <p className="font-semibold">Respostas sem data de resposta</p>
+            <p className="font-semibold">Respostas de importações antigas sem data</p>
             <p className="text-xs mt-0.5">
-              Parte das respostas foi importada sem data (coluna de data vazia ou não mapeada) e só
-              aparece no chip "Tudo". Reimporte a planilha de satisfação com a coluna de data
-              correta para que o período as inclua.
+              Respostas de importações antigas estão sem data e ficam fora do filtro de período —
+              reimporte a planilha com a coluna de data correta ou aguarde o vínculo com os chamados
+              correspondentes. Elas aparecem no chip "Tudo".
             </p>
           </div>
         </div>
@@ -374,7 +376,7 @@ export default function Satisfacao() {
             </div>
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80">
               <div className="text-slate-400 text-[11px] font-semibold uppercase mb-2">
-                % Muito satisfeito
+                % Ótimo / Bom
               </div>
               <p className="text-2xl font-bold text-green-600">
                 <CountUp
@@ -385,7 +387,7 @@ export default function Satisfacao() {
             </div>
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80">
               <div className="text-slate-400 text-[11px] font-semibold uppercase mb-2">
-                % Insatisfeito
+                % Ruim / Péssimo
               </div>
               <p className="text-2xl font-bold text-red-600">
                 <CountUp
@@ -396,7 +398,7 @@ export default function Satisfacao() {
             </div>
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80">
               <div className="text-slate-400 text-[11px] font-semibold uppercase mb-2">
-                Índice médio (1–3)
+                Índice médio (1–5)
               </div>
               <p className="text-2xl font-bold text-slate-900">
                 <CountUp value={dashboard.resumo.mediaGeral ?? 0} formatter={formatarIndiceMedio} />
@@ -417,7 +419,7 @@ export default function Satisfacao() {
               ) : (
                 <div className="flex items-end gap-3 overflow-x-auto pb-2">
                   {dashboard.evolucaoMensal.map((m) => {
-                    const altura = Math.max(6, Math.round((m.media / 3) * 100))
+                    const altura = Math.max(6, Math.round((m.media / 5) * 100))
                     return (
                       <div key={m.mes} className="flex flex-col items-center gap-1 min-w-[64px]">
                         <span className="text-xs font-bold text-slate-700">

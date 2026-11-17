@@ -1,7 +1,7 @@
 /**
  * Tipos da importação e exibição de Satisfação (pesquisa Movidesk respondida
  * pelo cliente ao finalizar o chamado). Escala da nota:
- *   3 = muito satisfeito (😀) · 2 = satisfeito (🙂) · 1 = insatisfeito (brava)
+ *   5 = Ótimo (🤩) · 4 = Bom (😀) · 3 = Neutro (🙂) · 2 = Ruim (😠) · 1 = Péssimo (😡)
  */
 import { ImportTipo } from '@/types/horas'
 
@@ -13,7 +13,7 @@ export interface SatisfactionRecord {
   user_id: string
   import_id: string | null
   numero_ticket: string | null
-  nota: number // 1..3
+  nota: number // 1..5
   comentario: string | null
   tecnico: string | null
   cliente: string | null
@@ -67,16 +67,20 @@ export interface MappingSatisfacao {
   comentario: string
 }
 
-/** Rótulo legível da nota (escala 1–3). */
+/** Rótulo legível da nota (escala 1–5). */
 export function rotuloNota(nota: number): string {
-  if (nota >= 3) return 'Muito satisfeito'
-  if (nota === 2) return 'Satisfeito'
-  return 'Insatisfeito'
+  if (nota >= 5) return 'Ótimo'
+  if (nota === 4) return 'Bom'
+  if (nota === 3) return 'Neutro'
+  if (nota === 2) return 'Ruim'
+  return 'Péssimo'
 }
 
 /** Emoji da nota (mesma carinha usada na pesquisa do Movidesk). */
 export function emojiNota(nota: number): string {
-  if (nota >= 3) return '😀'
-  if (nota === 2) return '🙂'
-  return '😠'
+  if (nota >= 5) return '🤩'
+  if (nota === 4) return '😀'
+  if (nota === 3) return '🙂'
+  if (nota === 2) return '😠'
+  return '😡'
 }

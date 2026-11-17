@@ -122,15 +122,13 @@ export function TecnicoSatisfacao({ tecnico, records }: Props) {
     if (!avaliacoes) return null
     let soma = 0
     let insatisfeitos = 0
-    let n1 = 0
-    let n2 = 0
-    let n3 = 0
+    const porNota = [0, 0, 0, 0, 0]
     for (const a of avaliacoes) {
-      soma += a.resposta.nota
-      if (a.resposta.nota <= 1) insatisfeitos += 1
-      if (a.resposta.nota >= 3) n3 += 1
-      else if (a.resposta.nota === 2) n2 += 1
-      else n1 += 1
+      const nota = Math.min(Math.max(a.resposta.nota, 1), 5)
+      soma += nota
+      // insatisfeito = Ruim/Péssimo (notas 1–2)
+      if (nota <= 2) insatisfeitos += 1
+      porNota[nota - 1] += 1
     }
     const n = avaliacoes.length
     return {
@@ -138,7 +136,7 @@ export function TecnicoSatisfacao({ tecnico, records }: Props) {
       respostas: n,
       insatisfeitos,
       pctInsatisfeito: (insatisfeitos / n) * 100,
-      porNota: [n1, n2, n3] as [number, number, number],
+      porNota: porNota as [number, number, number, number, number],
     }
   }, [avaliacoes])
 
@@ -168,7 +166,7 @@ export function TecnicoSatisfacao({ tecnico, records }: Props) {
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-lg border border-teal-100 bg-teal-50/60 p-2.5">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-teal-800">
-            Índice médio (1–3)
+            Índice médio (1–5)
           </p>
           <p className="text-lg font-extrabold text-teal-900 font-mono mt-0.5">
             {formatarIndiceMedio(dados.media)}
@@ -201,8 +199,10 @@ export function TecnicoSatisfacao({ tecnico, records }: Props) {
         </div>
       </div>
 
-      {/* Contadores por nota: 😀 46 · 🙂 4 · 😠 0 */}
-      <div className="grid grid-cols-3 gap-2">
+      {/* Contadores por nota: 🤩 38 · 😀 9 · 🙂 2 · 😠 1 · 😡 0 */}
+      <div className="grid grid-cols-5 gap-1.5">
+        <ContadorNota nota={5} contagem={dados.porNota[4]} />
+        <ContadorNota nota={4} contagem={dados.porNota[3]} />
         <ContadorNota nota={3} contagem={dados.porNota[2]} />
         <ContadorNota nota={2} contagem={dados.porNota[1]} />
         <ContadorNota nota={1} contagem={dados.porNota[0]} />
@@ -213,11 +213,13 @@ export function TecnicoSatisfacao({ tecnico, records }: Props) {
         <div
           className="flex h-2 w-full overflow-hidden rounded-full bg-slate-100"
           role="img"
-          aria-label={`Composição das notas: ${dados.porNota[2]} muito satisfeito, ${dados.porNota[1]} satisfeito, ${dados.porNota[0]} insatisfeito`}
+          aria-label={`Composição das notas: ${dados.porNota[4]} ótimo, ${dados.porNota[3]} bom, ${dados.porNota[2]} neutro, ${dados.porNota[1]} ruim, ${dados.porNota[0]} péssimo`}
         >
           {[
-            { n: dados.porNota[2], classe: 'bg-green-500' },
-            { n: dados.porNota[1], classe: 'bg-amber-400' },
+            { n: dados.porNota[4], classe: 'bg-green-600' },
+            { n: dados.porNota[3], classe: 'bg-green-400' },
+            { n: dados.porNota[2], classe: 'bg-amber-400' },
+            { n: dados.porNota[1], classe: 'bg-orange-500' },
             { n: dados.porNota[0], classe: 'bg-red-500' },
           ]
             .filter((s) => s.n > 0)
@@ -289,8 +291,8 @@ export function TecnicoSatisfacao({ tecnico, records }: Props) {
 
 /** Contador grande por nota: emoji + total de respostas daquela nota. */
 function ContadorNota({ nota, contagem }: { nota: number; contagem: number }) {
-  const negativo = nota <= 1
-  const positivo = nota >= 3
+  const negativo = nota <= 2
+  const positivo = nota >= 4
   return (
     <div
       className={`rounded-lg border p-2 text-center ${

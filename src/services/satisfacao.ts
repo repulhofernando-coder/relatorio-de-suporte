@@ -207,7 +207,7 @@ export interface ResumoSatisfacao {
   insatisfeitos: number
   pctMuitoSatisfeito: number
   pctInsatisfeito: number
-  indiceMedio: number | null // 1–3
+  indiceMedio: number | null // 1–5
 }
 
 export function resumirSatisfacao(respostas: SatisfactionRecord[]): ResumoSatisfacao {
@@ -229,8 +229,9 @@ export function resumirSatisfacao(respostas: SatisfactionRecord[]): ResumoSatisf
   let soma = 0
   for (const r of respostas) {
     soma += r.nota
-    if (r.nota >= 3) muito += 1
-    else if (r.nota === 2) satisfeitos += 1
+    // muito satisfeito = Ótimo/Bom (4–5) · neutro = 3 · insatisfeito = Ruim/Péssimo (1–2)
+    if (r.nota >= 4) muito += 1
+    else if (r.nota === 3) satisfeitos += 1
     else insatisfeitos += 1
   }
   const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0)
@@ -248,16 +249,16 @@ export function resumirSatisfacao(respostas: SatisfactionRecord[]): ResumoSatisf
 export interface RankingSatisfacaoItem {
   nome: string // técnico, cliente ou departamento (rótulo canônico)
   total: number
-  media: number // 1–3
+  media: number // 1–5
   insatisfeitos: number
   pctInsatisfeito: number
-  /** contagens por nota (índice 0 = nota 1): [insatisfeito, satisfeito, muito satisfeito] */
-  porNota: [number, number, number]
+  /** contagens por nota (índice 0 = nota 1 … índice 4 = nota 5) */
+  porNota: [number, number, number, number, number]
 }
 
-/** Distribuição compacta das notas: "46 😀 · 4 🙂 · 0 😠" (nota 3 → 1). */
-export function formatarDistribuicaoNotas(porNota: readonly [number, number, number]): string {
-  return `${porNota[2]} 😀 · ${porNota[1]} 🙂 · ${porNota[0]} 😠`
+/** Distribuição das 5 notas: "38 🤩 · 9 😀 · 2 🙂 · 1 😠 · 0 😡" (índice 0 = nota 1). */
+export function formatarDistribuicaoNotas(porNota: readonly number[]): string {
+  return `${porNota[4]} 🤩 · ${porNota[3]} 😀 · ${porNota[2]} 🙂 · ${porNota[1]} 😠 · ${porNota[0]} 😡`
 }
 
 function agregarPor(
@@ -266,18 +267,21 @@ function agregarPor(
 ): RankingSatisfacaoItem[] {
   const mapa = new Map<
     string,
-    { soma: number; n: number; ins: number; n1: number; n2: number; n3: number }
+    { soma: number; n: number; ins: number; porNota: [number, number, number, number, number] }
   >()
   for (const r of respostas) {
     const chave = chaveDe(r)?.trim()
     if (!chave) continue
-    const atual = mapa.get(chave) || { soma: 0, n: 0, ins: 0, n1: 0, n2: 0, n3: 0 }
+    const atual = mapa.get(chave) || {
+      soma: 0,
+      n: 0,
+      ins: 0,
+      porNota: [0, 0, 0, 0, 0] as [number, number, number, number, number],
+    }
     atual.soma += r.nota
     atual.n += 1
-    if (r.nota <= 1) atual.ins += 1
-    if (r.nota >= 3) atual.n3 += 1
-    else if (r.nota === 2) atual.n2 += 1
-    else atual.n1 += 1
+    if (r.nota <= 2) atual.ins += 1
+    atual.porNota[Math.min(Math.max(r.nota, 1), 5) - 1] += 1
     mapa.set(chave, atual)
   }
   return Array.from(mapa.entries())
@@ -287,7 +291,7 @@ function agregarPor(
       media: v.soma / v.n,
       insatisfeitos: v.ins,
       pctInsatisfeito: v.n > 0 ? (v.ins / v.n) * 100 : 0,
-      porNota: [v.n1, v.n2, v.n3] as [number, number, number],
+      porNota: v.porNota,
     }))
     .sort((a, b) => b.media - a.media || b.total - a.total)
 }

@@ -23,7 +23,7 @@ export function formatarPercentual(valor: number): string {
 }
 
 /**
- * Formata o índice médio (escala 1–3) para exibição em PT-BR:
+ * Formata o índice médio (escala 1–5) para exibição em PT-BR:
  * sempre 2 casas decimais com vírgula ("2,67").
  */
 export function formatarIndiceMedio(valor: number | null | undefined): string {

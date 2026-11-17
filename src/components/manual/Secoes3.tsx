@@ -14,7 +14,7 @@ export function SecaoSatisfacao() {
       <p>
         Em <Destaque>Satisfação</Destaque> ficam os filtros de período e departamento (com o mesmo
         casamento de rótulos usado em todo o sistema — ver seção 9) e os cards de resumo: total de
-        respostas, % muito satisfeito, % insatisfeito e o índice médio (1 a 3).
+        respostas, % ótimo/bom, % insatisfeito (ruim/péssimo) e o índice médio (1 a 5).
       </p>
       <ul className="space-y-1.5">
         <Item>
@@ -22,8 +22,8 @@ export function SecaoSatisfacao() {
         </Item>
         <Item>
           <Destaque>Rankings por técnico, cliente e departamento</Destaque> — cada linha mostra a
-          média, a distribuição por emoji (ex.: <em>"46 😀 · 4 🙂 · 0 😠"</em>), o % de
-          insatisfeitos e o número de respostas.
+          média, a distribuição pelas 5 carinhas (ex.: <em>"38 🤩 · 9 😀 · 2 🙂 · 1 😠 · 0 😡"</em>
+          ), o % de insatisfeitos e o número de respostas.
         </Item>
         <Item>
           <Destaque>Comentários qualitativos</Destaque> — os textos que os clientes escreveram, com
@@ -53,49 +53,69 @@ export function SecaoPontuacao() {
       icone={<Star className="w-5 h-5" />}
     >
       <p>
-        A pesquisa usa uma <Destaque>escala de 3 níveis</Destaque>, com uma nota por resposta:
+        A pesquisa usa uma <Destaque>escala de 5 níveis</Destaque>, com uma nota por resposta:
       </p>
-      <div className="grid sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div className="rounded-xl border border-teal-200 bg-teal-50 p-4 text-center">
+          <p className="text-3xl">🤩</p>
+          <p className="mt-1 font-semibold text-slate-900">Ótimo</p>
+          <p className="text-2xl font-extrabold text-teal-700 mt-1">5 pontos</p>
+        </div>
         <div className="rounded-xl border border-teal-200 bg-teal-50 p-4 text-center">
           <p className="text-3xl">😀</p>
-          <p className="mt-1 font-semibold text-slate-900">Muito satisfeito</p>
-          <p className="text-2xl font-extrabold text-teal-700 mt-1">3 pontos</p>
+          <p className="mt-1 font-semibold text-slate-900">Bom</p>
+          <p className="text-2xl font-extrabold text-teal-700 mt-1">4 pontos</p>
         </div>
         <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-center">
           <p className="text-3xl">🙂</p>
-          <p className="mt-1 font-semibold text-slate-900">Satisfeito</p>
-          <p className="text-2xl font-extrabold text-sky-700 mt-1">2 pontos</p>
+          <p className="mt-1 font-semibold text-slate-900">Neutro</p>
+          <p className="text-2xl font-extrabold text-sky-700 mt-1">3 pontos</p>
         </div>
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-center">
           <p className="text-3xl">😠</p>
-          <p className="mt-1 font-semibold text-slate-900">Insatisfeito</p>
-          <p className="text-2xl font-extrabold text-red-700 mt-1">1 ponto</p>
+          <p className="mt-1 font-semibold text-slate-900">Ruim</p>
+          <p className="text-2xl font-extrabold text-red-700 mt-1">2 pontos</p>
+        </div>
+        <div className="rounded-xl border border-red-300 bg-red-100 p-4 text-center">
+          <p className="text-3xl">😡</p>
+          <p className="mt-1 font-semibold text-slate-900">Péssimo</p>
+          <p className="text-2xl font-extrabold text-red-800 mt-1">1 ponto</p>
         </div>
       </div>
+      <Bloco tone="teal">
+        <Destaque>Respostas antigas convertidas:</Destaque> o histórico veio da escala anterior de 3
+        níveis e foi convertido uma única vez: <Destaque>3 → 5</Destaque>,{' '}
+        <Destaque>2 → 4</Destaque> e <Destaque>1 → 1</Destaque>. Nota 1 continua sendo o nível mais
+        baixo, sem distinguir ruim de péssimo.
+      </Bloco>
       <p>
-        O <Destaque>índice médio</Destaque> varia de <Destaque>1 a 3</Destaque>:
+        O <Destaque>índice médio</Destaque> varia de <Destaque>1 a 5</Destaque>, com duas casas
+        decimais, e tem três faixas de leitura:
       </p>
       <ul className="space-y-1.5">
         <Item>
-          <Destaque>3,0</Destaque> — perfeição: 100% das avaliações no nível mais alto.
+          <Destaque>4,5 ou mais</Destaque> — excelente.
         </Item>
         <Item>
-          <Destaque>2,5</Destaque> — bom equilíbrio entre satisfeitos e muito satisfeitos.
+          <Destaque>3,5 a 4,4</Destaque> — bom.
         </Item>
         <Item>
-          <Destaque>Abaixo de 2,0</Destaque> — sinal de insatisfação relevante; vale investigar os
-          comentários.
+          <Destaque>Abaixo de 3</Destaque> — alerta; vale investigar os comentários.
         </Item>
       </ul>
       <Bloco tone="amber">
         <Destaque>Por que a média sozinha engana:</Destaque> a média esconde a mistura. Metade das
-        respostas 😀 (3 pontos) e metade 😠 (1 ponto) também dá 2,0 — o mesmo número de um time com
+        respostas 😀 (4 pontos) e metade 😠 (2 pontos) dá 3,0 — o mesmo número de um time com
         respostas só 🙂. Por isso, junto da média, mostramos sempre a{' '}
-        <Destaque>distribuição por emoji</Destaque> e o <Destaque>% de insatisfeitos</Destaque>.
+        <Destaque>distribuição pelas 5 carinhas</Destaque> e o{' '}
+        <Destaque>% de insatisfeitos</Destaque> (ruim e péssimo).
       </Bloco>
       <p className="font-semibold text-slate-900">As perguntas da pesquisa são:</p>
       <ol className="space-y-1.5 list-decimal list-inside">
-        <li>Avalie a satisfação com a conclusão do atendimento (a nota 😀/🙂/😠).</li>
+        <li>
+          Avalie a satisfação com a conclusão do atendimento (Ótimo 🤩 · Bom 😀 · Neutro 🙂 · Ruim
+          😠 · Péssimo 😡).
+        </li>
         <li>Comentário ou sugestão (texto livre).</li>
         <li>
           Número do tíquete — é ele que <Destaque>vincula a resposta ao chamado</Destaque> e permite

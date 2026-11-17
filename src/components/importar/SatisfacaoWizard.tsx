@@ -271,7 +271,7 @@ export default function SatisfacaoWizard({ savedMappings }: SatisfacaoWizardProp
         if (nota === null) {
           errorList.push({
             linha: linhaNum,
-            motivo: `Sem resposta de satisfação reconhecível ("${String(rawNota ?? '').trim()}") — fora da escala 😀/🙂/😠`,
+            motivo: `Sem resposta de satisfação reconhecível ("${String(rawNota ?? '').trim()}") — use a escala Ótimo 🤩/Bom 😀/Neutro 🙂/Ruim 😠/Péssimo 😡`,
           })
           continue
         }
@@ -552,8 +552,8 @@ export default function SatisfacaoWizard({ savedMappings }: SatisfacaoWizardProp
             <div>
               <strong>{totalIgnoradas}</strong>{' '}
               {totalIgnoradas === 1 ? 'linha será ignorada' : 'linhas serão ignoradas'} por não ter
-              resposta de satisfação reconhecível (emoji 😀/🙂/carinha brava ou texto "Muito
-              satisfeito"/"Satisfeito"/"Insatisfeito"). O motivo aparece no resultado da importação.
+              resposta de satisfação reconhecível (escala Ótimo 🤩/Bom 😀/Neutro 🙂/Ruim 😠/Péssimo
+              😡, em texto ou emoji). O motivo aparece no resultado da importação.
             </div>
           </div>
 

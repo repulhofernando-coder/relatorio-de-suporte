@@ -176,33 +176,35 @@ export function autoDetectMappingSatisfacao(headers: string[]): MappingSatisfaca
 }
 
 /**
- * Converte a resposta da pesquisa em nota 1–3, tolerante. Aceita:
+ * Converte a resposta da pesquisa em nota 1–5, tolerante. Aceita:
  *  - emoji (😀 = 3, 🙂 = 2, carinha brava/triste = 1) em faixas Unicode amplas;
  *  - shortcodes do Movidesk (":grinning:", ":slight_smile:", ":angry:"…);
  *  - texto ("Muito satisfeito(a)", "Satisfeito(a)", "Insatisfeito(a)",
  *    inclusive com hífen/underline: "muito-satisfeito");
  *  - célula numérica do Excel (1, 2 ou 3 inteiros).
- * Retorna null quando não reconhece (inclusive 4/5 ou nota fora de 1–3).
+ * Escala: Ótimo=5 · Bom=4 · Neutro=3 · Ruim=2 · Péssimo=1.
+ * Retorna null quando não reconhece (inclusive nota fora de 1–5).
  */
 export function parseNotaSatisfacao(valor: unknown): number | null {
   if (valor === null || valor === undefined) return null
 
   // Célula numérica pura do Excel (typeof number) — só 1, 2 ou 3 inteiros
   if (typeof valor === 'number') {
-    return Number.isInteger(valor) && valor >= 1 && valor <= 3 ? valor : null
+    return Number.isInteger(valor) && valor >= 1 && valor <= 5 ? valor : null
   }
 
   const bruto = String(valor).trim()
   if (!bruto) return null
 
-  // Emojis — faixas disjuntas (a ordem entre elas é irrelevante porque não se
-  // sobrepõem): carinha brava/triste/franzida = 1; sorriso grande = 3;
-  // sorriso simples/neutral = 2. 🙂 (1F642) fica fora da faixa negativa.
-  if (/[\u{1F612}-\u{1F631}\u{1F641}\u{1F644}\u{1F92C}\u{1F97A}\u{2639}]/u.test(bruto)) return 1
-  if (/[\u{1F600}-\u{1F60E}\u{1F63A}-\u{1F63D}\u{1F929}\u{1F970}\u{1F973}\u{263A}]/u.test(bruto)) {
-    return 3
+  // Emojis da escala 1–5: 🤩 = 5 · 😀 = 4 · 🙂 = 3 · 😠 = 2 · 😡 = 1.
+  // Demais carinhas negativas/tristes = 2; sorrisos comuns = 4; neutras = 3.
+  if (/[\u{1F621}\u{1F92C}]/u.test(bruto)) return 1
+  if (/\u{1F929}/u.test(bruto)) return 5
+  if (/[\u{1F612}-\u{1F620}\u{1F622}-\u{1F631}\u{1F641}\u{1F644}\u{1F97A}\u{2639}]/u.test(bruto)) {
+    return 2
   }
-  if (/[\u{1F60F}\u{1F610}-\u{1F611}\u{1F636}\u{1F642}\u{1F914}]/u.test(bruto)) return 2
+  if (/[\u{1F600}-\u{1F60E}\u{1F63A}-\u{1F63D}\u{1F970}\u{1F973}\u{263A}]/u.test(bruto)) return 4
+  if (/[\u{1F60F}\u{1F610}-\u{1F611}\u{1F636}\u{1F642}\u{1F914}]/u.test(bruto)) return 3
 
   const min = bruto
     .toLowerCase()
@@ -210,59 +212,61 @@ export function parseNotaSatisfacao(valor: unknown): number | null {
     .replace(/[\u0300-\u036f]/g, '')
 
   // Emoticons clássicos
-  if (min.includes(':(') || min.includes('=(')) return 1
-  if (min.includes(':)') || min.includes('=)')) return 2
-  if (min.includes(':d') || min.includes('=d')) return 3
+  if (min.includes(':(') || min.includes('=(')) return 2
+  if (min.includes(':)') || min.includes('=)')) return 3
+  if (min.includes(':d') || min.includes('=d')) return 4
 
   // Shortcodes do Movidesk (:grinning:, :slight_smile:, :angry:, :rage:…)
   const shortcodes = min.match(/:[a-z0-9_+-]+:/g)
   if (shortcodes) {
     for (const token of shortcodes) {
+      if (/rage/.test(token)) return 1
+      if (/star_?struck/.test(token)) return 5
       if (
-        /(angry|rage|frown|sad|disappoint|unamused|sob|cry|pout|grimac|upset|pensive|confounded)/.test(
+        /(angry|frown|sad|disappoint|unamused|sob|cry|pout|grimac|upset|pensive|confounded)/.test(
           token,
         )
       )
-        return 1
-      if (/(slight|neutral|expressionless|straight|confund)/.test(token)) return 2
+        return 2
+      if (/(slight|neutral|expressionless|straight|confund)/.test(token)) return 3
       if (
         /(grin|smile|laugh|satisf|happy|joy|heart|cool|sunglass|relaxed|blush|innocent)/.test(token)
       )
-        return 3
+        return 4
     }
   }
 
   // Texto — aceita "satisfeito(a)" e variantes com hífen/underline
   // ("muito-satisfeito", "satisfeito_a").
   const texto = min.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ')
+  // Escala 1–5 por texto: Ótimo=5, Bom=4, Neutro=3, Ruim=2, Péssimo=1.
+  // Legado por extenso: Muito satisfeito=5, Satisfeito=4, Insatisfeito=1.
   if (
+    texto.includes('otimo') ||
+    texto.includes('excelente') ||
     texto.includes('muito satisfeito') ||
     texto.includes('muito satisfeita') ||
-    texto.includes('satisfacao maxima') ||
-    texto.includes('otimo') ||
-    texto.includes('excelente')
+    texto.includes('satisfacao maxima')
   )
-    return 3
+    return 5
+  if (/(^| )bom( |$)/.test(texto)) return 4
   if (
-    texto.includes('insatisfeito') ||
-    texto.includes('insatisfeita') ||
-    texto.includes('pessimo') ||
-    texto.includes('ruim')
-  )
-    return 1
-  if (
-    texto.includes('satisfeito') ||
-    texto.includes('satisfeita') ||
+    texto.includes('neutro') ||
+    texto.includes('neutra') ||
     texto.includes('regular') ||
     texto.includes('mediano')
   )
-    return 2
+    return 3
+  if (texto.includes('pessimo') || texto.includes('insatisfeito') || texto.includes('insatisfeita'))
+    return 1
+  if (texto.includes('ruim')) return 2
+  if (texto.includes('satisfeito') || texto.includes('satisfeita')) return 4
 
   // Nota numérica pura (3, 2 ou 1; tolera "nota 3", "3/3"). Fora de 1–3 = null.
-  const m = texto.match(/(^|\D)([123])(?:\s*\/\s*[123])?($|\D)/)
+  const m = texto.match(/(^|\D)([12345])(?:\s*\/\s*[12345])?($|\D)/)
   if (m) {
     const n = Number(m[2])
-    if (n >= 1 && n <= 3) return n
+    if (n >= 1 && n <= 5) return n
   }
   return null
 }
