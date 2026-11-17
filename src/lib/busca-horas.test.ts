@@ -18,6 +18,9 @@ const mockLog = (p: Partial<TimeLogRecord>): TimeLogRecord => ({
   extras: {},
   origem_arquivo: null,
   created_at: '2026-03-10T10:00:00Z',
+  inicio: null,
+  fim: null,
+  minutos_trabalhados: null,
   ...p,
 })
 

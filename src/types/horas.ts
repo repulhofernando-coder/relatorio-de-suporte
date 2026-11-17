@@ -1,6 +1,12 @@
 import { TimeLogLike } from '@/lib/tempo-horas'
 
-/** Lançamento de horas importado (tabela time_logs). */
+/**
+ * Lançamento de horas importado (tabela time_logs).
+ *
+ * `inicio`/`fim` (timestamptz) e `minutos_trabalhados` (numeric) vieram da
+ * v0.0.84 para a dedupe por sobreposição — gravados quando a planilha do
+ * Movidesk traz as colunas "Início"/"Fim"/"Horas Apontadas".
+ */
 export interface TimeLogRecord extends TimeLogLike {
   id: string
   user_id: string
@@ -9,6 +15,9 @@ export interface TimeLogRecord extends TimeLogLike {
   extras: Record<string, unknown>
   origem_arquivo: string | null
   created_at: string
+  inicio: string | null
+  fim: string | null
+  minutos_trabalhados: number | null
 }
 
 export type TimeLogInsert = {
@@ -23,6 +32,12 @@ export type TimeLogInsert = {
   eh_total_chamado: boolean
   status: string | null
   extras: Record<string, unknown>
+  /** Início do intervalo trabalhado (timestamptz ISO) — null quando a planilha não traz horário. */
+  inicio?: string | null
+  /** Fim do intervalo trabalhado (timestamptz ISO) — null quando a planilha não traz horário. */
+  fim?: string | null
+  /** Duração da régua "Horas Apontadas" do Movidesk (minutos) — régua de conferência da dedupe. */
+  minutos_trabalhados?: number | null
 }
 
 /** Tipo de importação (coluna imports.tipo). */

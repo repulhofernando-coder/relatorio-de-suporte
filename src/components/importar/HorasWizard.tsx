@@ -16,10 +16,15 @@ import { useMemo, useRef, useState } from 'react'
 import {
   parseSpreadsheetFile,
   autoDetectMappingHoras,
+  autoDetectHorarios,
   parseDateToISO,
+  parseHoraMinuto,
+  composeTimestamp,
   parseHoras as parseValorHoras,
   ParsedSpreadsheet,
+  MapeamentoHorarios,
 } from '@/lib/horas-spreadsheet'
+import { parseHorasEmMinutos } from '@/lib/tempo-horas'
 import { traduzirErro } from '@/lib/erros'
 import { insertTimeLogsBatch, upsertMapeamentoHoras } from '@/services/horas'
 import { createImportRecord } from '@/services/support'
@@ -61,6 +66,13 @@ const EMPTY_MAPPING_HORAS: Record<CampoHoraKey, string> = {
   tempo_lancamento: '',
   tempo_total_chamado: '',
   status: '',
+}
+
+const HORARIOS_VAZIOS: MapeamentoHorarios = {
+  inicio: '',
+  fim: '',
+  horas_apontadas: '',
+  horas_trabalhadas: '',
 }
 
 const PREFIXO_NOME_HORAS = '[Horas]'
@@ -106,6 +118,9 @@ export default function HorasWizard({ savedMappings }: HorasWizardProps) {
 
   // Passo 2: Mapeamento de Colunas
   const [mapping, setMapping] = useState<Record<CampoHoraKey, string>>({ ...EMPTY_MAPPING_HORAS })
+  // Colunas opcionais de horário ("Início"/"Fim"/"Horas Apontadas"/"Horas
+  // Trabalhadas") — detecção automática, fora do mapeamento salvo.
+  const [horarios, setHorarios] = useState<MapeamentoHorarios>({ ...HORARIOS_VAZIOS })
   const [mappingName, setMappingName] = useState<string>('')
   const [saveMapping, setSaveMapping] = useState<boolean>(true)
   const [autoDetectedMessage, setAutoDetectedMessage] = useState<string | null>(null)
@@ -171,11 +186,12 @@ export default function HorasWizard({ savedMappings }: HorasWizardProps) {
       }
 
       if (matchedSavedMapping) {
-        applySavedMapping(matchedSavedMapping, true)
+        applySavedMapping(matchedSavedMapping, true, data.headers)
       } else {
         // Executa auto-detecção por sinônimos
         const detected = autoDetectMappingHoras(data.headers)
         setMapping({ ...EMPTY_MAPPING_HORAS, ...detected })
+        setHorarios(autoDetectHorarios(data.headers, detected))
         setSelectedMappingIdLocal('auto')
         setAutoDetectedMessage(
           'Mapeamento detectado automaticamente a partir dos nomes das colunas',
@@ -196,12 +212,14 @@ export default function HorasWizard({ savedMappings }: HorasWizardProps) {
   const applySavedMapping = (
     saved: HorasWizardProps['savedMappings'][number],
     matched: boolean,
+    headers: string[],
   ) => {
     const newMap: Record<CampoHoraKey, string> = { ...EMPTY_MAPPING_HORAS }
     for (const key of CAMPOS_HORAS) {
       newMap[key] = (saved.mapeamento as Record<string, string>)[key] || ''
     }
     setMapping(newMap)
+    setHorarios(autoDetectHorarios(headers, newMap))
     setAutoDetectedMessage(
       matched
         ? `Mapeamento "${saved.nome}" detectado automaticamente`
@@ -221,6 +239,7 @@ export default function HorasWizard({ savedMappings }: HorasWizardProps) {
       setParsedData(data)
       const detected = autoDetectMappingHoras(data.headers)
       setMapping({ ...EMPTY_MAPPING_HORAS, ...detected })
+      setHorarios(autoDetectHorarios(data.headers, detected))
       setSelectedMappingIdLocal('auto')
     } catch (err) {
       setParseError(traduzirErro(err))
@@ -237,12 +256,13 @@ export default function HorasWizard({ savedMappings }: HorasWizardProps) {
     if (mappingId === 'auto') {
       const detected = autoDetectMappingHoras(parsedData.headers)
       setMapping({ ...EMPTY_MAPPING_HORAS, ...detected })
+      setHorarios(autoDetectHorarios(parsedData.headers, detected))
       setAutoDetectedMessage(null)
       setSaveMapping(true)
     } else {
       const target = savedMappings.find((m) => m.id === mappingId)
       if (target) {
-        applySavedMapping(target, false)
+        applySavedMapping(target, false, parsedData.headers)
       }
     }
   }
@@ -347,12 +367,47 @@ export default function HorasWizard({ savedMappings }: HorasWizardProps) {
         const numeroTicket =
           rawTicket !== null && rawTicket !== undefined ? String(rawTicket).trim() : ''
 
-        const rawData = mapping.data_lancamento ? row[mapping.data_lancamento] : null
-        const dataLancamento = mapping.data_lancamento ? parseDateToISO(rawData) : null
+        // Horários do apontamento ("Início"/"Fim" do Movidesk, HH:MM). Quando a
+        // coluna de data É a mesma do início (data+hora juntas), extrai os dois
+        // do mesmo valor; senão usa a coluna de data para compor o timestamp.
+        let dataLancamento = mapping.data_lancamento
+          ? parseDateToISO(row[mapping.data_lancamento])
+          : null
+        let inicioHm: ReturnType<typeof parseHoraMinuto> = null
+        let fimHm: ReturnType<typeof parseHoraMinuto> = null
+        if (horarios.inicio) {
+          if (mapping.data_lancamento && horarios.inicio === mapping.data_lancamento) {
+            dataLancamento = parseDateToISO(row[horarios.inicio])
+            inicioHm = parseHoraMinuto(row[horarios.inicio])
+          } else {
+            inicioHm = parseHoraMinuto(row[horarios.inicio])
+          }
+        }
+        if (horarios.fim) {
+          fimHm = parseHoraMinuto(row[horarios.fim])
+        }
+        const inicioTs = inicioHm ? composeTimestamp(dataLancamento, inicioHm) : null
+        const fimTs = fimHm ? composeTimestamp(dataLancamento, fimHm) : null
 
         const rawTempo = mapping.tempo_lancamento ? row[mapping.tempo_lancamento] : null
         const horas = parseValorHoras(rawTempo)
-        const minutos = horas !== null ? Math.round(horas * 60) : null
+        let minutos = horas !== null ? Math.round(horas * 60) : null
+        // "Horas Apontadas" vazia mas Início/Fim presentes: duração = Fim − Início
+        // (virada de meia-noite soma 24h).
+        if ((minutos === null || minutos <= 0) && inicioHm && fimHm) {
+          const delta = fimHm.horas * 60 + fimHm.minutos - (inicioHm.horas * 60 + inicioHm.minutos)
+          const deltaAjustado = delta < 0 ? delta + 1440 : delta
+          if (deltaAjustado > 0) minutos = deltaAjustado
+        }
+
+        // Régua de conferência do Movidesk ("Horas Trabalhadas"); sem essa
+        // coluna, cai para "Horas Apontadas" quando detectada.
+        let minutosTrabalhados: number | null = null
+        if (horarios.horas_trabalhadas) {
+          minutosTrabalhados = parseHorasEmMinutos(row[horarios.horas_trabalhadas])
+        } else if (horarios.horas_apontadas) {
+          minutosTrabalhados = parseHorasEmMinutos(row[horarios.horas_apontadas])
+        }
 
         // Valida campos obrigatórios
         if (!cliente) {
@@ -408,6 +463,9 @@ export default function HorasWizard({ savedMappings }: HorasWizardProps) {
           eh_total_chamado: ehTotalChamado,
           status: statusFinal,
           extras: {},
+          inicio: inicioTs,
+          fim: fimTs,
+          minutos_trabalhados: minutosTrabalhados,
         })
       })
 
