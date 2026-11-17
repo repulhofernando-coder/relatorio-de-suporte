@@ -64,6 +64,9 @@ import { TecnicoDrillDown } from '@/components/dashboard/TecnicoDrillDown'
 import { ClienteDrillDown } from '@/components/dashboard/ClienteDrillDown'
 import { ClientesUsoInadequadoPanel } from '@/components/dashboard/ClientesUsoInadequadoPanel'
 import { SlaStatusPanel } from '@/components/dashboard/SlaStatusPanel'
+import { ProjecaoChamadosCard } from '@/components/dashboard/ProjecaoChamadosCard'
+import { carregarProjecaoHistorico } from '@/lib/projecao-carregar'
+import type { RegistroComMes } from '@/lib/projecao-chamados'
 import { BenchmarkPanel } from '@/components/dashboard/BenchmarkPanel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -271,6 +274,10 @@ export default function Index() {
   const [rankingHoras, setRankingHoras] = useState<RankingHorasCliente[]>([])
   const [loadingRankingHoras, setLoadingRankingHoras] = useState(true)
 
+  // Histórico completo da projeção (support_records, sem filtro de período)
+  const [projecaoHistorico, setProjecaoHistorico] = useState<RegistroComMes[] | null>(null)
+  const [loadingProjecao, setLoadingProjecao] = useState(true)
+
   // Lançamentos de horas (time_logs) — alimentam o Top 3 do card do técnico
   const [timeLogs, setTimeLogs] = useState<TimeLogRecord[]>([])
   const timeLogsFiltrados = useMemo(() => {
@@ -477,6 +484,28 @@ export default function Index() {
       .then(setCapacities)
       .catch((err) => console.error('Erro ao buscar capacidade:', err))
   }, [])
+
+  // PROJEÇÃO DE CHAMADOS (mês corrente, sempre na base completa — ignora o
+  // período dos chips): histórico de 4 meses + mês corrente, por departamento.
+  useEffect(() => {
+    if (!inicializado) return
+    let ativo = true
+    setLoadingProjecao(true)
+    carregarProjecaoHistorico()
+      .then((hist) => {
+        if (ativo) setProjecaoHistorico(hist)
+      })
+      .catch((err) => {
+        console.error('Erro ao carregar histórico da projeção:', err)
+        if (ativo) setProjecaoHistorico(null)
+      })
+      .finally(() => {
+        if (ativo) setLoadingProjecao(false)
+      })
+    return () => {
+      ativo = false
+    }
+  }, [inicializado])
 
   // Filtro de departamento da Visão Geral: união dos setores dos chamados
   // (support_records), dos lançamentos de horas (time_logs, rótulos
@@ -1020,8 +1049,8 @@ export default function Index() {
         </div>
       ) : (
         <>
-          {/* 5 KPI CARDS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {/* 6 KPI CARDS (5 reais + 1 de projeção estimada do mês corrente) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
             {/* KPI 1: Total de Chamados */}
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between transition-all hover:shadow-md">
               <div className="flex items-center justify-between mb-3">
@@ -1172,6 +1201,13 @@ export default function Index() {
                 </div>
               </div>
             </div>
+
+            {/* KPI 6: PROJEÇÃO DE CHAMADOS (estimativa do mês corrente — não é dado real) */}
+            <ProjecaoChamadosCard
+              registros={projecaoHistorico ?? []}
+              departamento={departamentoFiltro}
+              loading={loadingProjecao}
+            />
           </div>
 
           {/* BANNER DE HORAS TRABALHADAS NO PERÍODO */}
