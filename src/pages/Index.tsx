@@ -21,6 +21,7 @@ import {
 } from '@/lib/duracao'
 import { normalizeHeader } from '@/lib/spreadsheet'
 import { CountUp } from '@/components/dashboard/CountUp'
+import { MetricCard } from '@/components/dashboard/MetricCard'
 import {
   PhoneCall,
   Users,
@@ -1052,24 +1053,19 @@ export default function Index() {
           {/* 6 KPI CARDS (5 reais + 1 de projeção estimada do mês corrente) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
             {/* KPI 1: Total de Chamados */}
-            <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between transition-all hover:shadow-md">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Total de Chamados
-                </span>
-                <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
-                  <PhoneCall className="w-5 h-5" />
-                </div>
-              </div>
-              <div>
-                <div className="text-3xl font-extrabold text-slate-900 tracking-tight">
-                  {loading ? (
-                    <div className="h-9 w-20 bg-slate-100 rounded-lg animate-pulse" />
-                  ) : (
-                    <CountUp value={totalChamados} />
-                  )}
-                </div>
-                <div className="mt-2 flex items-center gap-1.5 text-xs">
+            <MetricCard
+              label="Total de Chamados"
+              icon={PhoneCall}
+              iconClassName="bg-teal-50 text-teal-600"
+              value={
+                loading ? (
+                  <div className="h-9 w-20 bg-slate-100 rounded-lg animate-pulse mx-auto" />
+                ) : (
+                  <CountUp value={totalChamados} />
+                )
+              }
+              footer={
+                <div className="flex items-center justify-center gap-1.5 text-xs">
                   {trend ? (
                     <>
                       {trend.direction === 'up' && (
@@ -1094,113 +1090,87 @@ export default function Index() {
                     <span className="text-slate-400">Registros no período</span>
                   )}
                 </div>
-              </div>
-            </div>
+              }
+            />
 
             {/* KPI 2: Clientes Distintos */}
-            <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between transition-all hover:shadow-md">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Clientes Distintos
-                </span>
-                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                  <Users className="w-5 h-5" />
-                </div>
-              </div>
-              <div>
-                <div className="text-3xl font-extrabold text-slate-900 tracking-tight">
-                  {loading ? (
-                    <div className="h-9 w-20 bg-slate-100 rounded-lg animate-pulse" />
-                  ) : (
-                    <CountUp value={clientesDistintos} />
-                  )}
-                </div>
-                <div className="mt-2 text-xs text-slate-400">Empresas atendidas</div>
-              </div>
-            </div>
+            <MetricCard
+              label="Clientes Distintos"
+              icon={Users}
+              iconClassName="bg-indigo-50 text-indigo-600"
+              value={
+                loading ? (
+                  <div className="h-9 w-20 bg-slate-100 rounded-lg animate-pulse mx-auto" />
+                ) : (
+                  <CountUp value={clientesDistintos} />
+                )
+              }
+              footer={<span className="text-xs text-slate-400">Empresas atendidas</span>}
+            />
 
             {/* KPI 3: Técnicos Ativos */}
-            <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between transition-all hover:shadow-md">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Técnicos Ativos
-                </span>
-                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                  <UserCheck className="w-5 h-5" />
-                </div>
-              </div>
-              <div>
-                <div className="text-3xl font-extrabold text-slate-900 tracking-tight">
-                  {loading ? (
-                    <div className="h-9 w-20 bg-slate-100 rounded-lg animate-pulse" />
-                  ) : (
-                    <CountUp value={tecnicosAtivos} />
-                  )}
-                </div>
-                <div className="mt-2 text-xs text-slate-400">Atendentes com registro</div>
-              </div>
-            </div>
+            <MetricCard
+              label="Técnicos Ativos"
+              icon={UserCheck}
+              iconClassName="bg-amber-50 text-amber-600"
+              value={
+                loading ? (
+                  <div className="h-9 w-20 bg-slate-100 rounded-lg animate-pulse mx-auto" />
+                ) : (
+                  <CountUp value={tecnicosAtivos} />
+                )
+              }
+              footer={<span className="text-xs text-slate-400">Atendentes com registro</span>}
+            />
 
             {/* KPI 4: Tempo Médio de Atendimento */}
-            <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between transition-all hover:shadow-md">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Tempo Médio
-                </span>
-                <div className="w-10 h-10 rounded-xl bg-pink-50 text-pink-600 flex items-center justify-center">
-                  <Clock className="w-5 h-5" />
-                </div>
-              </div>
-              <div>
-                <div className="text-3xl font-extrabold text-slate-900 tracking-tight">
-                  {loading ? (
-                    <div className="h-9 w-24 bg-slate-100 rounded-lg animate-pulse" />
-                  ) : (
-                    formatMinutes(tempoMedioAtendimento)
-                  )}
-                </div>
-                <div className="mt-2 text-xs text-slate-400">Média por chamado</div>
-              </div>
-            </div>
+            <MetricCard
+              label="Tempo Médio"
+              icon={Clock}
+              iconClassName="bg-pink-50 text-pink-600"
+              value={
+                loading ? (
+                  <div className="h-9 w-24 bg-slate-100 rounded-lg animate-pulse mx-auto" />
+                ) : (
+                  formatMinutes(tempoMedioAtendimento)
+                )
+              }
+              footer={<span className="text-xs text-slate-400">Média por chamado</span>}
+            />
 
             {/* KPI 5: Indicador de SLA (% no prazo) */}
-            <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between transition-all hover:shadow-md">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  SLA no Prazo
-                </span>
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                  <CheckCircle2 className="w-5 h-5" />
-                </div>
-              </div>
-              <div>
-                <div className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-baseline gap-1.5">
-                  {loading ? (
-                    <div className="h-9 w-24 bg-slate-100 rounded-lg animate-pulse" />
-                  ) : slaStatusMetrics.percentDentro !== null ? (
-                    <>
-                      <span>{slaStatusMetrics.percentDentro}%</span>
-                      <span className="text-xs font-medium text-slate-400">
-                        ({slaStatusMetrics.dentro}/{slaStatusMetrics.totalComSla})
-                      </span>
-                    </>
-                  ) : (
-                    formatSlaHoras(slaMedioHoras)
-                  )}
-                </div>
-                <div className="mt-2 text-xs text-slate-400 flex items-center justify-between">
-                  {slaStatusMetrics.percentFora !== null ? (
-                    <span>
-                      Fora do prazo:{' '}
-                      <strong className="text-rose-600">{slaStatusMetrics.percentFora}%</strong> (
-                      {slaStatusMetrics.fora})
+            <MetricCard
+              label="SLA no Prazo"
+              icon={CheckCircle2}
+              iconClassName="bg-emerald-50 text-emerald-600"
+              value={
+                loading ? (
+                  <div className="h-9 w-24 bg-slate-100 rounded-lg animate-pulse mx-auto" />
+                ) : slaStatusMetrics.percentDentro !== null ? (
+                  <span className="flex items-baseline justify-center gap-1.5">
+                    {slaStatusMetrics.percentDentro}%
+                    <span className="text-xs font-medium text-slate-400">
+                      ({slaStatusMetrics.dentro}/{slaStatusMetrics.totalComSla})
                     </span>
-                  ) : (
-                    <span>Média SLA: {formatSlaHoras(slaMedioHoras)}</span>
-                  )}
-                </div>
-              </div>
-            </div>
+                  </span>
+                ) : (
+                  formatSlaHoras(slaMedioHoras)
+                )
+              }
+              footer={
+                slaStatusMetrics.percentFora !== null ? (
+                  <span className="text-xs text-slate-400">
+                    Fora do prazo:{' '}
+                    <strong className="text-rose-600">{slaStatusMetrics.percentFora}%</strong> (
+                    {slaStatusMetrics.fora})
+                  </span>
+                ) : (
+                  <span className="text-xs text-slate-400">
+                    Média SLA: {formatSlaHoras(slaMedioHoras)}
+                  </span>
+                )
+              }
+            />
 
             {/* KPI 6: PROJEÇÃO DE CHAMADOS (estimativa do mês corrente — não é dado real) */}
             <ProjecaoChamadosCard
@@ -1226,11 +1196,11 @@ export default function Index() {
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-6">
+              <div className="flex items-center gap-6 text-center">
                 <div>
                   <span className="text-[11px] text-slate-500 font-medium block">Total</span>
                   <span
-                    className="text-xl font-extrabold text-teal-800 font-mono"
+                    className="text-xl font-extrabold text-teal-800 font-mono tabular-nums"
                     title={`${tempoTrabalhadoMetrics.totalHoras} horas`}
                   >
                     {formatarTotalHorasLegivel(tempoTrabalhadoMetrics.totalHoras)}
@@ -1244,7 +1214,7 @@ export default function Index() {
                     <span className="text-[11px] text-slate-500 font-medium block">
                       Média por chamado
                     </span>
-                    <span className="text-xl font-extrabold text-teal-800 font-mono">
+                    <span className="text-xl font-extrabold text-teal-800 font-mono tabular-nums">
                       {formatarHorasDecimaisLegivel(tempoTrabalhadoMetrics.mediaHoras)}
                     </span>
                   </div>
@@ -1253,7 +1223,7 @@ export default function Index() {
                   <span className="text-[11px] text-slate-500 font-medium block">
                     Chamados apontados
                   </span>
-                  <span className="text-xl font-extrabold text-slate-700 font-mono">
+                  <span className="text-xl font-extrabold text-slate-700 font-mono tabular-nums">
                     {tempoTrabalhadoMetrics.count}
                   </span>
                 </div>

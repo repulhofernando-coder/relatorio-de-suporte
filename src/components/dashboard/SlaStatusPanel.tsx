@@ -113,65 +113,59 @@ export function SlaStatusPanel({ records, loading }: SlaStatusPanelProps) {
           {/* 3 cards de contagem e % */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             {/* No Prazo */}
-            <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-2xl p-4 flex flex-col justify-between">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-emerald-800 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  No prazo
-                </span>
-                <span className="text-xs font-extrabold text-emerald-700 font-mono bg-emerald-100/80 px-2 py-0.5 rounded-full">
-                  {metrics.pctNoPrazo}%
-                </span>
-              </div>
-              <div>
-                <div className="text-2xl font-extrabold text-emerald-900 font-mono">
+            <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-2xl p-4 flex flex-col">
+              <span className="text-xs font-semibold text-emerald-800 flex items-center justify-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                No prazo
+              </span>
+              <div className="flex-1 flex items-center justify-center py-2.5">
+                <div className="text-2xl font-extrabold text-emerald-900 font-mono tabular-nums text-center leading-tight">
                   {metrics.noPrazo.toLocaleString('pt-BR')}
                 </div>
-                <div className="text-[11px] text-emerald-700/80 mt-0.5">
-                  Atendidos dentro da meta acordada
-                </div>
+              </div>
+              <span className="text-xs font-extrabold text-emerald-700 font-mono bg-emerald-100/80 px-2 py-0.5 rounded-full self-center">
+                {metrics.pctNoPrazo}%
+              </span>
+              <div className="text-[11px] text-emerald-700/80 mt-1.5 text-center">
+                Atendidos dentro da meta acordada
               </div>
             </div>
 
             {/* Fora do Prazo */}
-            <div className="bg-rose-50/60 border border-rose-200/80 rounded-2xl p-4 flex flex-col justify-between">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-rose-800 flex items-center gap-1.5">
-                  <XCircle className="w-4 h-4 text-rose-600" />
-                  Fora do prazo
-                </span>
-                <span className="text-xs font-extrabold text-rose-700 font-mono bg-rose-100/80 px-2 py-0.5 rounded-full">
-                  {metrics.pctForaDoPrazo}%
-                </span>
-              </div>
-              <div>
-                <div className="text-2xl font-extrabold text-rose-900 font-mono">
+            <div className="bg-rose-50/60 border border-rose-200/80 rounded-2xl p-4 flex flex-col">
+              <span className="text-xs font-semibold text-rose-800 flex items-center justify-center gap-1.5">
+                <XCircle className="w-4 h-4 text-rose-600" />
+                Fora do prazo
+              </span>
+              <div className="flex-1 flex items-center justify-center py-2.5">
+                <div className="text-2xl font-extrabold text-rose-900 font-mono tabular-nums text-center leading-tight">
                   {metrics.foraDoPrazo.toLocaleString('pt-BR')}
                 </div>
-                <div className="text-[11px] text-rose-700/80 mt-0.5">
-                  Ultrapassaram o limite de SLA
-                </div>
+              </div>
+              <span className="text-xs font-extrabold text-rose-700 font-mono bg-rose-100/80 px-2 py-0.5 rounded-full self-center">
+                {metrics.pctForaDoPrazo}%
+              </span>
+              <div className="text-[11px] text-rose-700/80 mt-1.5 text-center">
+                Ultrapassaram o limite de SLA
               </div>
             </div>
 
             {/* Sem Informação */}
-            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 flex flex-col justify-between">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                  <HelpCircle className="w-4 h-4 text-slate-500" />
-                  Sem informação
-                </span>
-                <span className="text-xs font-extrabold text-slate-700 font-mono bg-slate-200/70 px-2 py-0.5 rounded-full">
-                  {metrics.pctSemInfo}%
-                </span>
-              </div>
-              <div>
-                <div className="text-2xl font-extrabold text-slate-900 font-mono">
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 flex flex-col">
+              <span className="text-xs font-semibold text-slate-700 flex items-center justify-center gap-1.5">
+                <HelpCircle className="w-4 h-4 text-slate-500" />
+                Sem informação
+              </span>
+              <div className="flex-1 flex items-center justify-center py-2.5">
+                <div className="text-2xl font-extrabold text-slate-900 font-mono tabular-nums text-center leading-tight">
                   {metrics.semInfo.toLocaleString('pt-BR')}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">
-                  Sem status de SLA preenchido na planilha
-                </div>
+              </div>
+              <span className="text-xs font-extrabold text-slate-700 font-mono bg-slate-200/70 px-2 py-0.5 rounded-full self-center">
+                {metrics.pctSemInfo}%
+              </span>
+              <div className="text-[11px] text-slate-500 mt-1.5 text-center">
+                Sem status de SLA preenchido na planilha
               </div>
             </div>
           </div>

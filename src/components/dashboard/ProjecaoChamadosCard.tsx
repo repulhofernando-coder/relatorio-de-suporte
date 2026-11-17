@@ -113,22 +113,25 @@ export function ProjecaoChamadosCard({
       className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between transition-all hover:shadow-md"
       title="Projeção estimada com base na média diária do mês em curso e nos meses anteriores."
     >
-      <div className="flex items-center justify-between mb-3">
+      {/* Label pequeno em cima (padrão MetricCard) */}
+      <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
           Projeção de Chamados
         </span>
-        <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center">
+        <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center shrink-0">
           <CalendarRange className="w-5 h-5" />
         </div>
       </div>
 
       {loading ? (
-        <div className="space-y-2">
-          <div className="h-9 w-32 bg-slate-100 rounded-lg animate-pulse" />
-          <div className="h-4 w-40 bg-slate-100 rounded animate-pulse" />
+        <div className="flex-1 flex items-center justify-center py-3">
+          <div className="space-y-2 w-full flex flex-col items-center">
+            <div className="h-9 w-32 bg-slate-100 rounded-lg animate-pulse" />
+            <div className="h-4 w-40 bg-slate-100 rounded animate-pulse" />
+          </div>
         </div>
       ) : !resultado || resultado.status !== 'ok' ? (
-        <div>
+        <div className="flex-1 flex flex-col items-center justify-center py-3 text-center">
           <div className="text-sm font-bold text-slate-500 leading-snug">
             {resultado?.status === 'sem_historico'
               ? resultado.mensagem
@@ -139,7 +142,7 @@ export function ProjecaoChamadosCard({
               ? resultado.detalhe
               : 'Verifique a conexão e tente recarregar a página.'}
           </p>
-          <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-start gap-1.5">
+          <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-start gap-1.5 text-left">
             <Info className="w-3 h-3 text-slate-300 mt-0.5 shrink-0" />
             <p className="text-[10px] leading-snug text-slate-400">
               Projeção estimada com base na média diária do mês em curso e nos meses anteriores ·{' '}
@@ -148,24 +151,28 @@ export function ProjecaoChamadosCard({
           </div>
         </div>
       ) : (
-        <div>
-          <div className="text-3xl font-extrabold text-slate-900 tracking-tight whitespace-nowrap">
-            {formatarFaixaProjetada(resultado.faixaMin, resultado.faixaMax)}
+        <div className="flex flex-col flex-1">
+          {/* Valor grande centralizado */}
+          <div className="flex-1 flex items-center justify-center py-3">
+            <div className="text-3xl font-extrabold text-slate-900 tracking-tight whitespace-nowrap tabular-nums text-center leading-tight">
+              {formatarFaixaProjetada(resultado.faixaMin, resultado.faixaMax)}
+            </div>
           </div>
-          <div className="mt-1 text-xs text-slate-400 font-medium">
+          <div className="text-xs text-slate-400 font-medium text-center">
             projeção estimada de chamados em {mesCorrenteLabel}
           </div>
 
+          {/* Conteúdo secundário */}
           <div className="mt-3 space-y-1">
             <div className="flex items-center justify-between gap-2">
               <span className="text-[11px] text-slate-400">Mês corrente até hoje (real)</span>
-              <span className="text-[11px] font-bold text-slate-700 font-mono">
+              <span className="text-[11px] font-bold text-slate-700 font-mono tabular-nums">
                 {resultado.chamadosMesCorrente}
               </span>
             </div>
             <div className="flex items-center justify-between gap-2">
               <span className="text-[11px] text-slate-400">Dias úteis restantes no mês</span>
-              <span className="text-[11px] font-bold text-slate-700 font-mono">
+              <span className="text-[11px] font-bold text-slate-700 font-mono tabular-nums">
                 {resultado.diasUteisRestantes}
               </span>
             </div>
