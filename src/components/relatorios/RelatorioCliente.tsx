@@ -12,6 +12,7 @@ import {
 } from 'recharts'
 import { PhoneCall, Clock, Timer, ShieldCheck, Inbox, Printer, Building2 } from 'lucide-react'
 import { SupportRecord } from '@/types/support'
+import { TimeLogLike } from '@/lib/tempo-horas'
 import { MetricCard } from '@/components/dashboard/MetricCard'
 import {
   Table,
@@ -26,7 +27,7 @@ import {
   ResumoCliente,
   LinhaEvolucao,
   LinhaRanking,
-  resumirCliente,
+  resumirClienteComLancamentos,
   evolucaoCliente,
   granularidadeEvolucao,
   rankingAssuntos,
@@ -36,6 +37,7 @@ import {
   formatarDataISO,
   LIMITE_CHAMADOS_PDF,
 } from '@/lib/relatorio-cliente'
+import { minutosPorTicket, minutosEfetivos } from '@/lib/horas-por-ticket'
 import { formatarPercentual } from '@/lib/formatar'
 
 const TEAL = '#0D9488'
@@ -44,6 +46,12 @@ const INDIGO = '#6366F1'
 interface RelatorioClienteProps {
   cliente: string
   records: SupportRecord[]
+  /**
+   * Lançamentos de horas (time_logs) do período — a fonte de tempo usada
+   * pelo /horas. Tempo do chamado vira fallback quando o tíquete não tem
+   * lançamento (v0.0.81).
+   */
+  logs?: TimeLogLike[]
   /** Período em formato legível (ex.: "01/11/2026 — 30/11/2026" ou "Histórico completo"). */
   periodoLabel: string
   loading: boolean
@@ -92,18 +100,31 @@ function LinhaRankingItem({
 export function RelatorioCliente({
   cliente,
   records,
+  logs,
   periodoLabel,
   loading,
 }: RelatorioClienteProps) {
-  const resumo: ResumoCliente = useMemo(() => resumirCliente(records), [records])
+  const logsList = useMemo(() => logs ?? [], [logs])
+  const mapaMinutos = useMemo(() => minutosPorTicket(logsList), [logsList])
+
+  const { resumo, orfas, minutosOrfas } = useMemo(
+    () => resumirClienteComLancamentos(records, logsList),
+    [records, logsList],
+  )
 
   const granularidade = useMemo(() => granularidadeEvolucao(records), [records])
   const evolucao: LinhaEvolucao[] = useMemo(
-    () => evolucaoCliente(records, granularidade),
-    [records, granularidade],
+    () => evolucaoCliente(records, granularidade, mapaMinutos),
+    [records, granularidade, mapaMinutos],
   )
-  const assuntos: LinhaRanking[] = useMemo(() => rankingAssuntos(records), [records])
-  const tecnicos: LinhaRanking[] = useMemo(() => rankingTecnicos(records), [records])
+  const assuntos: LinhaRanking[] = useMemo(
+    () => rankingAssuntos(records, 10, mapaMinutos),
+    [records, mapaMinutos],
+  )
+  const tecnicos: LinhaRanking[] = useMemo(
+    () => rankingTecnicos(records, 10, mapaMinutos),
+    [records, mapaMinutos],
+  )
   const tabela = useMemo(() => ultimosChamados(records), [records])
 
   const hasTempo = resumo.totalMinutos !== null
@@ -176,7 +197,12 @@ export function RelatorioCliente({
             label="Tempo total gasto"
             value={hasTempo ? formatarMinutos(resumo.totalMinutos) : '—'}
             footer={
-              hasTempo ? undefined : (
+              minutosOrfas > 0 ? (
+                <span className="text-[11px] text-slate-400">
+                  Inclui {formatarMinutos(minutosOrfas)} de {orfas.length}{' '}
+                  {orfas.length === 1 ? 'lançamento sem chamado' : 'lançamentos sem chamado'}
+                </span>
+              ) : hasTempo ? undefined : (
                 <span className="text-[11px] text-slate-400">Sem tempos registrados</span>
               )
             }
@@ -464,17 +490,7 @@ export function RelatorioCliente({
                         {formatarDataISO(r.data_chamado)}
                       </TableCell>
                       <TableCell className="text-xs font-semibold text-slate-800 py-2.5 text-right whitespace-nowrap">
-                        {formatarMinutos(
-                          typeof r.tempo_atendimento_min === 'number' &&
-                            !isNaN(r.tempo_atendimento_min) &&
-                            r.tempo_atendimento_min > 0
-                            ? r.tempo_atendimento_min
-                            : typeof r.tempo_trabalhado === 'number' &&
-                                !isNaN(r.tempo_trabalhado) &&
-                                r.tempo_trabalhado > 0
-                              ? Math.round(r.tempo_trabalhado * 60)
-                              : null,
-                        )}
+                        {formatarMinutos(minutosEfetivos(r, mapaMinutos))}
                       </TableCell>
                     </TableRow>
                   ))}

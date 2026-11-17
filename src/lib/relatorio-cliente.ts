@@ -1,5 +1,12 @@
 import type { SupportRecord } from '@/types/support'
+import type { TimeLogLike } from '@/lib/tempo-horas'
 import { formatarPercentual } from '@/lib/formatar'
+import {
+  minutosPorTicket,
+  ticketsComLancamento,
+  minutosDoChamado,
+  minutosEfetivos,
+} from '@/lib/horas-por-ticket'
 
 /**
  * Cálculos do relatório mensal de cliente: resumo, evolução no período,
@@ -35,25 +42,8 @@ export interface LinhaRanking {
   percentual: string // ex.: "23,4%"
 }
 
-function minutosDe(r: SupportRecord): number {
-  // Prioriza tempo_atendimento_min (minutos); cai para tempo_trabalhado
-  // (horas decimais, padrão Movidesk) quando não há minutos — v0.0.79.
-  if (
-    typeof r.tempo_atendimento_min === 'number' &&
-    !isNaN(r.tempo_atendimento_min) &&
-    r.tempo_atendimento_min > 0
-  ) {
-    return r.tempo_atendimento_min
-  }
-  if (
-    typeof r.tempo_trabalhado === 'number' &&
-    !isNaN(r.tempo_trabalhado) &&
-    r.tempo_trabalhado > 0
-  ) {
-    return Math.round(r.tempo_trabalhado * 60)
-  }
-  return 0
-}
+/** @deprecated use minutosEfetivos/minutosDoChamado (v0.0.81) — mantido temporariamente. */
+const minutosDe = minutosDoChamado
 
 function eForaDoSla(r: SupportRecord): boolean {
   const s = r.sla_status?.toLowerCase().trim()
@@ -132,6 +122,92 @@ export function granularidadeEvolucao(records: SupportRecord[]): 'dia' | 'semana
   return 'mes'
 }
 
+/** Chamados órfãos: lançamentos cujo tíquete não existe em support_records. */
+export interface LinhaOrfa {
+  ticket: string
+  minutos: number
+}
+
+export interface ResumoComLancamentos {
+  resumo: ResumoCliente
+  /** Lançamentos sem chamado correspondente (somam no total, fora da tabela). */
+  orfas: LinhaOrfa[]
+  /** Minutos dos órfãos (já incluídos no totalMinutos/TMA do resumo). */
+  minutosOrfas: number
+}
+
+/**
+ * Resumo executivo do recorte usando as horas dos LANÇAMENTOS (time_logs)
+ * como referência — mesma régua do /horas:
+ * - tíquete com lançamentos → soma dos lançamentos (o tempo do chamado é
+ *   ignorado para não dobrar);
+ * - tíquete sem lançamento → tempo gravado no chamado (fallback);
+ * - lançamentos sem chamado correspondente (órfãos) somam no total e entram
+ *   como linhas à parte na resposta.
+ */
+export function resumirClienteComLancamentos(
+  records: SupportRecord[],
+  logs: TimeLogLike[],
+): ResumoComLancamentos {
+  const mapa = minutosPorTicket(logs)
+  const comLancamento = ticketsComLancamento(logs)
+
+  let somaMinutos = 0
+  let comTempo = 0
+  let dentro = 0
+  let fora = 0
+  let comSla = 0
+  const orfasVistas = new Set<string>()
+  const orfas: LinhaOrfa[] = []
+
+  records.forEach((r) => {
+    const m = minutosEfetivos(r, mapa)
+    if (m > 0) {
+      somaMinutos += m
+      comTempo++
+    }
+    const s = r.sla_status?.toLowerCase().trim()
+    if (s === 'dentro' || s === 'no prazo') dentro++
+    if (s === 'dentro' || s === 'no prazo' || eForaDoSla(r)) comSla++
+    if (eForaDoSla(r)) fora++
+    if (r.numero && comLancamento.has(r.numero)) orfasVistas.add(r.numero)
+  })
+
+  // Órfãos: lançamentos cujo tíquete não existe em support_records no recorte.
+  let minutosOrfas = 0
+  for (const log of logs) {
+    const ticket = log.numero_ticket?.trim()
+    if (!ticket || orfasVistas.has(ticket)) continue
+    if (!orfas.some((o) => o.ticket === ticket)) {
+      orfas.push({ ticket, minutos: 0 })
+    }
+  }
+  for (const orfa of orfas) {
+    orfa.minutos = mapa.get(orfa.ticket) || 0
+    minutosOrfas += orfa.minutos
+  }
+
+  if (minutosOrfas > 0) {
+    somaMinutos += minutosOrfas
+    comTempo += orfas.length
+  }
+
+  return {
+    resumo: {
+      totalChamados: records.length,
+      totalMinutos: comTempo > 0 ? somaMinutos : null,
+      // TMA = tempo total ÷ nº de chamados com tempo (critério do usuário)
+      tmaMinutos: comTempo > 0 ? Math.round(somaMinutos / comTempo) : null,
+      foraDoSla: fora,
+      comSlaInformado: comSla,
+      // No máximo 1 casa decimal (padrão do projeto)
+      percentualDentroSla: comSla > 0 ? Math.round((dentro / comSla) * 1000) / 10 : null,
+    },
+    orfas,
+    minutosOrfas,
+  }
+}
+
 /** Resumo executivo do recorte (chamados, tempo total, TMA, SLA). */
 export function resumirCliente(records: SupportRecord[]): ResumoCliente {
   let somaMinutos = 0
@@ -163,10 +239,15 @@ export function resumirCliente(records: SupportRecord[]): ResumoCliente {
   }
 }
 
-/** Série de evolução (chamados e minutos) no recorte, pela granularidade dada. */
+/**
+ * Série de evolução (chamados e minutos) no recorte, pela granularidade dada.
+ * `mapaMinutos` (opcional) traz os minutos efetivos por tíquete vindo dos
+ * lançamentos de horas (mesma régua do /horas); sem ele, usa o tempo do chamado.
+ */
 export function evolucaoCliente(
   records: SupportRecord[],
   granularidade: 'dia' | 'semana' | 'mes',
+  mapaMinutos?: Map<string, number>,
 ): LinhaEvolucao[] {
   const mapa = new Map<string, LinhaEvolucao>()
   records.forEach((r) => {
@@ -175,7 +256,7 @@ export function evolucaoCliente(
     const chave = chaveDeAgrupamento(iso, granularidade)
     const linha = mapa.get(chave) || { chave, chamados: 0, minutos: 0 }
     linha.chamados++
-    linha.minutos += minutosDe(r)
+    linha.minutos += mapaMinutos ? minutosEfetivos(r, mapaMinutos) : minutosDe(r)
     mapa.set(chave, linha)
   })
   return Array.from(mapa.values()).sort((a, b) => ordenarChaveEvolucao(a.chave, b.chave))
@@ -185,6 +266,7 @@ function ranking(
   records: SupportRecord[],
   chaveDe: (r: SupportRecord) => string | null | undefined,
   limite: number,
+  mapaMinutos?: Map<string, number>,
 ): LinhaRanking[] {
   const total = records.length
   const mapa = new Map<string, { chamados: number; minutos: number }>()
@@ -193,7 +275,7 @@ function ranking(
     if (!nome) return
     const linha = mapa.get(nome) || { chamados: 0, minutos: 0 }
     linha.chamados++
-    linha.minutos += minutosDe(r)
+    linha.minutos += mapaMinutos ? minutosEfetivos(r, mapaMinutos) : minutosDe(r)
     mapa.set(nome, linha)
   })
   return Array.from(mapa.entries())
@@ -209,13 +291,21 @@ function ranking(
 }
 
 /** Serviços/assuntos que mais abriram (coluna assunto; fallback tipo_chamado). */
-export function rankingAssuntos(records: SupportRecord[], limite = 10): LinhaRanking[] {
-  return ranking(records, (r) => r.assunto || r.tipo_chamado, limite)
+export function rankingAssuntos(
+  records: SupportRecord[],
+  limite = 10,
+  mapaMinutos?: Map<string, number>,
+): LinhaRanking[] {
+  return ranking(records, (r) => r.assunto || r.tipo_chamado, limite, mapaMinutos)
 }
 
 /** Técnicos que atenderam a demanda (nome, nº de chamados e minutos). */
-export function rankingTecnicos(records: SupportRecord[], limite = 10): LinhaRanking[] {
-  return ranking(records, (r) => r.tecnico, limite)
+export function rankingTecnicos(
+  records: SupportRecord[],
+  limite = 10,
+  mapaMinutos?: Map<string, number>,
+): LinhaRanking[] {
+  return ranking(records, (r) => r.tecnico, limite, mapaMinutos)
 }
 
 /** Limite de linhas da tabela de chamados no PDF. */

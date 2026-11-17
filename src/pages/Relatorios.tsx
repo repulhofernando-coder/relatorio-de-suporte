@@ -16,8 +16,10 @@ import {
   SavedReportFilters,
   SupportRecord,
 } from '@/types/support'
+import type { TimeLogRecord } from '@/types/horas'
 import { RelatorioCliente } from '@/components/relatorios/RelatorioCliente'
 import { ClienteCombobox } from '@/components/relatorios/ClienteCombobox'
+import { fetchTimeLogs } from '@/services/horas'
 import {
   FileText,
   Calendar,
@@ -119,6 +121,7 @@ export default function Relatorios() {
   const [clienteSelecionado, setClienteSelecionado] = useState<string | null>(null)
   const [registrosCliente, setRegistrosCliente] = useState<SupportRecord[] | null>(null)
   const [carregandoCliente, setCarregandoCliente] = useState(false)
+  const [logsCliente, setLogsCliente] = useState<TimeLogRecord[] | null>(null)
 
   // Período do relatório de cliente (chips + datas personalizadas)
   const [periodoCliente, setPeriodoCliente] = useState<SavedReportPeriodChip>('este_mes')
@@ -228,6 +231,26 @@ export default function Relatorios() {
     }
     let ativo = true
     setCarregandoCliente(true)
+    // Lançamentos de horas (time_logs) do MESMO período: a MESMA fonte de tempo
+    // do /horas (o casamento chamado ↔ lançamento é feito dentro do relatório,
+    // pelo número do tíquete — ver lib/horas-por-ticket.ts)
+    const buscaLogs = fetchTimeLogs()
+      .then((logs) => {
+        if (!ativo) return
+        const ini = periodoClienteStart || ''
+        const fim = periodoClienteEnd || ''
+        const filtrados = logs.filter((l) => {
+          const data = l.data_lancamento || ''
+          if (ini && (!data || data < ini)) return false
+          if (fim && (!data || data > fim)) return false
+          return true
+        })
+        setLogsCliente(filtrados)
+      })
+      .catch((err: any) => {
+        console.error('Erro ao buscar lançamentos de horas:', err)
+        if (ativo) setLogsCliente([])
+      })
     fetchSupportRecords({
       cliente: clienteSelecionado,
       startDate: periodoClienteStart || undefined,
@@ -252,6 +275,7 @@ export default function Relatorios() {
       })
     return () => {
       ativo = false
+      void buscaLogs
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clienteSelecionado, periodoClienteStart, periodoClienteEnd])
@@ -632,6 +656,7 @@ export default function Relatorios() {
           records={registrosCliente || []}
           periodoLabel={periodoClienteLabel}
           loading={carregandoCliente}
+          logs={logsCliente ?? undefined}
         />
       )}
 
