@@ -489,6 +489,38 @@ export async function fetchSavedReports(): Promise<SavedReportRecord[]> {
 }
 
 /**
+ * Busca a lista de clientes distintos presentes na base de atendimentos
+ * (coluna `cliente` de support_records, sem linhas vazias), ordenada PT-BR.
+ * Alimenta o filtro de cliente dos relatórios.
+ */
+export async function fetchClientesEmUso(): Promise<string[]> {
+  const PAGE = 1000
+  const set = new Set<string>()
+  let from = 0
+
+  for (;;) {
+    const { data: rows, error: pageError } = await (supabase as any)
+      .from('support_records')
+      .select('cliente')
+      .not('cliente', 'is', null)
+      .range(from, from + PAGE - 1)
+
+    if (pageError) {
+      throw new Error(`Erro ao buscar clientes: ${pageError.message}`)
+    }
+
+    for (const row of (rows as Array<{ cliente: string | null }>) || []) {
+      const c = row.cliente?.trim()
+      if (c) set.add(c)
+    }
+
+    if (!rows || rows.length < PAGE) break
+    from += PAGE
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+}
+
+/**
  * Busca a lista de nomes de técnicos distintos presentes na base de atendimentos.
  */
 export async function fetchTecnicosEmUso(): Promise<string[]> {

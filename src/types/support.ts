@@ -134,6 +134,8 @@ export interface SavedReportFilters {
   endDate?: string
   departamento?: string
   tecnico?: string
+  /** Nome do cliente do recorte (jsonb filters) — ausente = todos os clientes. */
+  cliente?: string
 }
 
 export interface SavedReportRecord {
