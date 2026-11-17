@@ -157,6 +157,21 @@ export async function fetchSupportRecords(
   return all
 }
 
+/**
+ * Remove linhas com a mesma chave de conflito (`numero`) dentro da lista.
+ * O ON CONFLICT DO UPDATE do Postgres recusa duas linhas com a mesma chave no
+ * mesmo comando; mantém a ÚLTIMA ocorrência de cada chave (a linha mais recente
+ * da planilha vence) e preserva a ordem original das demais.
+ * Linhas sem `numero` não entram em conflito e são mantidas.
+ */
+export function desduplicarPorNumero<T extends { numero?: string | null }>(records: T[]): T[] {
+  const ultimoIndicePorChave = new Map<string, number>()
+  records.forEach((r, idx) => {
+    if (r.numero != null) ultimoIndicePorChave.set(r.numero, idx)
+  })
+  return records.filter((r, idx) => r.numero == null || ultimoIndicePorChave.get(r.numero) === idx)
+}
+
 export async function insertSupportRecordsBatch(
   records: SupportRecordInsert[],
   onProgress?: (inserted: number, total: number) => void,
@@ -165,11 +180,12 @@ export async function insertSupportRecordsBatch(
   const userId = userData?.user?.id
   if (!userId) throw new Error('Usuário não autenticado.')
 
+  const registros = desduplicarPorNumero(records)
   const batchSize = 100
   let totalProcessed = 0
 
-  for (let i = 0; i < records.length; i += batchSize) {
-    const chunk = records.slice(i, i + batchSize).map((r) => ({
+  for (let i = 0; i < registros.length; i += batchSize) {
+    const chunk = registros.slice(i, i + batchSize).map((r) => ({
       ...r,
       user_id: userId,
     }))
@@ -188,7 +204,7 @@ export async function insertSupportRecordsBatch(
 
     totalProcessed += chunk.length
     if (onProgress) {
-      onProgress(totalProcessed, records.length)
+      onProgress(totalProcessed, registros.length)
     }
   }
 
