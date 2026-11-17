@@ -297,7 +297,15 @@ export default function Relatorios() {
       endDate: periodoClienteEnd || undefined,
     })
       .then((data) => {
-        if (ativo) setRegistrosCliente(data)
+        if (ativo) {
+          setRegistrosCliente(data)
+          // Sem este concluir(), o contador "pendentes" nunca chegava a 0
+          // quando AMBAS as buscas sucediam (ele só era chamado no .then dos
+          // logs e nos .catch) e o relatório ficava em loading eterno: os 4
+          // cards de resumo preenchiam (não consultam loading), mas evolução,
+          // rankings, "Horas por técnico" e a tabela ficavam vazios.
+          concluir()
+        }
       })
       .catch((err: any) => {
         console.error('Erro ao buscar chamados do cliente:', err)
