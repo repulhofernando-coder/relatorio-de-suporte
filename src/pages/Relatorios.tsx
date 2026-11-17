@@ -7,8 +7,17 @@ import {
   createSavedReport,
   fetchDepartamentosEmUso,
   fetchTecnicosEmUso,
+  fetchClientesEmUso,
+  fetchSupportRecords,
 } from '@/services/support'
-import { SavedReportRecord, SavedReportPeriodChip, SavedReportFilters } from '@/types/support'
+import {
+  SavedReportRecord,
+  SavedReportPeriodChip,
+  SavedReportFilters,
+  SupportRecord,
+} from '@/types/support'
+import { RelatorioCliente } from '@/components/relatorios/RelatorioCliente'
+import { ClienteCombobox } from '@/components/relatorios/ClienteCombobox'
 import {
   FileText,
   Calendar,
@@ -85,6 +94,10 @@ export function formatReportFiltersSummary(filters: SavedReportFilters): string 
     parts.push(`Técnico ${filters.tecnico}`)
   }
 
+  if (filters.cliente) {
+    parts.push(`Cliente ${filters.cliente}`)
+  }
+
   return parts.join(' · ')
 }
 
@@ -100,6 +113,17 @@ export default function Relatorios() {
   // Opções para o modal de criação
   const [departamentos, setDepartamentos] = useState<string[]>([])
   const [tecnicos, setTecnicos] = useState<string[]>([])
+  const [clientes, setClientes] = useState<string[]>([])
+
+  // Relatório de cliente (seção que aparece quando um cliente específico é escolhido)
+  const [clienteSelecionado, setClienteSelecionado] = useState<string | null>(null)
+  const [registrosCliente, setRegistrosCliente] = useState<SupportRecord[] | null>(null)
+  const [carregandoCliente, setCarregandoCliente] = useState(false)
+
+  // Período do relatório de cliente (chips + datas personalizadas)
+  const [periodoCliente, setPeriodoCliente] = useState<SavedReportPeriodChip>('este_mes')
+  const [startCliente, setStartCliente] = useState('')
+  const [endCliente, setEndCliente] = useState('')
 
   // Modal Novo Relatório
   const [modalNovoAberto, setModalNovoAberto] = useState(false)
@@ -109,11 +133,67 @@ export default function Relatorios() {
   const [novoEnd, setNovoEnd] = useState('')
   const [novoDepartamento, setNovoDepartamento] = useState('todos')
   const [novoTecnico, setNovoTecnico] = useState('todos')
+  const [novoCliente, setNovoCliente] = useState<string | null>(null)
   const [salvando, setSalvando] = useState(false)
 
   // Modal de exclusão
   const [deleteTarget, setDeleteTarget] = useState<SavedReportRecord | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  /** Datas (ISO) e rótulo do chip de período do relatório de cliente. */
+  const datasPeriodoCliente = (
+    chip: SavedReportPeriodChip,
+    startPersonalizado: string,
+    endPersonalizado: string,
+  ): { start?: string; end?: string; label: string } => {
+    const now = new Date()
+    const y = now.getFullYear()
+    const m = now.getMonth()
+    const iso = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const br = (d: Date) =>
+      d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })
+
+    switch (chip) {
+      case 'este_mes': {
+        const s = new Date(y, m, 1)
+        const e = new Date(y, m + 1, 0)
+        return { start: iso(s), end: iso(e), label: `${br(s)} — ${br(e)}` }
+      }
+      case 'mes_passado': {
+        const s = new Date(y, m - 1, 1)
+        const e = new Date(y, m, 0)
+        return { start: iso(s), end: iso(e), label: `${br(s)} — ${br(e)}` }
+      }
+      case 'ultimos_3_meses': {
+        const s = new Date(y, m - 2, 1)
+        const e = new Date(y, m + 1, 0)
+        return { start: iso(s), end: iso(e), label: `${br(s)} — ${br(e)}` }
+      }
+      case 'este_ano': {
+        const s = new Date(y, 0, 1)
+        const e = new Date(y, 11, 31)
+        return { start: iso(s), end: iso(e), label: `${br(s)} — ${br(e)}` }
+      }
+      case 'personalizado': {
+        const s = startPersonalizado ? br(new Date(startPersonalizado + 'T00:00:00')) : 'Início'
+        const e = endPersonalizado ? br(new Date(endPersonalizado + 'T00:00:00')) : 'Fim'
+        return {
+          start: startPersonalizado || undefined,
+          end: endPersonalizado || undefined,
+          label: `${s} — ${e}`,
+        }
+      }
+      case 'tudo':
+      default:
+        return { label: 'Histórico completo' }
+    }
+  }
+
+  const periodoClienteDatas = datasPeriodoCliente(periodoCliente, startCliente, endCliente)
+  const periodoClienteStart = periodoClienteDatas.start
+  const periodoClienteEnd = periodoClienteDatas.end
+  const periodoClienteLabel = periodoClienteDatas.label
 
   const loadData = useCallback(async () => {
     try {
@@ -137,19 +217,67 @@ export default function Relatorios() {
     loadData()
     fetchDepartamentosEmUso().then(setDepartamentos).catch(console.error)
     fetchTecnicosEmUso().then(setTecnicos).catch(console.error)
+    fetchClientesEmUso().then(setClientes).catch(console.error)
   }, [loadData])
 
+  // Recalcula o relatório de cliente sempre que o cliente ou o período muda
+  useEffect(() => {
+    if (!clienteSelecionado) {
+      setRegistrosCliente(null)
+      return
+    }
+    let ativo = true
+    setCarregandoCliente(true)
+    fetchSupportRecords({
+      cliente: clienteSelecionado,
+      startDate: periodoClienteStart || undefined,
+      endDate: periodoClienteEnd || undefined,
+    })
+      .then((data) => {
+        if (ativo) setRegistrosCliente(data)
+      })
+      .catch((err: any) => {
+        console.error('Erro ao buscar chamados do cliente:', err)
+        if (ativo) {
+          setRegistrosCliente([])
+          toast({
+            variant: 'destructive',
+            title: 'Erro ao gerar relatório',
+            description: err.message || 'Não foi possível buscar os chamados do cliente.',
+          })
+        }
+      })
+      .finally(() => {
+        if (ativo) setCarregandoCliente(false)
+      })
+    return () => {
+      ativo = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteSelecionado, periodoClienteStart, periodoClienteEnd])
+
   const handleOpenReport = (report: SavedReportRecord) => {
+    const f = report.filters
+    // Relatório com cliente específico abre aqui mesmo, restaurando o filtro
+    if (f.cliente) {
+      setClienteSelecionado(f.cliente)
+      setPeriodoCliente(f.periodo || 'este_mes')
+      setStartCliente(f.startDate || '')
+      setEndCliente(f.endDate || '')
+      toast({
+        title: 'Relatório de cliente aberto',
+        description: `"${report.name}" — ${f.cliente}`,
+      })
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+    // Relatório de visão (sem cliente) continua abrindo na Visão Geral
     const p = new URLSearchParams()
-    if (report.filters.periodo) p.set('periodo', report.filters.periodo)
-    if (report.filters.startDate) p.set('startDate', report.filters.startDate)
-    if (report.filters.endDate) p.set('endDate', report.filters.endDate)
-    if (report.filters.departamento && report.filters.departamento !== 'todos') {
-      p.set('departamento', report.filters.departamento)
-    }
-    if (report.filters.tecnico && report.filters.tecnico !== 'todos') {
-      p.set('tecnico', report.filters.tecnico)
-    }
+    if (f.periodo) p.set('periodo', f.periodo)
+    if (f.startDate) p.set('startDate', f.startDate)
+    if (f.endDate) p.set('endDate', f.endDate)
+    if (f.departamento && f.departamento !== 'todos') p.set('departamento', f.departamento)
+    if (f.tecnico && f.tecnico !== 'todos') p.set('tecnico', f.tecnico)
     navigate(`/?${p.toString()}`)
   }
 
@@ -182,6 +310,7 @@ export default function Relatorios() {
         endDate: novoPeriodo === 'personalizado' && novoEnd ? novoEnd : undefined,
         departamento: novoDepartamento !== 'todos' ? novoDepartamento : undefined,
         tecnico: novoTecnico !== 'todos' ? novoTecnico : undefined,
+        cliente: novoCliente || undefined,
       }
 
       const created = await createSavedReport({
@@ -197,6 +326,7 @@ export default function Relatorios() {
       setNovoEnd('')
       setNovoDepartamento('todos')
       setNovoTecnico('todos')
+      setNovoCliente(null)
 
       toast({
         title: 'Relatório salvo com sucesso!',
@@ -287,6 +417,72 @@ export default function Relatorios() {
               <span>Novo relatório</span>
             </Button>
           )}
+        </div>
+      </div>
+
+      {/* BARRA DE FILTROS DO RELATÓRIO DE CLIENTE */}
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm print:hidden space-y-3">
+        <div className="flex items-center gap-2">
+          <Building2 className="w-4 h-4 text-teal-600" />
+          <h2 className="text-sm font-bold text-slate-800">Relatório por cliente</h2>
+        </div>
+        <p className="text-xs text-slate-500 leading-relaxed -mt-1">
+          Selecione um cliente para gerar o relatório dele (chamados, tempo, assuntos e técnicos).
+          Use <b>Imprimir / Salvar PDF</b> no relatório para enviar ao cliente.
+        </p>
+        <div className="flex flex-col sm:flex-row sm:items-end gap-3 pt-1">
+          <ClienteCombobox
+            clientes={clientes}
+            value={clienteSelecionado}
+            onChange={setClienteSelecionado}
+          />
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(
+              [
+                ['este_mes', 'Este mês'],
+                ['mes_passado', 'Mês passado'],
+                ['ultimos_3_meses', 'Últimos 3 meses'],
+                ['este_ano', 'Este ano'],
+                ['tudo', 'Tudo'],
+              ] as [SavedReportPeriodChip, string][]
+            ).map(([chip, rotulo]) => (
+              <button
+                key={chip}
+                type="button"
+                onClick={() => setPeriodoCliente(chip)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                  periodoCliente === chip
+                    ? 'bg-teal-600 text-white shadow-sm shadow-teal-600/20'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {rotulo}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="date"
+              value={startCliente}
+              onChange={(e) => {
+                setStartCliente(e.target.value)
+                setPeriodoCliente('personalizado')
+              }}
+              className="h-9 rounded-xl border border-slate-200 bg-white px-2 text-xs text-slate-800"
+              title="Data inicial"
+            />
+            <span className="text-xs text-slate-400">até</span>
+            <input
+              type="date"
+              value={endCliente}
+              onChange={(e) => {
+                setEndCliente(e.target.value)
+                setPeriodoCliente('personalizado')
+              }}
+              className="h-9 rounded-xl border border-slate-200 bg-white px-2 text-xs text-slate-800"
+              title="Data final"
+            />
+          </div>
         </div>
       </div>
 
@@ -402,6 +598,12 @@ export default function Relatorios() {
                           {report.filters.tecnico}
                         </span>
                       )}
+                      {report.filters.cliente && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-violet-100/70 text-violet-900 font-medium text-[11px]">
+                          <Building2 className="w-3 h-3 text-violet-700" />
+                          {report.filters.cliente}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -421,6 +623,16 @@ export default function Relatorios() {
             )
           })}
         </div>
+      )}
+
+      {/* RELATÓRIO DE CLIENTE */}
+      {clienteSelecionado && (
+        <RelatorioCliente
+          cliente={clienteSelecionado}
+          records={registrosCliente || []}
+          periodoLabel={periodoClienteLabel}
+          loading={carregandoCliente}
+        />
       )}
 
       {/* MODAL NOVO RELATÓRIO */}
@@ -524,6 +736,27 @@ export default function Relatorios() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Cliente */}
+              <div className="space-y-1">
+                <label className="font-semibold text-slate-700">Cliente</label>
+                <select
+                  value={novoCliente || ''}
+                  onChange={(e) => setNovoCliente(e.target.value || null)}
+                  className="w-full h-9 rounded-xl border border-slate-200 bg-white px-3 font-medium text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="">Todos os clientes (visão geral)</option>
+                  {clientes.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-400 leading-snug">
+                  Com um cliente selecionado, abrir o relatório restaura o filtro aqui na guia
+                  Relatórios e gera o relatório dele.
+                </p>
               </div>
             </div>
 

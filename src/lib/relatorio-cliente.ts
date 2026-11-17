@@ -10,7 +10,7 @@ import { formatarPercentual } from '@/lib/formatar'
 
 export interface ResumoCliente {
   totalChamados: number
-  /** Tempo total gasto, em minutos (tempo_atendimento_min) — null quando a base não tem tempos. */
+  /** Tempo total gasto, em minutos — null quando a base não tem tempos. */
   totalMinutos: number | null
   /** Tempo médio por chamado, em minutos — null quando não há tempos. */
   tmaMinutos: number | null
@@ -18,6 +18,8 @@ export interface ResumoCliente {
   foraDoSla: number
   /** Chamados com SLA informado (dentro + fora). */
   comSlaInformado: number
+  /** % de chamados dentro do SLA (sobre os com SLA informado) — null quando ninguém tem SLA. */
+  percentualDentroSla: number | null
 }
 
 export interface LinhaEvolucao {
@@ -34,9 +36,23 @@ export interface LinhaRanking {
 }
 
 function minutosDe(r: SupportRecord): number {
-  return typeof r.tempo_atendimento_min === 'number' && !isNaN(r.tempo_atendimento_min)
-    ? r.tempo_atendimento_min
-    : 0
+  // Prioriza tempo_atendimento_min (minutos); cai para tempo_trabalhado
+  // (horas decimais, padrão Movidesk) quando não há minutos — v0.0.79.
+  if (
+    typeof r.tempo_atendimento_min === 'number' &&
+    !isNaN(r.tempo_atendimento_min) &&
+    r.tempo_atendimento_min > 0
+  ) {
+    return r.tempo_atendimento_min
+  }
+  if (
+    typeof r.tempo_trabalhado === 'number' &&
+    !isNaN(r.tempo_trabalhado) &&
+    r.tempo_trabalhado > 0
+  ) {
+    return Math.round(r.tempo_trabalhado * 60)
+  }
+  return 0
 }
 
 function eForaDoSla(r: SupportRecord): boolean {
@@ -116,31 +132,34 @@ export function granularidadeEvolucao(records: SupportRecord[]): 'dia' | 'semana
   return 'mes'
 }
 
-/** Resumo executivo do recorte (chamados, tempo total, TMA, fora do SLA). */
+/** Resumo executivo do recorte (chamados, tempo total, TMA, SLA). */
 export function resumirCliente(records: SupportRecord[]): ResumoCliente {
-  let totalMinutos = 0
+  let somaMinutos = 0
   let comTempo = 0
+  let dentro = 0
   let fora = 0
   let comSla = 0
 
   records.forEach((r) => {
-    const m = r.tempo_atendimento_min
-    if (typeof m === 'number' && !isNaN(m) && m > 0) {
-      totalMinutos += m
+    const m = minutosDe(r)
+    if (m > 0) {
+      somaMinutos += m
       comTempo++
     }
     const s = r.sla_status?.toLowerCase().trim()
+    if (s === 'dentro' || s === 'no prazo') dentro++
     if (s === 'dentro' || s === 'no prazo' || eForaDoSla(r)) comSla++
     if (eForaDoSla(r)) fora++
   })
 
-  const temposValidos = comTempo
   return {
     totalChamados: records.length,
-    totalMinutos: comTempo > 0 ? totalMinutos : null,
-    tmaMinutos: temposValidos > 0 ? Math.round(totalMinutos / temposValidos) : null,
+    totalMinutos: comTempo > 0 ? somaMinutos : null,
+    tmaMinutos: comTempo > 0 ? Math.round(somaMinutos / comTempo) : null,
     foraDoSla: fora,
     comSlaInformado: comSla,
+    // No máximo 1 casa decimal (padrão do projeto)
+    percentualDentroSla: comSla > 0 ? Math.round((dentro / comSla) * 1000) / 10 : null,
   }
 }
 
