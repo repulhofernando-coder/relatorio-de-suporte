@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase/client'
 import { TimeLogRecord, TimeLogInsert, ImportTipo } from '@/types/horas'
 import { agregarHorasPorCliente, agregarHorasPorTecnico } from '@/lib/tempo-horas'
+import { dedupNomeCliente } from '@/lib/cliente-nome'
 import {
   SupportRecord,
   SupportRecordInsert,
@@ -180,7 +181,18 @@ export async function insertSupportRecordsBatch(
   const userId = userData?.user?.id
   if (!userId) throw new Error('Usuário não autenticado.')
 
-  const registros = desduplicarPorNumero(records)
+  const registros = desduplicarPorNumero(records).map((r) => {
+    // Nome de cliente normalizado na gravação: partes repetidas separadas por
+    // vírgula ("MERCADO VIOLETA LTDA,MERCADO VIOLETA LTDA") viram uma só.
+    const cliente = dedupNomeCliente(r.cliente)
+    return {
+      ...r,
+      // A gravação sempre espelha cliente em organizacao (mesmo valor),
+      // então a normalização do cliente precisa valer para os dois campos.
+      cliente,
+      organizacao: dedupNomeCliente(r.organizacao) || cliente,
+    }
+  })
   const batchSize = 100
   let totalProcessed = 0
 
@@ -635,7 +647,7 @@ export async function fetchTimeLogs(params?: FetchTimeLogsParams): Promise<TimeL
  * Retorna o número de linhas inseridas.
  */
 export async function insertTimeLogsBatch(
-  rows: TimeLogInsert[],
+  rowsOriginal: TimeLogInsert[],
   importId: string,
   onProgress?: (inserted: number, total: number) => void,
   batchSize = 500,
@@ -643,6 +655,10 @@ export async function insertTimeLogsBatch(
   const { data: userData } = await supabase.auth.getUser()
   const userId = userData?.user?.id
   if (!userId) throw new Error('Usuário não autenticado.')
+
+  // Nome de cliente normalizado na gravação: partes repetidas separadas por
+  // vírgula ("MERCADO VIOLETA LTDA,MERCADO VIOLETA LTDA") viram uma só.
+  const rows = rowsOriginal.map((r) => ({ ...r, cliente: dedupNomeCliente(r.cliente) }))
 
   let inseridas = 0
 
