@@ -236,7 +236,22 @@ export default function Relatorios() {
       return
     }
     let ativo = true
+    // Limpa os lançamentos ANTES de reabrir as buscas: sem isso, ao trocar o
+    // técnico os logs do técnico anterior (ou de todos) ficavam renderizando
+    // até a nova resposta chegar — o "Tempo total" mostrava a soma de todos
+    // os técnicos (ex.: ~20h da Unigroup) no lugar das horas do escolhido
+    // (v0.0.90: corrida entre fetchSupportRecords, rápido, e fetchTimeLogs,
+    // que pagina toda a tabela server-side).
+    setLogsCliente(null)
     setCarregandoCliente(true)
+    // O carregamento só termina quando CHAMADOS e LANÇAMENTOS chegarem —
+    // antes, terminava no primeiro (chamados, sempre mais rápido) e o relatório
+    // podia calcular o tempo com os logs ainda não recortados pelo técnico.
+    let pendentes = 2
+    const concluir = () => {
+      pendentes -= 1
+      if (ativo && pendentes === 0) setCarregandoCliente(false)
+    }
     // Lançamentos de horas (time_logs) do MESMO período: a MESMA fonte de tempo
     // do /horas (o casamento chamado ↔ lançamento é feito dentro do relatório,
     // pelo número do tíquete — ver lib/horas-por-ticket.ts)
@@ -263,6 +278,7 @@ export default function Relatorios() {
         // ANTES do recorte do cliente para que as partes/consolidada do mesmo
         // tíquete+técnico se enxerguem (v0.0.86).
         setLogsCliente(dedupeHoras(doTecnico).logs)
+        concluir()
         // Logs de TODOS os clientes chegam aqui; o casamento com os do
         // cliente selecionado (casados por numero_ticket dos chamados dele
         // + órfãos pelo nome no log) é feito dentro do RelatorioCliente
@@ -272,6 +288,7 @@ export default function Relatorios() {
       .catch((err: any) => {
         console.error('Erro ao buscar lançamentos de horas:', err)
         if (ativo) setLogsCliente([])
+        concluir()
       })
     fetchSupportRecords({
       cliente: clienteSelecionado,
@@ -292,9 +309,7 @@ export default function Relatorios() {
             description: err.message || 'Não foi possível buscar os chamados do cliente.',
           })
         }
-      })
-      .finally(() => {
-        if (ativo) setCarregandoCliente(false)
+        concluir()
       })
     return () => {
       ativo = false
@@ -699,6 +714,7 @@ export default function Relatorios() {
           periodoLabel={periodoClienteLabel}
           loading={carregandoCliente}
           logs={logsCliente ?? undefined}
+          logsCarregando={logsCliente === null}
           tecnico={tecnicoCliente.trim() || undefined}
         />
       )}

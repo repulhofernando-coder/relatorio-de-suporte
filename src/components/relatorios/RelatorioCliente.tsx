@@ -40,7 +40,14 @@ import {
 } from '@/lib/relatorio-cliente'
 import { minutosPorTicket, minutosEfetivos } from '@/lib/horas-por-ticket'
 import { separarLogsDoCliente } from '@/lib/logs-cliente'
+import { normalizarBuscaNome } from '@/lib/busca-horas'
 import { formatarPercentual } from '@/lib/formatar'
+
+/** Linha do bloco "Horas por técnico" (sem filtro de técnico). */
+interface LinhaTempoTecnico {
+  nome: string
+  minutos: number
+}
 
 const TEAL = '#0D9488'
 const INDIGO = '#6366F1'
@@ -63,6 +70,11 @@ interface RelatorioClienteProps {
   /** Período em formato legível (ex.: "01/11/2026 — 30/11/2026" ou "Histórico completo"). */
   periodoLabel: string
   loading: boolean
+  /**
+   * Os lançamentos de horas ainda estão sendo buscados — os cards de tempo
+   * ficam em placeholder em vez de exibir total com logs parciais/obsoletos.
+   */
+  logsCarregando?: boolean
 }
 
 /** Card simples de dado textual (ranking de técnicos). */
@@ -112,6 +124,7 @@ export function RelatorioCliente({
   tecnico,
   periodoLabel,
   loading,
+  logsCarregando = false,
 }: RelatorioClienteProps) {
   const logsList = useMemo(() => logs ?? [], [logs])
   // Casamento chamado ↔ lançamento: só logs do PRÓPRIO cliente (casados pelo
@@ -140,6 +153,30 @@ export function RelatorioCliente({
   const tecnicos: LinhaRanking[] = useMemo(
     () => rankingTecnicos(records, 10, mapaMinutos, minutosTecnico),
     [records, mapaMinutos, minutosTecnico],
+  )
+  // Mapa normalizado → grafia real do técnico (para o detalhamento por técnico)
+  const nomePorChave = useMemo(() => {
+    const mapa = new Map<string, string>()
+    for (const log of logsCliente) {
+      const nome = log.tecnico?.trim()
+      if (nome) mapa.set(normalizarBuscaNome(nome), nome)
+    }
+    return mapa
+  }, [logsCliente])
+  // Detalhamento por técnico (pedido do usuário, v0.0.90): quando NENHUM
+  // técnico está selecionado, cada um aparece com o SEU total de horas —
+  // como no painel /horas — em vez de um único total que mistura todos.
+  // Fonte: minutos individuais já calculados dos logs deduplicados; o nome
+  // de exibição volta ao original via mapa chave-normalizada → grafia real.
+  const porTecnico: LinhaTempoTecnico[] = useMemo(
+    () =>
+      Array.from(minutosTecnico.entries())
+        .map(([chave, minutos]) => ({
+          nome: nomePorChave.get(chave) || chave,
+          minutos,
+        }))
+        .sort((a, b) => b.minutos - a.minutos || a.nome.localeCompare(b.nome, 'pt-BR')),
+    [minutosTecnico, nomePorChave],
   )
   const tabela = useMemo(() => ultimosChamados(records), [records])
 
@@ -451,6 +488,39 @@ export function RelatorioCliente({
             )}
           </div>
         </div>
+
+        {/* HORAS POR TÉCNICO (sem filtro de técnico, v0.0.90): cada profissional
+            com o SEU total de horas — como no painel /horas — em vez de um
+            único total que mistura todos. Some com o filtro de técnico ativo:
+            aí o relatório inteiro já é daquele profissional. */}
+        {!tecnico?.trim() && !loading && !logsCarregando && porTecnico.length > 0 && (
+          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
+            <div className="mb-4">
+              <h3 className="text-base font-bold text-slate-900">Horas por técnico</h3>
+              <p className="text-xs text-slate-500">
+                Tempo lançado por cada profissional neste cliente (após deduplicação)
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {porTecnico.map((t) => (
+                <div
+                  key={t.nome}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{t.nome}</p>
+                    <p className="text-[11px] text-slate-400 font-medium">
+                      {Math.round((t.minutos / 60) * 100) / 100} h
+                    </p>
+                  </div>
+                  <span className="text-sm font-bold text-teal-700 tabular-nums shrink-0">
+                    {formatarMinutos(t.minutos)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* TABELA DE CHAMADOS */}
         <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
