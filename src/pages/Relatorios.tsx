@@ -246,6 +246,11 @@ export default function Relatorios() {
           return true
         })
         setLogsCliente(filtrados)
+        // Logs de TODOS os clientes chegam aqui; o casamento com os do
+        // cliente selecionado (casados por numero_ticket dos chamados dele
+        // + órfãos pelo nome no log) é feito dentro do RelatorioCliente
+        // (lib/logs-cliente.ts, v0.0.83) — aqui permanece o recorte por
+        // data do período, igual ao /horas.
       })
       .catch((err: any) => {
         console.error('Erro ao buscar lançamentos de horas:', err)

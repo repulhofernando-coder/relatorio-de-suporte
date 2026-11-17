@@ -137,6 +137,17 @@ export interface ResumoComLancamentos {
 }
 
 /**
+ * Órfãos externos: lançamentos do próprio cliente que não casam com nenhum
+ * chamado do recorte (ex.: tíquete de outro mês ou importado depois) — chegam
+ * já filtrados e pertencendo ao cliente (ver lib/logs-cliente.ts). Somam no
+ * total como linhas próprias, sem dobrar com o tempo dos chamados.
+ */
+export interface OrfasExternas {
+  logs: TimeLogLike[]
+  minutos: number
+}
+
+/**
  * Resumo executivo do recorte usando as horas dos LANÇAMENTOS (time_logs)
  * como referência — mesma régua do /horas:
  * - tíquete com lançamentos → soma dos lançamentos (o tempo do chamado é
@@ -148,6 +159,7 @@ export interface ResumoComLancamentos {
 export function resumirClienteComLancamentos(
   records: SupportRecord[],
   logs: TimeLogLike[],
+  orfasExternas?: OrfasExternas,
 ): ResumoComLancamentos {
   const mapa = minutosPorTicket(logs)
   const comLancamento = ticketsComLancamento(logs)
@@ -190,6 +202,19 @@ export function resumirClienteComLancamentos(
   if (minutosOrfas > 0) {
     somaMinutos += minutosOrfas
     comTempo += orfas.length
+  }
+
+  // Órfãos externos (já garantidos do próprio cliente por quem chama) somam
+  // no total e entram como linhas próprias — sem dobrar com chamados.
+  if (orfasExternas && orfasExternas.minutos > 0) {
+    somaMinutos += orfasExternas.minutos
+    comTempo += orfasExternas.logs.length
+    for (const log of orfasExternas.logs) {
+      const ticket = log.numero_ticket?.trim() || '(sem tíquete)'
+      const jaVisto = orfas.find((o) => o.ticket === ticket)
+      if (jaVisto) continue
+      orfas.push({ ticket, minutos: log.minutos || 0 })
+    }
   }
 
   return {

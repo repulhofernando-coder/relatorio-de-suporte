@@ -38,6 +38,7 @@ import {
   LIMITE_CHAMADOS_PDF,
 } from '@/lib/relatorio-cliente'
 import { minutosPorTicket, minutosEfetivos } from '@/lib/horas-por-ticket'
+import { separarLogsDoCliente } from '@/lib/logs-cliente'
 import { formatarPercentual } from '@/lib/formatar'
 
 const TEAL = '#0D9488'
@@ -105,11 +106,17 @@ export function RelatorioCliente({
   loading,
 }: RelatorioClienteProps) {
   const logsList = useMemo(() => logs ?? [], [logs])
-  const mapaMinutos = useMemo(() => minutosPorTicket(logsList), [logsList])
+  // Casamento chamado ↔ lançamento: só logs do PRÓPRIO cliente (casados pelo
+  // numero_ticket dos chamados dele, ou pelo nome no log p/ órfãos) — v0.0.83
+  const { logsCliente } = useMemo(
+    () => separarLogsDoCliente(logsList, records, cliente),
+    [logsList, records, cliente],
+  )
+  const mapaMinutos = useMemo(() => minutosPorTicket(logsCliente), [logsCliente])
 
   const { resumo, orfas, minutosOrfas } = useMemo(
-    () => resumirClienteComLancamentos(records, logsList),
-    [records, logsList],
+    () => resumirClienteComLancamentos(records, logsCliente),
+    [records, logsCliente],
   )
 
   const granularidade = useMemo(() => granularidadeEvolucao(records), [records])
