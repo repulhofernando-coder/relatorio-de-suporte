@@ -20,6 +20,7 @@ import {
   normalizarDepartamentoHoras,
   normalizarDepartamentosEmLogs,
 } from '@/lib/departamentos'
+import { dedupeHoras } from '@/lib/horas-dedupe'
 
 export {
   fetchTimeLogs,
@@ -170,20 +171,30 @@ export async function carregarHorasDashboard(filtros: HorasFiltros): Promise<Hor
  * Agrega lançamentos já filtrados (ranking de clientes, horas por técnico,
  * resumo e cruzamento com chamados). Usado por carregarHorasDashboard e pela
  * busca de cliente/técnico em /horas, que filtra os logs localmente.
+ *
+ * TODOS os totais partem da fonte DEDUPLICADA (v0.0.86): no mesmo tíquete +
+ * técnico, lançamento cujo intervalo cobre o de outros substitui as partes;
+ * sem início/fim, a consolidada substitui as partes quando a soma delas fecha
+ * exatamente com ela (ver lib/horas-dedupe.ts).
  */
 export function montarDashboardHoras(
   logsFiltrados: TimeLogRecord[],
   minutosPorTicket: Map<string, number>,
 ): HorasDashboardData {
-  const porCliente = agregarHorasPorCliente(logsFiltrados, minutosPorTicket)
-  const porTecnico = agregarHorasPorTecnico(logsFiltrados)
+  // Fonte DEDUPLICADA — alimenta TODOS os cards da página (total, por cliente,
+  // por técnico, depto×cliente, export): a dedupe é feita em leitura, sobre os
+  // logs já filtrados, e devolve os mesmos lançamentos com minutos corrigidos.
+  const dedupe = dedupeHoras(logsFiltrados)
+  const logsDedupe = dedupe.logs
+  const porCliente = agregarHorasPorCliente(logsDedupe, minutosPorTicket)
+  const porTecnico = agregarHorasPorTecnico(logsDedupe)
 
-  const totalMinutos = logsFiltrados.reduce((acc, l) => acc + (l.minutos || 0), 0)
+  const totalMinutos = dedupe.totalMinutos
   const ticketsUnicos = new Set<string>()
   let semChamadoVinculado = 0
   let semChamadoVinculadoHoras = 0
 
-  for (const log of logsFiltrados) {
+  for (const log of logsDedupe) {
     if (log.numero_ticket) {
       ticketsUnicos.add(log.numero_ticket)
       if (!minutosPorTicket.has(log.numero_ticket)) {
@@ -199,7 +210,7 @@ export function montarDashboardHoras(
   const totalHoras = Math.round((totalMinutos / 60) * 100) / 100
 
   return {
-    logs: logsFiltrados,
+    logs: logsDedupe,
     minutosPorTicket,
     porCliente,
     porTecnico,

@@ -20,6 +20,7 @@ import type { TimeLogRecord } from '@/types/horas'
 import { RelatorioCliente } from '@/components/relatorios/RelatorioCliente'
 import { ClienteCombobox } from '@/components/relatorios/ClienteCombobox'
 import { fetchTimeLogs } from '@/services/horas'
+import { dedupeHoras } from '@/lib/horas-dedupe'
 import {
   FileText,
   Calendar,
@@ -245,7 +246,11 @@ export default function Relatorios() {
           if (fim && (!data || data > fim)) return false
           return true
         })
-        setLogsCliente(filtrados)
+        // MESMA régua do /horas: dedupe por sobreposição (intervalo que cobre
+        // o de outros substitui as partes; sem início/fim, soma exata) — feita
+        // ANTES do recorte do cliente para que as partes/consolidada do mesmo
+        // tíquete+técnico se enxerguem (v0.0.86).
+        setLogsCliente(dedupeHoras(filtrados).logs)
         // Logs de TODOS os clientes chegam aqui; o casamento com os do
         // cliente selecionado (casados por numero_ticket dos chamados dele
         // + órfãos pelo nome no log) é feito dentro do RelatorioCliente
