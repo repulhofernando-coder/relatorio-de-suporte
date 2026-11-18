@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useCallback } from 'react'
 import {
   ResponsiveContainer,
   AreaChart,
@@ -136,23 +136,27 @@ export function RelatorioCliente({
   const mapaMinutos = useMemo(() => minutosPorTicket(logsCliente), [logsCliente])
 
   const { resumo, orfas, minutosOrfas } = useMemo(
-    () => resumirClienteComLancamentos(records, logsCliente),
-    [records, logsCliente],
+    () => resumirClienteComLancamentos(records, logsCliente, undefined, Boolean(tecnico?.trim())),
+    [records, logsCliente, tecnico],
   )
 
   const granularidade = useMemo(() => granularidadeEvolucao(records), [records])
+  // Recorte por técnico (v0.0.93): passa a guarda do fallback para evolução,
+  // assuntos e resumo — tíquete sem lançamento do técnico não herda o tempo
+  // do tíquete inteiro (ex.: 154336/Unigroup somava 20h53 no lugar de 5h50).
+  const tecnicoAtivoMem = Boolean(tecnico?.trim())
   const evolucao: LinhaEvolucao[] = useMemo(
-    () => evolucaoCliente(records, granularidade, mapaMinutos),
-    [records, granularidade, mapaMinutos],
+    () => evolucaoCliente(records, granularidade, mapaMinutos, tecnicoAtivoMem),
+    [records, granularidade, mapaMinutos, tecnicoAtivoMem],
   )
   const assuntos: LinhaRanking[] = useMemo(
-    () => rankingAssuntos(records, 10, mapaMinutos),
-    [records, mapaMinutos],
+    () => rankingAssuntos(records, 10, mapaMinutos, tecnicoAtivoMem),
+    [records, mapaMinutos, tecnicoAtivoMem],
   )
   const minutosTecnico = useMemo(() => minutosPorTecnico(logsCliente), [logsCliente])
   const tecnicos: LinhaRanking[] = useMemo(
-    () => rankingTecnicos(records, 10, mapaMinutos, minutosTecnico),
-    [records, mapaMinutos, minutosTecnico],
+    () => rankingTecnicos(records, 10, mapaMinutos, minutosTecnico, tecnicoAtivoMem),
+    [records, mapaMinutos, minutosTecnico, tecnicoAtivoMem],
   )
   // Mapa normalizado → grafia real do técnico (para o detalhamento por técnico)
   const nomePorChave = useMemo(() => {
@@ -179,6 +183,16 @@ export function RelatorioCliente({
     [minutosTecnico, nomePorChave],
   )
   const tabela = useMemo(() => ultimosChamados(records), [records])
+  // Com técnico filtrado (v0.0.93): a duração exibida é a parte DELE no tíquete
+  // — os lançamentos já chegam recortados por técnico da página (Relatorios.tsx),
+  // mas o FALLBACK para o tempo gravado no chamado precisava da guarda: sem ela,
+  // tíquete sem lançamento do técnico exibia o tempo do tíquete INTEIRO
+  // (ex.: 154336/Unigroup → 20h53, 1253 min = Thiago 350 + Marcos 901 + Bruno 2).
+  const tecnicoAtivo = Boolean(tecnico?.trim())
+  const minutosDaTabela = useCallback(
+    (r: SupportRecord) => minutosEfetivos(r, mapaMinutos, tecnicoAtivo),
+    [mapaMinutos, tecnicoAtivo],
+  )
 
   const hasTempo = resumo.totalMinutos !== null
   const dentroSla =
@@ -581,7 +595,7 @@ export function RelatorioCliente({
                         {formatarDataISO(r.data_chamado)}
                       </TableCell>
                       <TableCell className="text-xs font-semibold text-slate-800 py-2.5 text-right whitespace-nowrap">
-                        {formatarMinutos(minutosEfetivos(r, mapaMinutos))}
+                        {formatarMinutos(minutosDaTabela(r))}
                       </TableCell>
                     </TableRow>
                   ))}
