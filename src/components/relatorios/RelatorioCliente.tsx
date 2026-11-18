@@ -40,7 +40,7 @@ import {
 } from '@/lib/relatorio-cliente'
 import { minutosPorTicket, minutosEfetivos } from '@/lib/horas-por-ticket'
 import { separarLogsDoCliente } from '@/lib/logs-cliente'
-import { normalizarBuscaNome } from '@/lib/busca-horas'
+import { normalizarBuscaNome, filtrarLogsPorBusca } from '@/lib/busca-horas'
 import { formatarPercentual } from '@/lib/formatar'
 
 /** Linha do bloco "Horas por técnico" (sem filtro de técnico). */
@@ -56,9 +56,10 @@ interface RelatorioClienteProps {
   cliente: string
   records: SupportRecord[]
   /**
-   * Lançamentos de horas (time_logs) do período — a fonte de tempo usada
-   * pelo /horas. Tempo do chamado vira fallback quando o tíquete não tem
-   * lançamento (v0.0.81).
+   * Lançamentos de horas (time_logs) do período — a ÚNICA fonte de tempo do
+   * relatório (mesma régua do /horas). O recorte por técnico ativo é refeito
+   * aqui dentro (v0.0.96); tíquete sem lançamento → "—", sem fallback ao
+   * tempo gravado no chamado (v0.0.95).
    */
   logs?: TimeLogLike[]
   /**
@@ -126,21 +127,44 @@ export function RelatorioCliente({
   loading,
   logsCarregando = false,
 }: RelatorioClienteProps) {
+  // RECORTE POR TÉCNICO NOS CHAMADOS TAMBÉM (v0.0.96): a tabela do print ainda
+  // mostrava chamados de outros técnicos com o filtro ativo (o recorte
+  // server-side do PostgREST pode não chegar — estado/corrida). Idempotente
+  // quando o servidor já filtrou; sem técnico ativo, nada muda.
+  const recordsList = useMemo(
+    () =>
+      tecnico?.trim()
+        ? records.filter((r) =>
+            normalizarBuscaNome(r.tecnico).includes(normalizarBuscaNome(tecnico)),
+          )
+        : records,
+    [records, tecnico],
+  )
   const logsList = useMemo(() => logs ?? [], [logs])
+  // RECORTE POR TÉCNICO AQUI DENTRO (v0.0.96): a duração por tíquete — tabela
+  // "Chamados do período", cards, evolução e rankings — só pode somar os
+  // lançamentos do técnico ativo. A página (Relatorios.tsx) já recorta antes
+  // da dedupe, mas esta defesa garante o recorte mesmo que os logs chegem
+  // sem ele (corrida de estado, cache de versão antiga, novo chamador): sem
+  // técnico ativo, nada muda — a tabela mostra a soma de TODOS os técnicos.
+  const logsRecortados = useMemo(
+    () => (tecnico?.trim() ? filtrarLogsPorBusca(logsList, '', tecnico) : logsList),
+    [logsList, tecnico],
+  )
   // Casamento chamado ↔ lançamento: só logs do PRÓPRIO cliente (casados pelo
   // numero_ticket dos chamados dele, ou pelo nome no log p/ órfãos) — v0.0.83
   const { logsCliente } = useMemo(
-    () => separarLogsDoCliente(logsList, records, cliente),
-    [logsList, records, cliente],
+    () => separarLogsDoCliente(logsRecortados, recordsList, cliente),
+    [logsRecortados, recordsList, cliente],
   )
   const mapaMinutos = useMemo(() => minutosPorTicket(logsCliente), [logsCliente])
 
   const { resumo, orfas, minutosOrfas } = useMemo(
-    () => resumirClienteComLancamentos(records, logsCliente),
-    [records, logsCliente],
+    () => resumirClienteComLancamentos(recordsList, logsCliente),
+    [recordsList, logsCliente],
   )
 
-  const granularidade = useMemo(() => granularidadeEvolucao(records), [records])
+  const granularidade = useMemo(() => granularidadeEvolucao(recordsList), [recordsList])
   // A duração vem EXCLUSIVAMENTE dos lançamentos de horas (time_logs), já
   // recortados pelo técnico ativo e deduplicados pela página (Relatorios.tsx):
   // o tempo gravado no chamado (tempo_trabalhado, coluna P da planilha
@@ -148,17 +172,17 @@ export function RelatorioCliente({
   // — típico com técnico filtrado mostrava 20h53 (tíquete inteiro) no lugar
   // das 5h50 do técnico (v0.0.95, decisão do usuário).
   const evolucao: LinhaEvolucao[] = useMemo(
-    () => evolucaoCliente(records, granularidade, mapaMinutos),
-    [records, granularidade, mapaMinutos],
+    () => evolucaoCliente(recordsList, granularidade, mapaMinutos),
+    [recordsList, granularidade, mapaMinutos],
   )
   const assuntos: LinhaRanking[] = useMemo(
-    () => rankingAssuntos(records, 10, mapaMinutos),
-    [records, mapaMinutos],
+    () => rankingAssuntos(recordsList, 10, mapaMinutos),
+    [recordsList, mapaMinutos],
   )
   const minutosTecnico = useMemo(() => minutosPorTecnico(logsCliente), [logsCliente])
   const tecnicos: LinhaRanking[] = useMemo(
-    () => rankingTecnicos(records, 10, mapaMinutos, minutosTecnico),
-    [records, mapaMinutos, minutosTecnico],
+    () => rankingTecnicos(recordsList, 10, mapaMinutos, minutosTecnico),
+    [recordsList, mapaMinutos, minutosTecnico],
   )
   // Mapa normalizado → grafia real do técnico (para o detalhamento por técnico)
   const nomePorChave = useMemo(() => {
@@ -184,7 +208,7 @@ export function RelatorioCliente({
         .sort((a, b) => b.minutos - a.minutos || a.nome.localeCompare(b.nome, 'pt-BR')),
     [minutosTecnico, nomePorChave],
   )
-  const tabela = useMemo(() => ultimosChamados(records), [records])
+  const tabela = useMemo(() => ultimosChamados(recordsList), [recordsList])
   // Duração da tabela: SOMENTE a soma dos lançamentos de horas do tíquete —
   // já recortados pelo técnico ativo e deduplicados pela página. Sem
   // lançamento → 0 → "—" (traço); o tempo gravado no chamado (coluna P,

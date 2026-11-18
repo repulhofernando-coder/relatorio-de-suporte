@@ -1,4 +1,4 @@
-import type { TimeLogRecord } from '@/types/horas'
+import type { TimeLogLike } from '@/lib/tempo-horas'
 
 /**
  * Busca de cliente/técnico em /horas — mesma régua de /chamados: nome
@@ -21,11 +21,11 @@ export function normalizarBuscaNome(valor: string | null | undefined): string {
  * Termos vazios não filtram. Não altera período nem departamento — esses
  * filtros já chegam aplicados em `logs`.
  */
-export function filtrarLogsPorBusca(
-  logs: TimeLogRecord[],
+export function filtrarLogsPorBusca<T extends TimeLogLike>(
+  logs: T[],
   cliente: string,
   tecnico: string,
-): TimeLogRecord[] {
+): T[] {
   const termoCliente = normalizarBuscaNome(cliente)
   const termoTecnico = normalizarBuscaNome(tecnico)
   if (!termoCliente && !termoTecnico) return logs

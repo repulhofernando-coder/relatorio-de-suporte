@@ -74,4 +74,33 @@ describe('busca-horas', () => {
     const logs: TimeLogRecord[] = [mockLog({ id: '1', cliente: 'Cliente A' })]
     expect(filtrarLogsPorBusca(logs, 'inexistente', '')).toEqual([])
   })
+
+  it('funciona com objetos além de TimeLogRecord (genérico, p.ex. TimeLogLike)', () => {
+    const logs = [
+      {
+        numero_ticket: '154336',
+        cliente: 'Unigroup',
+        tecnico: 'Thiago Silva',
+        minutos: 230,
+        departamento: 'N1',
+        data_lancamento: '2026-11-03',
+        horas_total_chamado: 0,
+        eh_total_chamado: false,
+      },
+      {
+        numero_ticket: '154336',
+        cliente: 'Unigroup',
+        tecnico: 'Marcos David',
+        minutos: 901,
+        departamento: 'N1',
+        data_lancamento: '2026-11-04',
+        horas_total_chamado: 0,
+        eh_total_chamado: false,
+      },
+    ]
+    const doTecnico = filtrarLogsPorBusca(logs, '', 'Thiago Silva')
+    expect(doTecnico).toHaveLength(1)
+    expect(doTecnico[0].minutos).toBe(230)
+    expect(filtrarLogsPorBusca(logs, '', '')).toBe(logs)
+  })
 })
