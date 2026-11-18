@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Hourglass } from 'lucide-react'
 import { formatarHorasDecimaisLegivel } from '@/lib/duracao'
+import { dedupeHoras, type TimeLogComHorarios } from '@/lib/horas-dedupe'
 
 /**
  * Ranking TOP 3 de "clientes onde o técnico mais lançou horas" (time_logs),
@@ -8,6 +9,8 @@ import { formatarHorasDecimaisLegivel } from '@/lib/duracao'
  *
  * Recebe os lançamentos de horas JÁ FILTRADOS pelo período e departamento
  * ativos da tela (mesma régua dos outros quadros do card) e agrega por cliente.
+ * Aplica a MESMA dedupe de /horas (lib/horas-dedupe.ts) sobre os lançamentos
+ * do técnico antes de somar, para não contar a mesma janela de trabalho duas vezes.
  * Compacto: só 3 linhas + estado vazio discreto.
  */
 
@@ -21,13 +24,16 @@ export interface ClienteHorasLinha {
 
 /** Agrega os lançamentos de horas de um técnico por cliente (top N). */
 export function agregarHorasClienteDoTecnico(
-  logs: Array<{ cliente?: string | null; tecnico?: string | null; minutos: number | null }>,
+  logs: TimeLogComHorarios[],
   tecnico: string,
   topN = 3,
 ): ClienteHorasLinha[] {
+  // Recorte pelo técnico ANTES da dedupe (a dedupe é por tíquete+técnico, então
+  // o resultado é o mesmo que o de /horas para este técnico).
+  const doTecnico = logs.filter((log) => log.tecnico?.trim() === tecnico)
+  const { logs: dedupados } = dedupeHoras(doTecnico)
   const mapa = new Map<string, number>()
-  for (const log of logs) {
-    if (log.tecnico?.trim() !== tecnico) continue
+  for (const log of dedupados) {
     const cliente = log.cliente?.trim()
     if (!cliente) continue
     mapa.set(cliente, (mapa.get(cliente) || 0) + (log.minutos || 0))
@@ -45,7 +51,7 @@ export function agregarHorasClienteDoTecnico(
 interface TecnicoTopClientesHorasProps {
   tecnico: string
   /** Lançamentos de horas (time_logs) já filtrados pelo período/departamento ativos */
-  timeLogs: Array<{ cliente?: string | null; tecnico?: string | null; minutos: number | null }>
+  timeLogs: TimeLogComHorarios[]
   /** Classes de largura/posicionamento (o drill-down do Index é mais estreito que o painel de Chamados) */
   className?: string
 }
