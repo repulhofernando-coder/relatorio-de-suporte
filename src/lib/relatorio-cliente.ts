@@ -2,12 +2,7 @@ import type { SupportRecord } from '@/types/support'
 import type { TimeLogLike } from '@/lib/tempo-horas'
 import { formatarPercentual } from '@/lib/formatar'
 import { normalizarBuscaNome } from '@/lib/busca-horas'
-import {
-  minutosPorTicket,
-  ticketsComLancamento,
-  minutosDoChamado,
-  minutosEfetivos,
-} from '@/lib/horas-por-ticket'
+import { minutosPorTicket, ticketsComLancamento, minutosEfetivos } from '@/lib/horas-por-ticket'
 
 /**
  * Cálculos do relatório mensal de cliente: resumo, evolução no período,
@@ -43,12 +38,30 @@ export interface LinhaRanking {
   percentual: string // ex.: "23,4%"
 }
 
-/** @deprecated use minutosEfetivos/minutosDoChamado (v0.0.81) — mantido temporariamente. */
-const minutosDe = minutosDoChamado
-
 function eForaDoSla(r: SupportRecord): boolean {
   const s = r.sla_status?.toLowerCase().trim()
   return s === 'fora' || s === 'fora do prazo'
+}
+
+/** Tempo (minutos) gravado no próprio chamado — só para resumirCliente, que
+ * roda sem lançamentos de horas no escopo (o relatório com lançamentos usa
+ * resumirClienteComLancamentos, que NUNCA lê o tempo do chamado). */
+function minutosDoChamadoLocal(r: SupportRecord): number {
+  if (
+    typeof r.tempo_atendimento_min === 'number' &&
+    !isNaN(r.tempo_atendimento_min) &&
+    r.tempo_atendimento_min > 0
+  ) {
+    return r.tempo_atendimento_min
+  }
+  if (
+    typeof r.tempo_trabalhado === 'number' &&
+    !isNaN(r.tempo_trabalhado) &&
+    r.tempo_trabalhado > 0
+  ) {
+    return Math.round(r.tempo_trabalhado * 60)
+  }
+  return 0
 }
 
 /** Nome curto do mês em PT-BR: 0 → "jan.", 11 → "dez." */
@@ -151,25 +164,20 @@ export interface OrfasExternas {
 /**
  * Resumo executivo do recorte usando as horas dos LANÇAMENTOS (time_logs)
  * como referência — mesma régua do /horas:
- * - tíquete com lançamentos → soma dos lançamentos (o tempo do chamado é
- *   ignorado para não dobrar);
- * - tíquete sem lançamento → tempo gravado no chamado (fallback);
+ * - tíquete com lançamentos → soma dos lançamentos (já recortados pelo
+ *   técnico ativo e deduplicados por quem chama);
+ * - tíquete sem lançamento → ZERO tempo (exibido como "—") — o tempo gravado
+ *   no chamado NUNCA entra (é do tíquete inteiro, v0.0.95);
  * - lançamentos sem chamado correspondente (órfãos) somam no total e entram
  *   como linhas à parte na resposta.
- *
- * `tecnicoAtivo`: com técnico filtrado, o fallback para o tempo gravado no
- * chamado entra ZERO — o tempo do chamado é o do tíquete INTEIRO (soma de
- * todos os técnicos), nunca o do técnico filtrado (v0.0.92).
  */
 export function resumirClienteComLancamentos(
   records: SupportRecord[],
   logs: TimeLogLike[],
   orfasExternas?: OrfasExternas,
-  tecnicoAtivo = false,
 ): ResumoComLancamentos {
   const mapa = minutosPorTicket(logs)
   const comLancamento = ticketsComLancamento(logs)
-
   let somaMinutos = 0
   let comTempo = 0
   let dentro = 0
@@ -239,7 +247,11 @@ export function resumirClienteComLancamentos(
   }
 }
 
-/** Resumo executivo do recorte (chamados, tempo total, TMA, SLA). */
+/**
+ * Resumo executivo do recorte (chamados, tempo total, TMA, SLA) — SEM os
+ * lançamentos de horas (time_logs) no cálculo: o tempo de cada chamado é o
+ * gravado nele próprio (tempo_atendimento_min / tempo_trabalhado).
+ */
 export function resumirCliente(records: SupportRecord[]): ResumoCliente {
   let somaMinutos = 0
   let comTempo = 0
@@ -248,7 +260,7 @@ export function resumirCliente(records: SupportRecord[]): ResumoCliente {
   let comSla = 0
 
   records.forEach((r) => {
-    const m = minutosDe(r)
+    const m = minutosDoChamadoLocal(r)
     if (m > 0) {
       somaMinutos += m
       comTempo++
@@ -273,15 +285,14 @@ export function resumirCliente(records: SupportRecord[]): ResumoCliente {
 /**
  * Série de evolução (chamados e minutos) no recorte, pela granularidade dada.
  * `mapaMinutos` (opcional) traz os minutos efetivos por tíquete vindo dos
- * lançamentos de horas (mesma régua do /horas); sem ele, usa o tempo do chamado.
- * `tecnicoAtivo`: com técnico filtrado, nunca cai para o tempo do chamado
- * (que é do tíquete inteiro) — o recorte fica só nos lançamentos dele.
+ * lançamentos de horas (mesma régua do /horas); sem ele, a série traz só a
+ * contagem de chamados (minutos = 0) — o tempo gravado no chamado NUNCA entra
+ * (é do tíquete inteiro, v0.0.95).
  */
 export function evolucaoCliente(
   records: SupportRecord[],
   granularidade: 'dia' | 'semana' | 'mes',
   mapaMinutos?: Map<string, number>,
-  tecnicoAtivo = false,
 ): LinhaEvolucao[] {
   const mapa = new Map<string, LinhaEvolucao>()
   records.forEach((r) => {
@@ -290,7 +301,7 @@ export function evolucaoCliente(
     const chave = chaveDeAgrupamento(iso, granularidade)
     const linha = mapa.get(chave) || { chave, chamados: 0, minutos: 0 }
     linha.chamados++
-    linha.minutos += mapaMinutos ? minutosEfetivos(r, mapaMinutos, tecnicoAtivo) : minutosDe(r)
+    linha.minutos += mapaMinutos ? minutosEfetivos(r, mapaMinutos) : 0
     mapa.set(chave, linha)
   })
   return Array.from(mapa.values()).sort((a, b) => ordenarChaveEvolucao(a.chave, b.chave))
@@ -301,7 +312,6 @@ function ranking(
   chaveDe: (r: SupportRecord) => string | null | undefined,
   limite: number,
   mapaMinutos?: Map<string, number>,
-  tecnicoAtivo = false,
 ): LinhaRanking[] {
   const total = records.length
   const mapa = new Map<string, { chamados: number; minutos: number }>()
@@ -310,7 +320,7 @@ function ranking(
     if (!nome) return
     const linha = mapa.get(nome) || { chamados: 0, minutos: 0 }
     linha.chamados++
-    linha.minutos += mapaMinutos ? minutosEfetivos(r, mapaMinutos, tecnicoAtivo) : minutosDe(r)
+    linha.minutos += mapaMinutos ? minutosEfetivos(r, mapaMinutos) : 0
     mapa.set(nome, linha)
   })
   return Array.from(mapa.entries())
@@ -330,9 +340,8 @@ export function rankingAssuntos(
   records: SupportRecord[],
   limite = 10,
   mapaMinutos?: Map<string, number>,
-  tecnicoAtivo = false,
 ): LinhaRanking[] {
-  return ranking(records, (r) => r.assunto || r.tipo_chamado, limite, mapaMinutos, tecnicoAtivo)
+  return ranking(records, (r) => r.assunto || r.tipo_chamado, limite, mapaMinutos)
 }
 
 /** Técnicos que atenderam a demanda (nome, nº de chamados e minutos). */
@@ -341,9 +350,8 @@ export function rankingTecnicos(
   limite = 10,
   mapaMinutos?: Map<string, number>,
   minutosTecnico?: Map<string, number>,
-  tecnicoAtivo = false,
 ): LinhaRanking[] {
-  const linhas = ranking(records, (r) => r.tecnico, limite, mapaMinutos, tecnicoAtivo)
+  const linhas = ranking(records, (r) => r.tecnico, limite, mapaMinutos)
   if (!minutosTecnico || minutosTecnico.size === 0) return linhas
   // Com lançamentos de horas (time_logs), o tempo de CADA técnico vem dos
   // logs DELE (casamento pelo nome normalizado) — e não do total do tíquete,

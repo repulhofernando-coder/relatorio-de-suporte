@@ -3,16 +3,19 @@ import type { SupportRecord } from '@/types/support'
 
 /**
  * Casamento chamado ↔ lançamento de horas, usado pelo relatório de cliente
- * para alinhar /relatorios com /horas (v0.0.81).
+ * para alinhar /relatorios com /horas.
  *
  * A REFERÊNCIA é o /horas: ele soma o campo `minutos` de TODOS os lançamentos
- * de time_logs do período, agrupando pelo número do tíquete apenas para contar
- * chamados — nenhum desconto de "linha de total" é aplicado (a deduplicação do
- * export do Movidesk acontece no parser, na hora de gravar; ver HorasWizard).
- * O relatório de cliente passa a seguir a MESMA régua:
- * - chamado COM lançamentos: usa SOMENTE a soma dos lançamentos (não soma com
- *   o tempo do próprio chamado — evita dobrar);
- * - chamado SEM lançamento: cai para o tempo gravado no chamado (fallback);
+ * de time_logs do período — a duração do relatório de cliente vem
+ * EXCLUSIVAMENTE dos lançamentos (v0.0.95):
+ * - chamado COM lançamentos: a soma dos lançamentos daquele tíquete (já
+ *   recortados pelo técnico ativo e deduplicados por quem chama);
+ * - chamado SEM lançamento: ZERO — exibido como "—" (traço). O tempo gravado
+ *   no próprio chamado (tempo_atendimento_min / tempo_trabalhado, coluna P da
+ *   planilha "Relatorio") contém a soma de TODOS os técnicos do tíquete
+ *   (ex.: 154336/Unigroup = 1253 min = 20h53) e NUNCA pode aparecer como
+ *   duração no relatório — nem como fallback quando os logs falham ou não
+ *   casam (v0.0.95, decisão do usuário).
  * - lançamentos cujo tíquete não existe em support_records (órfãos) entram
  *   como linhas próprias — assim o total bate com /horas.
  */
@@ -38,45 +41,13 @@ export function ticketsComLancamento(logs: TimeLogLike[]): Set<string> {
   return set
 }
 
-/** Tempo efetivo (minutos) gravado no próprio chamado — fallback sem lançamento. */
-export function minutosDoChamado(r: SupportRecord): number {
-  if (
-    typeof r.tempo_atendimento_min === 'number' &&
-    !isNaN(r.tempo_atendimento_min) &&
-    r.tempo_atendimento_min > 0
-  ) {
-    return r.tempo_atendimento_min
-  }
-  if (
-    typeof r.tempo_trabalhado === 'number' &&
-    !isNaN(r.tempo_trabalhado) &&
-    r.tempo_trabalhado > 0
-  ) {
-    return Math.round(r.tempo_trabalhado * 60)
-  }
-  return 0
-}
-
 /**
- * Tempo do lançamento quando o chamado tem tíquete com lançamentos; senão, o
- * do chamado.
- *
- * `tecnicoAtivo`: com técnico filtrado, o tempo gravado no PRÓPRIO chamado é
- * o do tíquete INTEIRO (soma de todos os técnicos que trabalharam nele) —
- * nunca pode entrar como tempo do técnico filtrado (v0.0.92: tíquete 154336/
- * Unigroup exibia 20h53 — Thiago 5h50 + Marcos David 15h01 — no lugar das
- * 5h50 dele). Nesses casos o recorte devolve 0 (o técnico não tem tempo
- * lançado naquele tíquete).
+ * Duração exibida do tíquete: SOMENTE a soma dos lançamentos de horas dele.
+ * Sem lançamento → 0 (a exibição mostra "—"); nunca recorre ao tempo gravado
+ * no chamado, que é do tíquete inteiro (soma de todos os técnicos).
  */
-export function minutosEfetivos(
-  r: SupportRecord,
-  mapa: Map<string, number>,
-  tecnicoAtivo = false,
-): number {
+export function minutosEfetivos(r: SupportRecord, mapa: Map<string, number>): number {
   const ticket = r.numero?.trim()
-  if (ticket && mapa.has(ticket)) {
-    return mapa.get(ticket) as number
-  }
-  if (tecnicoAtivo) return 0
-  return minutosDoChamado(r)
+  if (!ticket) return 0
+  return mapa.get(ticket) || 0
 }

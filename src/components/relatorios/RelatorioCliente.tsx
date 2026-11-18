@@ -136,27 +136,29 @@ export function RelatorioCliente({
   const mapaMinutos = useMemo(() => minutosPorTicket(logsCliente), [logsCliente])
 
   const { resumo, orfas, minutosOrfas } = useMemo(
-    () => resumirClienteComLancamentos(records, logsCliente, undefined, Boolean(tecnico?.trim())),
-    [records, logsCliente, tecnico],
+    () => resumirClienteComLancamentos(records, logsCliente),
+    [records, logsCliente],
   )
 
   const granularidade = useMemo(() => granularidadeEvolucao(records), [records])
-  // Recorte por técnico (v0.0.93): passa a guarda do fallback para evolução,
-  // assuntos e resumo — tíquete sem lançamento do técnico não herda o tempo
-  // do tíquete inteiro (ex.: 154336/Unigroup somava 20h53 no lugar de 5h50).
-  const tecnicoAtivoMem = Boolean(tecnico?.trim())
+  // A duração vem EXCLUSIVAMENTE dos lançamentos de horas (time_logs), já
+  // recortados pelo técnico ativo e deduplicados pela página (Relatorios.tsx):
+  // o tempo gravado no chamado (tempo_trabalhado, coluna P da planilha
+  // "Relatorio") contém a soma de TODOS os técnicos do tíquete e nunca entra
+  // — típico com técnico filtrado mostrava 20h53 (tíquete inteiro) no lugar
+  // das 5h50 do técnico (v0.0.95, decisão do usuário).
   const evolucao: LinhaEvolucao[] = useMemo(
-    () => evolucaoCliente(records, granularidade, mapaMinutos, tecnicoAtivoMem),
-    [records, granularidade, mapaMinutos, tecnicoAtivoMem],
+    () => evolucaoCliente(records, granularidade, mapaMinutos),
+    [records, granularidade, mapaMinutos],
   )
   const assuntos: LinhaRanking[] = useMemo(
-    () => rankingAssuntos(records, 10, mapaMinutos, tecnicoAtivoMem),
-    [records, mapaMinutos, tecnicoAtivoMem],
+    () => rankingAssuntos(records, 10, mapaMinutos),
+    [records, mapaMinutos],
   )
   const minutosTecnico = useMemo(() => minutosPorTecnico(logsCliente), [logsCliente])
   const tecnicos: LinhaRanking[] = useMemo(
-    () => rankingTecnicos(records, 10, mapaMinutos, minutosTecnico, tecnicoAtivoMem),
-    [records, mapaMinutos, minutosTecnico, tecnicoAtivoMem],
+    () => rankingTecnicos(records, 10, mapaMinutos, minutosTecnico),
+    [records, mapaMinutos, minutosTecnico],
   )
   // Mapa normalizado → grafia real do técnico (para o detalhamento por técnico)
   const nomePorChave = useMemo(() => {
@@ -183,15 +185,13 @@ export function RelatorioCliente({
     [minutosTecnico, nomePorChave],
   )
   const tabela = useMemo(() => ultimosChamados(records), [records])
-  // Com técnico filtrado (v0.0.93): a duração exibida é a parte DELE no tíquete
-  // — os lançamentos já chegam recortados por técnico da página (Relatorios.tsx),
-  // mas o FALLBACK para o tempo gravado no chamado precisava da guarda: sem ela,
-  // tíquete sem lançamento do técnico exibia o tempo do tíquete INTEIRO
-  // (ex.: 154336/Unigroup → 20h53, 1253 min = Thiago 350 + Marcos 901 + Bruno 2).
-  const tecnicoAtivo = Boolean(tecnico?.trim())
+  // Duração da tabela: SOMENTE a soma dos lançamentos de horas do tíquete —
+  // já recortados pelo técnico ativo e deduplicados pela página. Sem
+  // lançamento → 0 → "—" (traço); o tempo gravado no chamado (coluna P,
+  // tíquete inteiro) nunca aparece como duração (v0.0.95).
   const minutosDaTabela = useCallback(
-    (r: SupportRecord) => minutosEfetivos(r, mapaMinutos, tecnicoAtivo),
-    [mapaMinutos, tecnicoAtivo],
+    (r: SupportRecord) => minutosEfetivos(r, mapaMinutos),
+    [mapaMinutos],
   )
 
   const hasTempo = resumo.totalMinutos !== null
