@@ -57,11 +57,26 @@ export function minutosDoChamado(r: SupportRecord): number {
   return 0
 }
 
-/** Tempo do lançamento quando o chamado tem tíquete com lançamentos; senão, o do chamado. */
-export function minutosEfetivos(r: SupportRecord, mapa: Map<string, number>): number {
+/**
+ * Tempo do lançamento quando o chamado tem tíquete com lançamentos; senão, o
+ * do chamado.
+ *
+ * `tecnicoAtivo`: com técnico filtrado, o tempo gravado no PRÓPRIO chamado é
+ * o do tíquete INTEIRO (soma de todos os técnicos que trabalharam nele) —
+ * nunca pode entrar como tempo do técnico filtrado (v0.0.92: tíquete 154336/
+ * Unigroup exibia 20h53 — Thiago 5h50 + Marcos David 15h01 — no lugar das
+ * 5h50 dele). Nesses casos o recorte devolve 0 (o técnico não tem tempo
+ * lançado naquele tíquete).
+ */
+export function minutosEfetivos(
+  r: SupportRecord,
+  mapa: Map<string, number>,
+  tecnicoAtivo = false,
+): number {
   const ticket = r.numero?.trim()
   if (ticket && mapa.has(ticket)) {
     return mapa.get(ticket) as number
   }
+  if (tecnicoAtivo) return 0
   return minutosDoChamado(r)
 }
