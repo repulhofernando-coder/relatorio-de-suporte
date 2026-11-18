@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react'
+import { useMemo } from 'react'
 import {
   ResponsiveContainer,
   AreaChart,
@@ -38,7 +38,7 @@ import {
   formatarDataISO,
   LIMITE_CHAMADOS_PDF,
 } from '@/lib/relatorio-cliente'
-import { minutosPorTicket, minutosEfetivos } from '@/lib/horas-por-ticket'
+import { minutosPorTicket } from '@/lib/horas-por-ticket'
 import { separarLogsDoCliente } from '@/lib/logs-cliente'
 import { normalizarBuscaNome, filtrarLogsPorBusca } from '@/lib/busca-horas'
 import { formatarPercentual } from '@/lib/formatar'
@@ -209,14 +209,6 @@ export function RelatorioCliente({
     [minutosTecnico, nomePorChave],
   )
   const tabela = useMemo(() => ultimosChamados(recordsList), [recordsList])
-  // Duração da tabela: SOMENTE a soma dos lançamentos de horas do tíquete —
-  // já recortados pelo técnico ativo e deduplicados pela página. Sem
-  // lançamento → 0 → "—" (traço); o tempo gravado no chamado (coluna P,
-  // tíquete inteiro) nunca aparece como duração (v0.0.95).
-  const minutosDaTabela = useCallback(
-    (r: SupportRecord) => minutosEfetivos(r, mapaMinutos),
-    [mapaMinutos],
-  )
 
   const hasTempo = resumo.totalMinutos !== null
   const dentroSla =
@@ -598,9 +590,6 @@ export function RelatorioCliente({
                     <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                       Data
                     </TableHead>
-                    <TableHead className="text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">
-                      Duração
-                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -617,9 +606,6 @@ export function RelatorioCliente({
                       </TableCell>
                       <TableCell className="text-xs text-slate-600 py-2.5 whitespace-nowrap">
                         {formatarDataISO(r.data_chamado)}
-                      </TableCell>
-                      <TableCell className="text-xs font-semibold text-slate-800 py-2.5 text-right whitespace-nowrap">
-                        {formatarMinutos(minutosDaTabela(r))}
                       </TableCell>
                     </TableRow>
                   ))}
