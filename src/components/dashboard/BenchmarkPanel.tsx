@@ -87,7 +87,8 @@ function isLinux(depto?: string | null): boolean {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
-  return norm === 'linux' || norm.includes('linux')
+  // "Datacenter Linux" é fila PRÓPRIA: não pode cair no modo Linux Misto
+  return (norm === 'linux' || norm.includes('linux')) && !norm.includes('datacenter')
 }
 
 function isCampo(depto?: string | null): boolean {
@@ -1746,6 +1747,14 @@ export function BenchmarkPanel({
                     Perfil Datacenter Windows
                   </Badge>
                 )}
+                {isFilterDatacenterLinux && (
+                  <Badge
+                    variant="outline"
+                    className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px] font-semibold"
+                  >
+                    Perfil Datacenter Linux
+                  </Badge>
+                )}
                 {isFilterLaboratorio && (
                   <Badge
                     variant="outline"
@@ -1768,9 +1777,11 @@ export function BenchmarkPanel({
                           ? 'Comparação com as metas internas de Ativação (implantações e onboarding de clientes)'
                           : isFilterDatacenterWindows
                             ? 'Comparação com as metas internas de Datacenter Windows (engenharia de servidores e cloud: rotinas de RAM/VPN e projetos de VPS, migração e POC)'
-                            : isFilterLaboratorio
-                              ? 'Comparação com as metas internas do Laboratório de Manutenção (bancada: reparo de hardware, triagem, testes e devolução)'
-                              : 'Comparação entre a operação real e as referências de mercado N1 Remoto (HDI/MetricNet)'}
+                            : isFilterDatacenterLinux
+                              ? 'Comparação com os benchmarks de Datacenter Linux (espelho do Datacenter Windows: engenharia de servidores e cloud)'
+                              : isFilterLaboratorio
+                                ? 'Comparação com as metas internas do Laboratório de Manutenção (bancada: reparo de hardware, triagem, testes e devolução)'
+                                : 'Comparação entre a operação real e as referências de mercado N1 Remoto (HDI/MetricNet)'}
               </p>
             </div>
           </div>
@@ -1815,6 +1826,13 @@ export function BenchmarkPanel({
                 Fontes: Gartner, ITIL 4 & Uptime Institute (Datacenter)
               </span>
             </>
+          ) : isFilterDatacenterLinux ? (
+            <>
+              <Layers className="w-3.5 h-3.5 text-indigo-600" />
+              <span className="font-medium text-slate-700">
+                Fontes: Gartner & Uptime Institute (Datacenter Linux)
+              </span>
+            </>
           ) : isFilterLaboratorio ? (
             <>
               <Layers className="w-3.5 h-3.5 text-orange-600" />
@@ -1848,6 +1866,18 @@ export function BenchmarkPanel({
             Atualizado: Datacenter Windows — 170 Chamados/Mês"). O TMA real <b>por complexidade</b>{' '}
             segue a levantar — o comparativo mostra o TMA geral apontado no período. O filtro{' '}
             <b>"Datacenter Windows"</b> é fila própria e <b>não</b> soma com o filtro "Windows".
+          </p>
+        </div>
+      )}
+
+      {isFilterDatacenterLinux && (
+        <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-2.5 text-xs text-indigo-800">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-indigo-600" />
+          <p className="leading-relaxed">
+            <b>Datacenter Linux:</b> benchmarks espelhados do Datacenter Windows (Gartner/Uptime
+            Institute) até a gestão levantar metas próprias. O TMA real <b>por complexidade</b>{' '}
+            segue a levantar — o comparativo mostra o TMA geral apontado no período. O filtro{' '}
+            <b>"Datacenter Linux"</b> é fila própria e <b>não</b> soma com o filtro "Linux".
           </p>
         </div>
       )}
@@ -1943,9 +1973,11 @@ export function BenchmarkPanel({
                     ? 'Fontes oficiais de Ativação: AXELOS/PeopleCert — ITIL 4 Framework (lead time e handover de implantação: 7–15 dias úteis; transferência formal acima de 90%) e CompTIA — Workforce & Tech Support Trends (impacto de projetos na capacidade: até 25%).'
                     : isFilterDatacenterWindows
                       ? `Fontes oficiais de Datacenter Windows: Gartner — Cloud Infrastructure & Operations (dimensionamento de equipe de 3–4 analistas + gestor dedicado, produtividade de 1,8–2,5 chamados/dia por recurso e volume de 100–140 chamados/mês); ITIL 4 (AXELOS/PeopleCert) — Gerenciamento de Capacidade e Disponibilidade (SLA por complexidade: Rotinas RAM/VPN 45min–1h30; Cloud VPS/Migração/POC 4h–12h); Uptime Institute — Padrões de Operação de Datacenter (ocupação direta de 65–75% do tempo, preservando espaço para monitoramento proativo, backups e segurança dos hosts).`
-                      : isFilterLaboratorio
-                        ? `Fontes oficiais de Laboratório: CompTIA — Benchmarks de Reparo de Hardware e Bancada (volume de 35–50 chamados/mês para 1 técnico; tempo líquido de bancada de 1h30–3h00 por equipamento, incluindo triagem, testes de estresse, troca de componente, formatação e limpeza) e MetricNet — Métricas de Depot Repair / Manutenção Interna (prazo total TAT de 2–4 dias úteis sem troca de peça; taxa de reincidência RMA abaixo de 4% em retorno de 30 dias).`
-                        : 'Fontes oficiais de N1: HDI (Help Desk Institute) — Service Desk Benchmarking Report (TMA 15–25 min para resolução remota rápida) e MetricNet — Desktop Support and Service Desk Benchmarks (produtividade 12–18 chamados/dia).'}
+                      : isFilterDatacenterLinux
+                        ? `Fontes oficiais de Datacenter Linux (espelho do Datacenter Windows): Gartner — Cloud Infrastructure & Operations (dimensionamento de equipe de 3–4 analistas + gestor dedicado, produtividade de 1,8–2,5 chamados/dia por recurso e volume de 100–140 chamados/mês); Uptime Institute — Padrões de Operação de Datacenter (ocupação direta de 65–75% do tempo, preservando espaço para monitoramento proativo, backups e segurança dos hosts).`
+                        : isFilterLaboratorio
+                          ? `Fontes oficiais de Laboratório: CompTIA — Benchmarks de Reparo de Hardware e Bancada (volume de 35–50 chamados/mês para 1 técnico; tempo líquido de bancada de 1h30–3h00 por equipamento, incluindo triagem, testes de estresse, troca de componente, formatação e limpeza) e MetricNet — Métricas de Depot Repair / Manutenção Interna (prazo total TAT de 2–4 dias úteis sem troca de peça; taxa de reincidência RMA abaixo de 4% em retorno de 30 dias).`
+                          : 'Fontes oficiais de N1: HDI (Help Desk Institute) — Service Desk Benchmarking Report (TMA 15–25 min para resolução remota rápida) e MetricNet — Desktop Support and Service Desk Benchmarks (produtividade 12–18 chamados/dia).'}
         </span>
         <span className="font-medium text-slate-500 shrink-0">
           Metas customizáveis no menu Equipes

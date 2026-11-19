@@ -176,6 +176,19 @@ function isDatacenterWindowsDepartment(depto: string): boolean {
   return norm.includes('datacenter') && norm.includes('windows')
 }
 
+// Datacenter Linux: espelho do Datacenter Windows — fila própria, distinta do
+// filtro "Linux" e do grupo "Datacenter". Casa rótulos com datacenter + linux
+// (ex.: "07-datacenter-linux", "Datacenter: Linux" — grafia real do banco).
+function isDatacenterLinuxDepartment(depto: string): boolean {
+  const norm = depto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\s_-]+/g, '')
+    .trim()
+  return norm.includes('datacenter') && norm.includes('linux')
+}
+
 interface DraftRow {
   departamento: string
   qtd_tecnicos: string
@@ -195,12 +208,17 @@ function toDraft(departamento: string, existing?: DepartmentCapacityRecord): Dra
   const isProjetos = isProjetosDepartment(departamento)
   const isAtivacao = isAtivacaoDepartment(departamento)
   const isDatacenterWindows = isDatacenterWindowsDepartment(departamento)
+  // Datacenter Linux: espelho do Windows (mesmos defaults até a gestão levantar
+  // metas próprias) — TEM de vir antes do isLinux genérico, que casa
+  // "Datacenter Linux" também
+  const isDatacenterLinux = isDatacenterLinuxDepartment(departamento)
+  const isDatacenter = isDatacenterWindows || isDatacenterLinux
 
-  // TMA (Datacenter Windows: a levantar — sem faixa geral cadastrada)
+  // TMA (Datacenter Windows/Linux: a levantar — sem faixa geral cadastrada)
   const tmaMin =
     existing?.meta_tma_min_num ??
     existing?.meta_tma_min ??
-    (isDatacenterWindows
+    (isDatacenter
       ? null
       : isLinux
         ? DEFAULT_LINUX_TMA_MIN
@@ -216,7 +234,7 @@ function toDraft(departamento: string, existing?: DepartmentCapacityRecord): Dra
 
   const tmaMax =
     existing?.meta_tma_max_num ??
-    (isDatacenterWindows
+    (isDatacenter
       ? null
       : isLinux
         ? DEFAULT_LINUX_TMA_MAX
@@ -234,7 +252,7 @@ function toDraft(departamento: string, existing?: DepartmentCapacityRecord): Dra
   const chamadosMin =
     existing?.meta_chamados_dia_min ??
     existing?.meta_chamados_dia ??
-    (isDatacenterWindows
+    (isDatacenter
       ? DEFAULT_DC_WIN_CHAMADOS_MIN
       : isLinux
         ? DEFAULT_LINUX_CHAMADOS_MIN
@@ -250,7 +268,7 @@ function toDraft(departamento: string, existing?: DepartmentCapacityRecord): Dra
 
   const chamadosMax =
     existing?.meta_chamados_dia_max ??
-    (isDatacenterWindows
+    (isDatacenter
       ? DEFAULT_DC_WIN_CHAMADOS_MAX
       : isLinux
         ? DEFAULT_LINUX_CHAMADOS_MAX
@@ -264,7 +282,7 @@ function toDraft(departamento: string, existing?: DepartmentCapacityRecord): Dra
                 ? DEFAULT_ATIVACAO_DIA_MAX
                 : DEFAULT_N1_CHAMADOS_MAX)
 
-  const fallbackQtd = isDatacenterWindows
+  const fallbackQtd = isDatacenter
     ? '3'
     : isLinux
       ? String(DEFAULT_LINUX_TECNICOS_REAL)
@@ -352,6 +370,14 @@ export default function Equipes() {
       ) {
         map['Datacenter Windows'] = toDraft('Datacenter Windows')
       }
+      // Datacenter Linux: espelho do Windows — entra só com os campos reais
+      // (qtd_tecnicos, dias úteis) para o usuário cadastrar quando levantar as metas
+      if (
+        !map['Datacenter Linux'] &&
+        !caps.some((c) => isDatacenterLinuxDepartment(c.departamento))
+      ) {
+        map['Datacenter Linux'] = toDraft('Datacenter Linux')
+      }
 
       setDrafts(map)
     } catch (err) {
@@ -401,12 +427,14 @@ export default function Equipes() {
     const isProjetos = isProjetosDepartment(depto)
     const isAtivacao = isAtivacaoDepartment(depto)
     const isDatacenterWindows = isDatacenterWindowsDepartment(depto)
+    const isDatacenterLinux = isDatacenterLinuxDepartment(depto)
+    const isDatacenter = isDatacenterWindows || isDatacenterLinux
     const tmaMin = parseFloat(draft.meta_tma_min.replace(',', '.'))
     const tmaMax = parseFloat(draft.meta_tma_max.replace(',', '.'))
     const chMin = parseFloat(draft.meta_chamados_dia_min.replace(',', '.'))
     const chMax = parseFloat(draft.meta_chamados_dia_max.replace(',', '.'))
 
-    const defaultTmaMin = isDatacenterWindows
+    const defaultTmaMin = isDatacenter
       ? DEFAULT_N1_TMA_MIN
       : isLinux
         ? DEFAULT_LINUX_TMA_MIN
@@ -417,7 +445,7 @@ export default function Equipes() {
             : isProjetos
               ? DEFAULT_PROJETOS_TMA_MIN
               : DEFAULT_N1_TMA_MIN
-    const defaultTmaMax = isDatacenterWindows
+    const defaultTmaMax = isDatacenter
       ? DEFAULT_N1_TMA_MAX
       : isLinux
         ? DEFAULT_LINUX_TMA_MAX
@@ -428,35 +456,39 @@ export default function Equipes() {
             : isProjetos
               ? DEFAULT_PROJETOS_TMA_MAX
               : DEFAULT_N1_TMA_MAX
-    const defaultChMin = isLinux
-      ? DEFAULT_LINUX_CHAMADOS_MIN
-      : isCampo
-        ? DEFAULT_CAMPO_CHAMADOS_MIN
-        : isN2
-          ? DEFAULT_N2_CHAMADOS_MIN
-          : isProjetos
-            ? DEFAULT_PROJETOS_DIA_MIN
-            : isAtivacao
-              ? DEFAULT_ATIVACAO_DIA_MIN
-              : DEFAULT_N1_CHAMADOS_MIN
-    const defaultChMax = isLinux
-      ? DEFAULT_LINUX_CHAMADOS_MAX
-      : isCampo
-        ? DEFAULT_CAMPO_CHAMADOS_MAX
-        : isN2
-          ? DEFAULT_N2_CHAMADOS_MAX
-          : isProjetos
-            ? DEFAULT_PROJETOS_DIA_MAX
-            : isAtivacao
-              ? DEFAULT_ATIVACAO_DIA_MAX
-              : DEFAULT_N1_CHAMADOS_MAX
+    const defaultChMin = isDatacenter
+      ? DEFAULT_DC_WIN_CHAMADOS_MIN
+      : isLinux
+        ? DEFAULT_LINUX_CHAMADOS_MIN
+        : isCampo
+          ? DEFAULT_CAMPO_CHAMADOS_MIN
+          : isN2
+            ? DEFAULT_N2_CHAMADOS_MIN
+            : isProjetos
+              ? DEFAULT_PROJETOS_DIA_MIN
+              : isAtivacao
+                ? DEFAULT_ATIVACAO_DIA_MIN
+                : DEFAULT_N1_CHAMADOS_MIN
+    const defaultChMax = isDatacenter
+      ? DEFAULT_DC_WIN_CHAMADOS_MAX
+      : isLinux
+        ? DEFAULT_LINUX_CHAMADOS_MAX
+        : isCampo
+          ? DEFAULT_CAMPO_CHAMADOS_MAX
+          : isN2
+            ? DEFAULT_N2_CHAMADOS_MAX
+            : isProjetos
+              ? DEFAULT_PROJETOS_DIA_MAX
+              : isAtivacao
+                ? DEFAULT_ATIVACAO_DIA_MAX
+                : DEFAULT_N1_CHAMADOS_MAX
 
     const finalTmaMin = !isNaN(tmaMin) && tmaMin > 0 ? tmaMin : defaultTmaMin
     const finalTmaMax = !isNaN(tmaMax) && tmaMax >= finalTmaMin ? tmaMax : defaultTmaMax
     const finalChMin = !isNaN(chMin) && chMin > 0 ? chMin : defaultChMin
     const finalChMax = !isNaN(chMax) && chMax >= finalChMin ? chMax : defaultChMax
 
-    const ocupMin = isDatacenterWindows
+    const ocupMin = isDatacenter
       ? DEFAULT_DC_WIN_OCUPACAO_MIN
       : isLinux
         ? DEFAULT_LINUX_OCUPACAO_MIN
@@ -469,7 +501,7 @@ export default function Equipes() {
               : isAtivacao
                 ? DEFAULT_ATIVACAO_OCUPACAO_MIN
                 : 70
-    const ocupMax = isDatacenterWindows
+    const ocupMax = isDatacenter
       ? DEFAULT_DC_WIN_OCUPACAO_MAX
       : isLinux
         ? DEFAULT_LINUX_OCUPACAO_MAX
@@ -643,7 +675,9 @@ export default function Equipes() {
             {listaOrdenada.map((depto) => {
               const draft = drafts[depto]
               const isSalvo = salvos.has(depto)
-              const isLinux = isLinuxDepartment(depto)
+              const isDatacenterLinux = isDatacenterLinuxDepartment(depto)
+              // Linux Misto NÃO inclui Datacenter Linux (fila própria)
+              const isLinux = isLinuxDepartment(depto) && !isDatacenterLinux
               const isN2 = isN2Department(depto)
               const isCampo = isCampoDepartment(depto)
               const isProjetos = isProjetosDepartment(depto)
@@ -675,6 +709,14 @@ export default function Equipes() {
                             className="text-[10px] font-semibold border-indigo-200 text-indigo-700 bg-indigo-50 shrink-0"
                           >
                             Datacenter Windows
+                          </Badge>
+                        )}
+                        {isDatacenterLinux && (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] font-semibold border-indigo-200 text-indigo-700 bg-indigo-50 shrink-0"
+                          >
+                            Datacenter Linux
                           </Badge>
                         )}
                         {isLinux && (
@@ -729,7 +771,7 @@ export default function Equipes() {
                                   ? `Fontes: ${FONTES_PROJETOS}`
                                   : isAtivacao
                                     ? `Fontes: ${FONTES_ATIVACAO}`
-                                    : isDatacenterWindows
+                                    : isDatacenterWindows || isDatacenterLinux
                                       ? `Fontes: ${FONTES_DATACENTER_WINDOWS}`
                                       : 'Fontes: HDI / MetricNet'}
                         </span>
@@ -745,7 +787,7 @@ export default function Equipes() {
                               ideal 2 a 3
                             </span>
                           )}
-                          {isDatacenterWindows && (
+                          {(isDatacenterWindows || isDatacenterLinux) && (
                             <span className="text-[9px] text-slate-400 font-normal lowercase">
                               ideal 3 a 4 + gestor
                             </span>
@@ -761,7 +803,7 @@ export default function Equipes() {
                           title={
                             isLinux
                               ? `Operação real: ${DEFAULT_LINUX_TECNICOS_REAL} técnicos — cenário ideal: ${DEFAULT_LINUX_TECNICOS_IDEAL_MIN} a ${DEFAULT_LINUX_TECNICOS_IDEAL_MAX}`
-                              : isDatacenterWindows
+                              : isDatacenterWindows || isDatacenterLinux
                                 ? 'Operação real atual: 3 pessoas (2 analistas + 1 gestor) — cenário ideal: 3 a 4 analistas + gestor dedicado'
                                 : undefined
                           }
@@ -811,7 +853,7 @@ export default function Equipes() {
                             onChange={(e) => updateDraft(depto, 'meta_tma_min', e.target.value)}
                             className="h-9 rounded-xl border-slate-200 text-xs font-mono px-2 text-center"
                             placeholder={
-                              isDatacenterWindows
+                              isDatacenterWindows || isDatacenterLinux
                                 ? '—'
                                 : isLinux
                                   ? '30'
@@ -831,7 +873,7 @@ export default function Equipes() {
                             onChange={(e) => updateDraft(depto, 'meta_tma_max', e.target.value)}
                             className="h-9 rounded-xl border-slate-200 text-xs font-mono px-2 text-center"
                             placeholder={
-                              isDatacenterWindows
+                              isDatacenterWindows || isDatacenterLinux
                                 ? '—'
                                 : isLinux
                                   ? '50'
@@ -863,7 +905,7 @@ export default function Equipes() {
                             }
                             className="h-9 rounded-xl border-slate-200 text-xs font-mono px-2 text-center"
                             placeholder={
-                              isDatacenterWindows
+                              isDatacenterWindows || isDatacenterLinux
                                 ? String(DEFAULT_DC_WIN_CHAMADOS_MIN).replace('.', ',')
                                 : isLinux
                                   ? '4'
@@ -885,7 +927,7 @@ export default function Equipes() {
                             }
                             className="h-9 rounded-xl border-slate-200 text-xs font-mono px-2 text-center"
                             placeholder={
-                              isDatacenterWindows
+                              isDatacenterWindows || isDatacenterLinux
                                 ? String(DEFAULT_DC_WIN_CHAMADOS_MAX).replace('.', ',')
                                 : isLinux
                                   ? '7'
@@ -1099,6 +1141,48 @@ export default function Equipes() {
                     </div>
                   )}
 
+                  {/* Quadro real vs ideal — Datacenter Linux (espelho do Windows: fila própria) */}
+                  {isDatacenterLinux && (
+                    <div className="rounded-xl border border-indigo-100 bg-white px-3.5 py-2.5 text-[11px] text-slate-600 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                      <div>
+                        <p className="font-bold text-indigo-900">Tamanho da equipe</p>
+                        <p>
+                          <b>Real:</b> {draft?.qtd_tecnicos || '—'} pessoas • <b>Ideal:</b>{' '}
+                          {DC_WIN_ANALISTAS_IDEAL_MIN} a {DC_WIN_ANALISTAS_IDEAL_MAX} analistas +
+                          gestor dedicado
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-indigo-900">Produtividade diária</p>
+                        <p>
+                          <b>Meta:</b> {String(DC_WIN_PRODUTIVIDADE_MIN_DIA).replace('.', ',')} a{' '}
+                          {String(DC_WIN_PRODUTIVIDADE_MAX_DIA).replace('.', ',')} chamados/dia por
+                          recurso
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-indigo-900">Volume mensal</p>
+                        <p>
+                          <b>Ideal:</b> {DC_WIN_VOLUME_MIN_MES} a {DC_WIN_VOLUME_MAX_MES}{' '}
+                          chamados/mês
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-indigo-900">Ocupação direta</p>
+                        <p>
+                          <b>Ideal:</b> {DC_WIN_OCUPACAO_MIN}% a {DC_WIN_OCUPACAO_MAX}% do tempo
+                        </p>
+                      </div>
+                      <p className="sm:col-span-2 lg:col-span-4 text-indigo-700 italic">
+                        Fila própria: o filtro <b>"Datacenter Linux"</b> <b>não</b> soma com o
+                        filtro "Linux". Faixas de volume de referência de {DC_WIN_DIAS_UTEIS_MES}{' '}
+                        dias úteis (equipe: {String(DEFAULT_DC_WIN_CHAMADOS_MIN).replace('.', ',')}{' '}
+                        a {String(DEFAULT_DC_WIN_CHAMADOS_MAX).replace('.', ',')} chamados/dia).
+                        Fontes: {FONTES_DATACENTER_WINDOWS}.
+                      </p>
+                    </div>
+                  )}
+
                   {/* Quadro real vs ideal — Datacenter Windows ("Quadro Atualizado: Datacenter Windows") */}
                   {isDatacenterWindows && (
                     <div className="rounded-xl border border-indigo-100 bg-white px-3.5 py-2.5 text-[11px] text-slate-600 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
@@ -1259,6 +1343,25 @@ export default function Equipes() {
               <br />
               <b>Contexto:</b> a fila única soma os rótulos "Projetos", "Projetos Internos" e
               "Projetos Locais" da planilha.
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-white p-3.5 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold mb-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Datacenter Linux (Espelho do Datacenter Windows)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              <b>Fontes oficiais:</b>
+              <br />• <b>Gartner</b> — Cloud Infrastructure &amp; Operations (dimensionamento de
+              equipe de 3–4 analistas + gestor dedicado; produtividade de 1,8–2,5 chamados/dia por
+              recurso; volume de 100–140 chamados/mês para 2,5 técnicos).
+              <br />• <b>Uptime Institute</b> — Padrões de Operação de Datacenter (ocupação direta
+              de 65–75% do tempo, preservando espaço para monitoramento proativo, backups e
+              segurança dos hosts).
+              <br />
+              <b>Contexto:</b> fila própria — o filtro <b>"Datacenter Linux"</b> não soma com o
+              filtro "Linux". Metas de TMA por complexidade seguem a levantar pela gestão.
             </p>
           </div>
 
