@@ -343,31 +343,25 @@ export default function Chamados() {
     [registrosDoTecnico],
   )
 
-  const mediaTempoTrabalhadoTecnico = useMemo(() => {
-    if (!tecnicoFiltro || registrosDoTecnico.length === 0) return null
-    const comTempo = registrosDoTecnico.filter(
-      (r) =>
-        r.tempo_trabalhado !== null &&
-        r.tempo_trabalhado !== undefined &&
-        !isNaN(Number(r.tempo_trabalhado)) &&
-        Number(r.tempo_trabalhado) > 0,
+  // Lançamentos de horas (já dedupe) cujo tíquete NÃO existe na base de
+  // chamados — ex.: 154944 (Guilherme Rodrigues, cliente Delinear) lançado na
+  // planilha de horas mas ausente da planilha Relatorio. Aviso discreto.
+  const lancamentosOrfaos = useMemo(() => {
+    if (timeLogs.length === 0) return null
+    const numeros = new Set(
+      registrosFiltro.map((r) => String(r.numero ?? '').trim()).filter((n) => n && n !== ''),
     )
-    if (comTempo.length === 0) return null
-    const somaHoras = comTempo.reduce((acc, r) => acc + Number(r.tempo_trabalhado), 0)
-    const mediaMinutos = Math.round((somaHoras / comTempo.length) * 60)
-    const chamadosMenor5Min = registrosDoTecnico.filter((r) => {
-      const cls = classificarTempoTrabalhado(r.tempo_trabalhado)
-      return cls.nivel === 'critico'
-    }).length
-
+    const { logs } = dedupeHoras(timeLogs)
+    const orfaos = logs.filter((l) => {
+      const ticket = l.numero_ticket?.trim() || ''
+      return ticket && !numeros.has(ticket)
+    })
+    if (orfaos.length === 0) return null
     return {
-      mediaMinutos,
-      apontados: comTempo.length,
-      alertaBaixo: mediaMinutos < 5,
-      chamadosMenor5Min,
-      totalTecnico: registrosDoTecnico.length,
+      quantidade: orfaos.length,
+      minutos: orfaos.reduce((acc, l) => acc + (l.minutos || 0), 0),
     }
-  }, [tecnicoFiltro, registrosDoTecnico])
+  }, [timeLogs, registrosFiltro])
 
   const handleSelecionarTecnico = (nome: string | null) => {
     setTecnicoFiltro(nome)
@@ -606,6 +600,18 @@ export default function Chamados() {
 
       {/* TABELA */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+        {lancamentosOrfaos && (
+          <div className="px-5 py-2.5 bg-amber-50/70 border-b border-amber-100 flex items-center gap-2 text-xs text-amber-800">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            <span>
+              <strong className="font-semibold">{lancamentosOrfaos.quantidade}</strong>{' '}
+              {lancamentosOrfaos.quantidade === 1
+                ? 'lançamento de horas sem chamado correspondente'
+                : 'lançamentos de horas sem chamado correspondente'}{' '}
+              ({formatarMinutosLegivel(lancamentosOrfaos.minutos)} no total)
+            </span>
+          </div>
+        )}
         {(tecnicoFiltro || clienteFiltro) && (
           <div className="px-5 py-3 bg-teal-50/60 border-b border-teal-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="flex items-center gap-2 flex-wrap">
@@ -700,42 +706,6 @@ export default function Chamados() {
               <Ticket className="w-4 h-4 text-teal-600" />
               <h2 className="text-sm font-bold text-slate-900">{totalPaginasTexto}</h2>
             </div>
-            {tecnicoFiltro && mediaTempoTrabalhadoTecnico && (
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200/80 text-xs font-semibold text-teal-900">
-                  <Clock className="w-3.5 h-3.5 text-teal-600" />
-                  <span>
-                    Média do técnico:{' '}
-                    <strong className="font-mono text-teal-950 font-bold">
-                      {mediaTempoTrabalhadoTecnico.mediaMinutos} min/chamado
-                    </strong>
-                  </span>
-                  {mediaTempoTrabalhadoTecnico.alertaBaixo && (
-                    <span
-                      className="ml-1 inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded"
-                      title="⚠ tempo muito baixo — verificar preenchimento"
-                    >
-                      ⚠ tempo muito baixo
-                    </span>
-                  )}
-                </div>
-                {mediaTempoTrabalhadoTecnico.chamadosMenor5Min > 0 && (
-                  <div
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-xs font-bold text-rose-800"
-                    title={`${mediaTempoTrabalhadoTecnico.chamadosMenor5Min} chamados com tempo trabalhado menor que 5 minutos (possível preenchimento incorreto ou fechamento apressado)`}
-                  >
-                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                    <span>
-                      ⚠ {mediaTempoTrabalhadoTecnico.chamadosMenor5Min}{' '}
-                      {mediaTempoTrabalhadoTecnico.chamadosMenor5Min === 1
-                        ? 'chamado com menos de 5 minutos'
-                        : 'chamados com menos de 5 minutos'}{' '}
-                      (de {mediaTempoTrabalhadoTecnico.totalTecnico})
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -800,7 +770,6 @@ export default function Chamados() {
                   <th className="py-3 px-4">Departamento</th>
                   <th className="py-3 px-4 max-w-[240px]">Assunto</th>
                   <th className="py-3 px-4 whitespace-nowrap">SLA</th>
-                  <th className="py-3 px-4 whitespace-nowrap">Tempo Trab.</th>
                   <th className="py-3 px-4">Observações</th>
                 </tr>
               </thead>
@@ -861,38 +830,6 @@ export default function Chamados() {
                           <Badge className="bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200 text-[10px] font-semibold shadow-none">
                             Fora do prazo
                           </Badge>
-                        ) : (
-                          <span className="text-slate-300">—</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 whitespace-nowrap font-mono text-[11px] text-slate-700">
-                        {r.tempo_trabalhado !== null && r.tempo_trabalhado !== undefined ? (
-                          (() => {
-                            const cls = classificarTempoTrabalhado(r.tempo_trabalhado)
-                            const textoLegivel = formatarHorasDecimaisLegivel(r.tempo_trabalhado)
-                            return (
-                              <div className="flex items-center gap-1.5">
-                                <span className="font-semibold text-slate-800">{textoLegivel}</span>
-                                {cls.nivel === 'critico' && (
-                                  <Badge
-                                    className="bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200 text-[10px] font-bold px-1.5 py-0 shadow-none inline-flex items-center gap-0.5"
-                                    title={cls.descricao || 'Tempo menor que 5 minutos'}
-                                  >
-                                    <AlertTriangle className="w-2.5 h-2.5 text-rose-600 shrink-0" />
-                                    <span>&lt; 5 min</span>
-                                  </Badge>
-                                )}
-                                {cls.nivel === 'atencao' && (
-                                  <Badge
-                                    className="bg-amber-50 text-amber-800 hover:bg-amber-100 border-amber-200 text-[10px] font-medium px-1.5 py-0 shadow-none"
-                                    title={cls.descricao || 'Tempo entre 5 e 15 minutos'}
-                                  >
-                                    5–15 min
-                                  </Badge>
-                                )}
-                              </div>
-                            )
-                          })()
                         ) : (
                           <span className="text-slate-300">—</span>
                         )}
