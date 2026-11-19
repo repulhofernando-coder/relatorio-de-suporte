@@ -185,7 +185,7 @@ export function uniaoDepartamentosHoras(
   // mesmo antes do primeiro lançamento; filtrar sem dados resulta em zero,
   // igual aos demais setores que só existem nas horas. "Projetos Locais"
   // já entra normalizado como "Projetos" — nunca vira opção separada.
-  const set = new Set<string>(['Projetos', 'Ativação', 'Datacenter Windows'])
+  const set = new Set<string>(['Projetos', 'Ativação', 'Datacenter Windows', 'Laboratório'])
   for (const source of sources) {
     for (const bruto of source) {
       const norm = normalizarDepartamentoHoras(bruto)

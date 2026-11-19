@@ -7,7 +7,6 @@ import {
   ChevronRight,
   RefreshCw,
   Inbox,
-  Clock,
   AlertTriangle,
   Building2,
   X,
@@ -31,7 +30,8 @@ import { TecnicoAberturaPie } from '@/components/chamados/TecnicoAberturaPie'
 import { ResumoHorasCliente } from '@/components/chamados/ResumoHorasCliente'
 import { fetchClientContracts } from '@/services/contratos'
 import type { ClientContract } from '@/services/contratos'
-import { classificarTempoTrabalhado, formatarHorasDecimaisLegivel } from '@/lib/duracao'
+import { formatarMinutosLegivel } from '@/lib/duracao'
+import { dedupeHoras } from '@/lib/horas-dedupe'
 import { criarMatcherDepartamento, uniaoDepartamentosHoras } from '@/lib/departamentos'
 
 type PeriodPreset =

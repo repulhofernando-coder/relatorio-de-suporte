@@ -37,6 +37,22 @@ import {
   DC_WIN_SLA_CLOUD_MAX_MINUTOS,
   formatarDuracaoDatacenter,
 } from '@/lib/benchmarks-datacenter-windows'
+import {
+  FONTES_LABORATORIO,
+  LABORATORIO_LABEL,
+  LAB_VOLUME_MIN_MES,
+  LAB_VOLUME_MAX_MES,
+  LAB_VOLUME_REAL_MES,
+  LAB_TECNICOS_IDEAL,
+  LAB_TECNICOS_REAL,
+  LAB_CAPACIDADE_MAQUINAS,
+  LAB_TAT_META_ATUAL_DIAS_CORRIDOS,
+  LAB_TAT_IDEAL_MIN_DIAS_UTEIS,
+  LAB_TAT_IDEAL_MAX_DIAS_UTEIS,
+  LAB_BANCADA_MIN_MINUTOS,
+  LAB_BANCADA_MAX_MINUTOS,
+  LAB_RMA_MAX_PERCENTUAL,
+} from '@/lib/benchmarks-laboratorio'
 
 interface BenchmarkPanelProps {
   records: SupportRecord[]
@@ -103,6 +119,16 @@ function isDatacenterWindows(depto?: string | null): boolean {
   return norm.includes('datacenter') && norm.includes('windows')
 }
 
+function isLaboratorio(depto?: string | null): boolean {
+  if (!depto) return false
+  const norm = depto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+  return norm === 'laboratorio' || norm.includes('laborat') || norm.includes('bancada')
+}
+
 function formatMinutesToHours(min: number): string {
   const h = Math.floor(min / 60)
   const m = Math.round(min % 60)
@@ -126,6 +152,10 @@ export function BenchmarkPanel({
     () => isDatacenterWindows(selectedDepartamento),
     [selectedDepartamento],
   )
+  const isFilterLaboratorio = useMemo(
+    () => isLaboratorio(selectedDepartamento),
+    [selectedDepartamento],
+  )
 
   // Busca configuração específica do departamento filtrado se houver.
   // Fila única de Projetos: aceita "Projetos", "Projetos Internos" ou "Projetos Locais"
@@ -139,7 +169,8 @@ export function BenchmarkPanel({
       (isFilterAtivacao ? capacities.find((c) => isAtivacao(c.departamento)) || null : null) ||
       (isFilterDatacenterWindows
         ? capacities.find((c) => isDatacenterWindows(c.departamento)) || null
-        : null)
+        : null) ||
+      (isFilterLaboratorio ? capacities.find((c) => isLaboratorio(c.departamento)) || null : null)
     )
   }, [
     capacities,
@@ -147,6 +178,7 @@ export function BenchmarkPanel({
     isFilterProjetos,
     isFilterAtivacao,
     isFilterDatacenterWindows,
+    isFilterLaboratorio,
   ])
 
   const dados = useMemo(() => {
@@ -1166,6 +1198,115 @@ export function BenchmarkPanel({
       return list
     }
 
+    if (isFilterLaboratorio) {
+      // =========================================================
+      // MODO LABORATÓRIO (BANCADA): Quadro de Métricas da gestão
+      // ("Quadro de Métricas: Laboratório de Manutenção (Bancada)")
+      // =========================================================
+
+      // 1. Volume de chamados / mês (ideal 35 a 50 para 1 técnico; real de
+      //    referência da gestão: 35 chamados/mês)
+      const volumeDentro =
+        dados.totalChamados >= LAB_VOLUME_MIN_MES && dados.totalChamados <= LAB_VOLUME_MAX_MES
+      const volumeAbaixo = dados.totalChamados < LAB_VOLUME_MIN_MES
+      list.push({
+        indicador: 'Volume de Chamados / Mês',
+        descricao: 'Demanda de reparos de hardware absorvida pela bancada no período',
+        real: `${dados.totalChamados.toLocaleString('pt-BR')} chamados`,
+        realNum: dados.totalChamados,
+        ideal: `${LAB_VOLUME_MIN_MES} a ${LAB_VOLUME_MAX_MES} chamados/mês (para ${LAB_TECNICOS_IDEAL} téc.)`,
+        status: volumeDentro || volumeAbaixo ? 'verde' : 'vermelho',
+        statusTexto: volumeDentro
+          ? 'Dentro da meta'
+          : volumeAbaixo
+            ? 'Volume abaixo da faixa'
+            : 'Volume acima da faixa',
+        diagnostico:
+          'Volume Equilibrado. O técnico entrega cerca de 1,6 máquinas por dia útil sem gargalos.',
+      })
+
+      // 2. Tamanho da equipe necessária (ideal 1 técnico; suporta até ~50
+      //    máquinas sem contratar)
+      const eqAtual = dados.tecnicosEquipe
+      const eqDentro = eqAtual <= LAB_TECNICOS_IDEAL
+      list.push({
+        indicador: 'Tamanho da Equipe Necessária',
+        descricao: 'Dimensionamento da bancada de manutenção para a demanda atual',
+        real: `${eqAtual} técnico${eqAtual > 1 ? 's' : ''}`,
+        realNum: eqAtual,
+        ideal: `${LAB_TECNICOS_IDEAL} técnico (suporta até ~${LAB_CAPACIDADE_MAQUINAS} máquinas sem contratar)`,
+        status: eqDentro ? 'verde' : 'vermelho',
+        statusTexto: eqDentro ? 'Dentro da meta' : 'Acima do ideal',
+        diagnostico:
+          'Dimensionamento exato para a demanda atual (suporta até ~50 máquinas sem contratar).',
+      })
+
+      // 3. Prazo Total (TAT/SLA): meta atual 7 dias corridos; ideal 2 a 4
+      //    dias úteis (sem troca de peça). O sistema ainda não mede o prazo
+      //    entre abertura e entrega do equipamento — referência.
+      list.push({
+        indicador: 'Prazo Total (TAT / SLA)',
+        descricao: 'Prazo da entrada do equipamento até a devolução ao usuário',
+        real: `${LAB_TAT_META_ATUAL_DIAS_CORRIDOS} dias corridos (meta atual)`,
+        realNum: null,
+        ideal: `${LAB_TAT_IDEAL_MIN_DIAS_UTEIS} a ${LAB_TAT_IDEAL_MAX_DIAS_UTEIS} dias úteis (sem troca de peça)`,
+        status: 'informativo',
+        statusTexto: 'Referência',
+        diagnostico:
+          'Ponto de Atenção: 7 dias é um prazo longo se o reparo não depender de compra externa.',
+      })
+
+      // 4. Tempo líquido de bancada por equipamento (ideal 1h30 a 3h00;
+      //    inclui triagem, testes de estresse, troca de componente,
+      //    formatação e limpeza). A medir no relatório.
+      if (dados.tmaRealMin !== null) {
+        const bancadaRound = Math.round(dados.tmaRealMin)
+        const bancadaFormat = formatMinutesToHours(bancadaRound)
+        const dentroFaixa =
+          bancadaRound >= LAB_BANCADA_MIN_MINUTOS && bancadaRound <= LAB_BANCADA_MAX_MINUTOS
+
+        list.push({
+          indicador: 'Tempo Líquido de Bancada',
+          descricao:
+            'Tempo por equipamento: triagem, testes de estresse, troca de componente, formatação e limpeza',
+          real: `${bancadaFormat} (média apontada)`,
+          realNum: bancadaRound,
+          ideal: `${formatMinutesToHours(LAB_BANCADA_MIN_MINUTOS)} a ${formatMinutesToHours(LAB_BANCADA_MAX_MINUTOS)} por equipamento`,
+          status: dentroFaixa ? 'verde' : 'vermelho',
+          statusTexto: dentroFaixa ? 'Dentro da meta' : 'Fora da faixa',
+          diagnostico: `A medir no relatório: a média apontada no período (${bancadaFormat}) inclui todos os lançamentos do setor — o tempo líquido por equipamento exige apontamento por máquina.`,
+        })
+      } else {
+        list.push({
+          indicador: 'Tempo Líquido de Bancada',
+          descricao:
+            'Tempo por equipamento: triagem, testes de estresse, troca de componente, formatação e limpeza',
+          real: 'A medir no relatório',
+          realNum: null,
+          ideal: `${formatMinutesToHours(LAB_BANCADA_MIN_MINUTOS)} a ${formatMinutesToHours(LAB_BANCADA_MAX_MINUTOS)} por equipamento`,
+          status: 'informativo',
+          statusTexto: 'A medir',
+          diagnostico:
+            'O sistema ainda não mede o tempo líquido de bancada por equipamento — exigiria apontamento por máquina (triagem, testes, troca de componente, formatação e limpeza).',
+        })
+      }
+
+      // 5. Taxa de reincidência (RMA): retorno em 30 dias — a medir no sistema.
+      list.push({
+        indicador: 'Taxa de Reincidência (RMA)',
+        descricao: 'Percentual de equipamentos que retornam em 30 dias pelo mesmo defeito',
+        real: 'A medir no sistema',
+        realNum: null,
+        ideal: `Abaixo de ${LAB_RMA_MAX_PERCENTUAL}% (retorno em 30 dias)`,
+        status: 'informativo',
+        statusTexto: 'A medir',
+        diagnostico:
+          'O sistema ainda não mede a reincidência por equipamento — exigiria a leitura de reaberturas do mesmo número de série em 30 dias.',
+      })
+
+      return list
+    }
+
     // =========================================================
     // MODO N1 / CONSOLIDADO: Padrão HDI / MetricNet para N1 Remoto
     // =========================================================
@@ -1326,25 +1467,28 @@ export function BenchmarkPanel({
     isFilterProjetos,
     isFilterAtivacao,
     isFilterDatacenterWindows,
+    isFilterLaboratorio,
     activeCapacity,
   ])
 
   // Título e cabeçalhos dinâmicos
-  const cenarioIdealTitulo = isFilterLinux
-    ? 'Cenário Ideal (Linux Misto)'
-    : isFilterCampo
-      ? 'Cenário Ideal (Field Service)'
-      : isFilterN2
-        ? 'Cenário Ideal (N2 Remoto)'
-        : isFilterProjetos
-          ? 'Cenário Ideal (Fila única de Projetos)'
-          : isFilterAtivacao
-            ? 'Cenário Ideal (Ativação / Implantação)'
-            : isFilterDatacenterWindows
-              ? 'Cenário Ideal (Datacenter Windows — N2/N3 Cloud)'
-              : selectedDepartamento && selectedDepartamento !== 'todos'
-                ? `Cenário Ideal (${selectedDepartamento})`
-                : 'Cenário Ideal (N1 Remoto)'
+  const cenarioIdealTitulo = isFilterLaboratorio
+    ? 'Cenário Ideal (Laboratório)'
+    : isFilterLinux
+      ? 'Cenário Ideal (Linux Misto)'
+      : isFilterCampo
+        ? 'Cenário Ideal (Field Service)'
+        : isFilterN2
+          ? 'Cenário Ideal (N2 Remoto)'
+          : isFilterProjetos
+            ? 'Cenário Ideal (Fila única de Projetos)'
+            : isFilterAtivacao
+              ? 'Cenário Ideal (Ativação / Implantação)'
+              : isFilterDatacenterWindows
+                ? 'Cenário Ideal (Datacenter Windows — N2/N3 Cloud)'
+                : selectedDepartamento && selectedDepartamento !== 'todos'
+                  ? `Cenário Ideal (${selectedDepartamento})`
+                  : 'Cenário Ideal (N1 Remoto)'
 
   return (
     <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80 flex flex-col">
@@ -1361,9 +1505,11 @@ export function BenchmarkPanel({
                       ? 'bg-amber-50 text-amber-600'
                       : isFilterDatacenterWindows
                         ? 'bg-indigo-50 text-indigo-600'
-                        : isFilterProjetos || isFilterAtivacao
-                          ? 'bg-cyan-50 text-cyan-600'
-                          : 'bg-teal-50 text-teal-600'
+                        : isFilterLaboratorio
+                          ? 'bg-orange-50 text-orange-600'
+                          : isFilterProjetos || isFilterAtivacao
+                            ? 'bg-cyan-50 text-cyan-600'
+                            : 'bg-teal-50 text-teal-600'
               }`}
             >
               <Award className="w-4 h-4" />
@@ -1419,6 +1565,14 @@ export function BenchmarkPanel({
                     Perfil Datacenter Windows
                   </Badge>
                 )}
+                {isFilterLaboratorio && (
+                  <Badge
+                    variant="outline"
+                    className="bg-orange-50 text-orange-700 border-orange-200 text-[10px] font-semibold"
+                  >
+                    Perfil Laboratório (Bancada)
+                  </Badge>
+                )}
               </h3>
               <p className="text-xs text-slate-500">
                 {isFilterLinux
@@ -1433,7 +1587,9 @@ export function BenchmarkPanel({
                           ? 'Comparação com as metas internas de Ativação (implantações e onboarding de clientes)'
                           : isFilterDatacenterWindows
                             ? 'Comparação com as metas internas de Datacenter Windows (engenharia de servidores e cloud: rotinas de RAM/VPN e projetos de VPS, migração e POC)'
-                            : 'Comparação entre a operação real e as referências de mercado N1 Remoto (HDI/MetricNet)'}
+                            : isFilterLaboratorio
+                              ? 'Comparação com as metas internas do Laboratório de Manutenção (bancada: reparo de hardware, triagem, testes e devolução)'
+                              : 'Comparação entre a operação real e as referências de mercado N1 Remoto (HDI/MetricNet)'}
               </p>
             </div>
           </div>
@@ -1478,6 +1634,11 @@ export function BenchmarkPanel({
                 Fontes: Gartner, ITIL 4 & Uptime Institute (Datacenter)
               </span>
             </>
+          ) : isFilterLaboratorio ? (
+            <>
+              <Layers className="w-3.5 h-3.5 text-orange-600" />
+              <span className="font-medium text-slate-700">Fontes: {FONTES_LABORATORIO}</span>
+            </>
           ) : (
             <>
               <Info className="w-3.5 h-3.5 text-slate-400" />
@@ -1486,6 +1647,17 @@ export function BenchmarkPanel({
           )}
         </div>
       </div>
+
+      {isFilterLaboratorio && (
+        <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-orange-200 bg-orange-50 px-3.5 py-2.5 text-xs text-orange-800">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-orange-600" />
+          <p className="leading-relaxed">
+            <b>Laboratório (Bancada):</b> metas implantadas a partir do quadro da gestão ("Quadro de
+            Métricas: Laboratório de Manutenção (Bancada)"). Tempo líquido de bancada e taxa de
+            reincidência (RMA) seguem <b>A medir</b> — o sistema não calcula essas métricas ainda.
+          </p>
+        </div>
+      )}
 
       {isFilterDatacenterWindows && (
         <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-2.5 text-xs text-indigo-800">
@@ -1590,7 +1762,9 @@ export function BenchmarkPanel({
                     ? 'Fontes oficiais de Ativação: AXELOS/PeopleCert — ITIL 4 Framework (lead time e handover de implantação: 7–15 dias úteis; transferência formal acima de 90%) e CompTIA — Workforce & Tech Support Trends (impacto de projetos na capacidade: até 25%).'
                     : isFilterDatacenterWindows
                       ? `Fontes oficiais de Datacenter Windows: Gartner — Cloud Infrastructure & Operations (dimensionamento de equipe de 3–4 analistas + gestor dedicado, produtividade de 1,8–2,5 chamados/dia por recurso e volume de 100–140 chamados/mês); ITIL 4 (AXELOS/PeopleCert) — Gerenciamento de Capacidade e Disponibilidade (SLA por complexidade: Rotinas RAM/VPN 45min–1h30; Cloud VPS/Migração/POC 4h–12h); Uptime Institute — Padrões de Operação de Datacenter (ocupação direta de 65–75% do tempo, preservando espaço para monitoramento proativo, backups e segurança dos hosts).`
-                      : 'Fontes oficiais de N1: HDI (Help Desk Institute) — Service Desk Benchmarking Report (TMA 15–25 min para resolução remota rápida) e MetricNet — Desktop Support and Service Desk Benchmarks (produtividade 12–18 chamados/dia).'}
+                      : isFilterLaboratorio
+                        ? `Fontes oficiais de Laboratório: CompTIA — Benchmarks de Reparo de Hardware e Bancada (volume de 35–50 chamados/mês para 1 técnico; tempo líquido de bancada de 1h30–3h00 por equipamento, incluindo triagem, testes de estresse, troca de componente, formatação e limpeza) e MetricNet — Métricas de Depot Repair / Manutenção Interna (prazo total TAT de 2–4 dias úteis sem troca de peça; taxa de reincidência RMA abaixo de 4% em retorno de 30 dias).`
+                        : 'Fontes oficiais de N1: HDI (Help Desk Institute) — Service Desk Benchmarking Report (TMA 15–25 min para resolução remota rápida) e MetricNet — Desktop Support and Service Desk Benchmarks (produtividade 12–18 chamados/dia).'}
         </span>
         <span className="font-medium text-slate-500 shrink-0">
           Metas customizáveis no menu Equipes
