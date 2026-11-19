@@ -84,6 +84,11 @@ const FILTROS_DEPARTAMENTO_CHAMADOS: Record<string, string[]> = {
   // e a variação "Datacenter Windows" também entram quando aparecerem.
   // O filtro "Windows" NÃO puxa esses registros (grafias distintas).
   'Datacenter Windows': ['Datacenter Windows', '07-datacenter-windows', 'Datacenter: Windows'],
+  // Time de Datacenter Linux (espelho do Windows): a GRAFIA REAL no banco é
+  // "Datacenter: Linux" (718 chamados, ver db 2026-11) — sem esta expansão o
+  // filtro canônico buscava eq('departamento', 'Datacenter Linux') e não
+  // trazia NADA (bug do filtro vazio na Visão Geral).
+  'Datacenter Linux': ['Datacenter Linux', '07-datacenter-linux', 'Datacenter: Linux'],
 }
 
 function rotulosChamadosDoFiltro(departamento: string): string[] {
