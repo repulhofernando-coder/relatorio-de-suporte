@@ -117,6 +117,27 @@ function isDatacenterWindows(depto?: string | null): boolean {
   return norm.includes('datacenter') && norm.includes('windows')
 }
 
+function isDatacenterLinux(depto?: string | null): boolean {
+  if (!depto) return false
+  const norm = depto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\s_-]+/g, '')
+    .trim()
+  return norm.includes('datacenter') && norm.includes('linux')
+}
+
+function isComercial(depto?: string | null): boolean {
+  if (!depto) return false
+  const norm = depto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+  return norm === 'comercial'
+}
+
 function isLaboratorio(depto?: string | null): boolean {
   if (!depto) return false
   const norm = depto
@@ -150,6 +171,11 @@ export function BenchmarkPanel({
     () => isDatacenterWindows(selectedDepartamento),
     [selectedDepartamento],
   )
+  const isFilterDatacenterLinux = useMemo(
+    () => isDatacenterLinux(selectedDepartamento),
+    [selectedDepartamento],
+  )
+  const isFilterComercial = useMemo(() => isComercial(selectedDepartamento), [selectedDepartamento])
   const isFilterLaboratorio = useMemo(
     () => isLaboratorio(selectedDepartamento),
     [selectedDepartamento],
@@ -168,6 +194,9 @@ export function BenchmarkPanel({
       (isFilterDatacenterWindows
         ? capacities.find((c) => isDatacenterWindows(c.departamento)) || null
         : null) ||
+      (isFilterDatacenterLinux
+        ? capacities.find((c) => isDatacenterLinux(c.departamento)) || null
+        : null) ||
       (isFilterLaboratorio ? capacities.find((c) => isLaboratorio(c.departamento)) || null : null)
     )
   }, [
@@ -176,6 +205,7 @@ export function BenchmarkPanel({
     isFilterProjetos,
     isFilterAtivacao,
     isFilterDatacenterWindows,
+    isFilterDatacenterLinux,
     isFilterLaboratorio,
   ])
 
@@ -297,6 +327,11 @@ export function BenchmarkPanel({
 
   const rows: BenchmarkRow[] = useMemo(() => {
     const list: BenchmarkRow[] = []
+
+    // Comercial: métrica diferenciada ainda não definida pela gestão —
+    // o quadro NÃO exibe comparativo de metas (nem quadro "a medir");
+    // os números reais ficam nos demais painéis da Visão Geral.
+    if (isFilterComercial) return list
 
     if (isFilterLinux) {
       // =========================================================
@@ -1196,6 +1231,150 @@ export function BenchmarkPanel({
       return list
     }
 
+    if (isFilterDatacenterLinux) {
+      // =========================================================
+      // MODO DATACENTER LINUX: espelho do Datacenter Windows —
+      // mesmas métricas/benchmarks da gestão, rótulos ajustados
+      // =========================================================
+
+      // 1. Volume de chamados / mês (ideal 100 a 140, referência para 2,5 técnicos)
+      list.push({
+        indicador: 'Volume de Chamados / Mês',
+        descricao: 'Demanda do time de Datacenter Linux (engenharia de servidores e cloud)',
+        real: `${dados.totalChamados.toLocaleString('pt-BR')} chamados`,
+        realNum: dados.totalChamados,
+        ideal: `${DC_WIN_VOLUME_MIN_MES} a ${DC_WIN_VOLUME_MAX_MES} chamados/mês (referência para 2,5 técnicos)`,
+        status: 'informativo',
+        statusTexto: 'Informativo',
+        diagnostico:
+          'Cenário acima da faixa ideal indica demanda elevada: forte crescimento da nuvem ou excesso de rotinas manuais — avaliar automatização e dimensionamento.',
+      })
+
+      // 2. Tamanho da equipe necessária (ideal 3 a 4 analistas + gestor dedicado)
+      const eqAtual = dados.tecnicosEquipe
+      const eqDentro =
+        eqAtual >= DC_WIN_ANALISTAS_IDEAL_MIN && eqAtual <= DC_WIN_ANALISTAS_IDEAL_MAX
+      const eqAcima = eqAtual > DC_WIN_ANALISTAS_IDEAL_MAX
+      list.push({
+        indicador: 'Tamanho da Equipe Necessária',
+        descricao: 'Dimensionamento da equipe para o volume de chamados e projetos de nuvem',
+        real: `${eqAtual} técnico${eqAtual > 1 ? 's' : ''}`,
+        realNum: eqAtual,
+        ideal: `${DC_WIN_ANALISTAS_IDEAL_MIN} a ${DC_WIN_ANALISTAS_IDEAL_MAX} analistas + gestor dedicado`,
+        status: eqDentro || eqAcima ? 'verde' : 'vermelho',
+        statusTexto: eqDentro
+          ? 'Dentro da meta'
+          : eqAcima
+            ? 'Margem de segurança'
+            : 'Abaixo do ideal',
+        diagnostico: eqDentro
+          ? `Equipe de ${eqAtual} pessoas dentro do dimensionamento ideal (3 a 4 analistas + gestor dedicado). Com o volume real, o risco é o gestor ficar puxado demais para a operação diária.`
+          : eqAcima
+            ? `Equipe de ${eqAtual} técnicos acima do ideal (3 a 4 analistas + gestor dedicado) — margem para picos e projetos de nuvem.`
+            : `Equipe de ${eqAtual} técnico(s) abaixo do ideal de ${DC_WIN_ANALISTAS_IDEAL_MIN} a ${DC_WIN_ANALISTAS_IDEAL_MAX} analistas + gestor dedicado: com esse volume, o gestor acaba sendo puxado demais para a operação diária.`,
+      })
+
+      // 3. Produtividade diária por recurso (ideal 1,8 a 2,5 chamados/dia)
+      if (dados.chamadosPorTecnicoDiaReal !== null && dados.totalChamados > 0) {
+        const prod = Math.round(dados.chamadosPorTecnicoDiaReal * 100) / 100
+        const prodFormat = prod.toLocaleString('pt-BR', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+        const dentro = prod >= DC_WIN_PRODUTIVIDADE_MIN_DIA && prod <= DC_WIN_PRODUTIVIDADE_MAX_DIA
+        const abaixo = prod < DC_WIN_PRODUTIVIDADE_MIN_DIA
+
+        const status: 'verde' | 'vermelho' = dentro ? 'verde' : 'vermelho'
+        const statusTexto = dentro ? 'Dentro da meta' : abaixo ? 'Abaixo da meta' : 'Acima da meta'
+
+        const diagnostico = dentro
+          ? `Produtividade equilibrada (${prodFormat} chamados/dia por recurso vs meta ${DC_WIN_PRODUTIVIDADE_MIN_DIA.toLocaleString('pt-BR')} a ${DC_WIN_PRODUTIVIDADE_MAX_DIA.toLocaleString('pt-BR')}).`
+          : abaixo
+            ? `Média de ${prodFormat} chamados/dia por recurso, abaixo da faixa ideal de ${DC_WIN_PRODUTIVIDADE_MIN_DIA.toLocaleString('pt-BR')} a ${DC_WIN_PRODUTIVIDADE_MAX_DIA.toLocaleString('pt-BR')}. Avaliar apontamentos e fila de demandas.`
+            : `Ritmo acelerado (${prodFormat} chamados/dia por recurso vs meta ${DC_WIN_PRODUTIVIDADE_MIN_DIA.toLocaleString('pt-BR')} a ${DC_WIN_PRODUTIVIDADE_MAX_DIA.toLocaleString('pt-BR')}): ritmo intenso para demandas de engenharia de servidores e cloud — monitorar qualidade e sobrecarga.`
+
+        list.push({
+          indicador: 'Produtividade Diária (por recurso)',
+          descricao: 'Média de chamados por recurso da equipe em cada dia útil',
+          real: `${prodFormat} chamados/dia`,
+          realNum: prod,
+          ideal: `${DC_WIN_PRODUTIVIDADE_MIN_DIA.toLocaleString('pt-BR')} a ${DC_WIN_PRODUTIVIDADE_MAX_DIA.toLocaleString('pt-BR')} chamados/dia (por recurso)`,
+          status,
+          statusTexto,
+          diagnostico,
+        })
+      } else {
+        list.push({
+          indicador: 'Produtividade Diária (por recurso)',
+          descricao: 'Média de chamados por recurso da equipe em cada dia útil',
+          real: '—',
+          realNum: null,
+          ideal: `${DC_WIN_PRODUTIVIDADE_MIN_DIA.toLocaleString('pt-BR')} a ${DC_WIN_PRODUTIVIDADE_MAX_DIA.toLocaleString('pt-BR')} chamados/dia (por recurso)`,
+          status: 'vermelho',
+          statusTexto: 'Sem dados',
+          diagnostico: 'Sem registros suficientes para calcular a produtividade diária do setor.',
+        })
+      }
+
+      // 4. SLA alvo por complexidade (Rotinas RAM/VPN vs Cloud VPS/Migração/POC)
+      list.push({
+        indicador: 'SLA Alvo por Complexidade',
+        descricao: 'Referência por categoria: manutenção rápida vs projetos de nuvem',
+        real:
+          dados.tmaRealMin !== null
+            ? `${formatMinutesToHours(Math.round(dados.tmaRealMin))} (TMA geral)`
+            : 'A levantar',
+        realNum: null,
+        ideal: `Rotinas (RAM/VPN): ${formatarDuracaoDatacenter(DC_WIN_SLA_ROTINAS_MIN_MINUTOS)} a ${formatarDuracaoDatacenter(DC_WIN_SLA_ROTINAS_MAX_MINUTOS)} • Cloud (VPS/Migração/POC): ${formatarDuracaoDatacenter(DC_WIN_SLA_CLOUD_MIN_MINUTOS)} a ${formatarDuracaoDatacenter(DC_WIN_SLA_CLOUD_MAX_MINUTOS)}`,
+        status: 'informativo',
+        statusTexto: 'Referência',
+        diagnostico:
+          'O sistema deve separar o tempo gasto em manutenção rápida (RAM/VPN) do tempo de projetos de nuvem (VPS, migração e POC). TMA real por complexidade: a levantar.',
+      })
+
+      // 5. Ocupação direta estimada (ideal 65% a 75% do tempo)
+      if (dados.taxaOcupacaoPercent !== null) {
+        const ocup = Math.round(dados.taxaOcupacaoPercent * 10) / 10
+        const ocupFormat = `${ocup.toLocaleString('pt-BR')}%`
+        const dentro = ocup >= DC_WIN_OCUPACAO_MIN && ocup <= DC_WIN_OCUPACAO_MAX
+        const abaixo = ocup < DC_WIN_OCUPACAO_MIN
+
+        const status: 'verde' | 'vermelho' = dentro ? 'verde' : 'vermelho'
+        const statusTexto = dentro ? 'Dentro da meta' : abaixo ? 'Abaixo da meta' : 'Acima da meta'
+
+        const diagnostico = dentro
+          ? `Ocupação saudável (${ocupFormat} do tempo em chamados). Restante preservado para monitoramento proativo, backups e segurança dos hosts.`
+          : abaixo
+            ? `Ocupação de ${ocupFormat}, abaixo da faixa ideal de ${DC_WIN_OCUPACAO_MIN}% a ${DC_WIN_OCUPACAO_MAX}%. Margem para investir em monitoramento proativo, backups e segurança.`
+            : `Ocupação alta (${ocupFormat}), próxima ao limite da faixa de ${DC_WIN_OCUPACAO_MIN}% a ${DC_WIN_OCUPACAO_MAX}%. Risco de faltar tempo livre para monitoramento proativo, backups e segurança dos hosts.`
+
+        list.push({
+          indicador: 'Ocupação Direta Estimada',
+          descricao: 'Percentual do expediente investido diretamente nos chamados',
+          real: `~${ocupFormat} do tempo`,
+          realNum: ocup,
+          ideal: `${DC_WIN_OCUPACAO_MIN}% a ${DC_WIN_OCUPACAO_MAX}% do tempo`,
+          status,
+          statusTexto,
+          diagnostico,
+        })
+      } else {
+        list.push({
+          indicador: 'Ocupação Direta Estimada',
+          descricao: 'Percentual do expediente investido diretamente nos chamados',
+          real: 'Sem apontamento',
+          realNum: null,
+          ideal: `${DC_WIN_OCUPACAO_MIN}% a ${DC_WIN_OCUPACAO_MAX}% do tempo`,
+          status: 'vermelho',
+          statusTexto: 'Sem dados',
+          diagnostico:
+            'Os chamados do período não possuem apontamento de tempo trabalhado para estimar a ocupação.',
+        })
+      }
+
+      return list
+    }
+
     if (isFilterLaboratorio) {
       // =========================================================
       // MODO LABORATÓRIO (BANCADA): Quadro de Métricas da gestão
@@ -1465,6 +1644,8 @@ export function BenchmarkPanel({
     isFilterProjetos,
     isFilterAtivacao,
     isFilterDatacenterWindows,
+    isFilterDatacenterLinux,
+    isFilterComercial,
     isFilterLaboratorio,
     activeCapacity,
   ])
@@ -1484,9 +1665,11 @@ export function BenchmarkPanel({
               ? 'Cenário Ideal (Ativação / Implantação)'
               : isFilterDatacenterWindows
                 ? 'Cenário Ideal (Datacenter Windows — N2/N3 Cloud)'
-                : selectedDepartamento && selectedDepartamento !== 'todos'
-                  ? `Cenário Ideal (${selectedDepartamento})`
-                  : 'Cenário Ideal (N1 Remoto)'
+                : isFilterDatacenterLinux
+                  ? 'Cenário Ideal (Datacenter Linux — N2/N3 Cloud)'
+                  : selectedDepartamento && selectedDepartamento !== 'todos'
+                    ? `Cenário Ideal (${selectedDepartamento})`
+                    : 'Cenário Ideal (N1 Remoto)'
 
   return (
     <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80 flex flex-col">

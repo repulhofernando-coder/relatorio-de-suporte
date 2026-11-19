@@ -25,13 +25,23 @@
  *   branch do time de Datacenter Windows inalcançável (bug: filtro vazio).
  *   - filtro "Windows"     → contém "Windows", sem N2 e sem Datacenter
  *                            (o time de Datacenter Windows é distinto e tem
- *                            filtro próprio — não vira "Windows")
+ *                           filtro próprio — não vira "Windows")
+ *   - filtro "Datacenter Linux" → rótulos do time de Datacenter Linux
+ *                            ("Datacenter: Linux" — a GRAFIA REAL do banco —,
+ *                            "07-datacenter-linux", "data center linux");
+ *                            distinto do filtro "Linux" e do grupo "Datacenter"
  *   - filtro "Campo"       → contém "Campo"
  *   - filtro "Datacenter"  → contém "Datacenter" (agrupa ": Windows" e ": Linux")
  *   - filtro "Datacenter Windows" → rótulos do time de Datacenter Windows
  *                            ("07-datacenter-windows", "Datacenter: Windows" —
  *                            a GRAFIA REAL no banco, ver db 2026-11 —,
  *                            "data center windows"…)
+ *   - filtro "Datacenter Linux"   → rótulos do time de Datacenter Linux
+ *                            ("07-datacenter-linux", "Datacenter: Linux" —
+ *                            a GRAFIA REAL no banco em time_logs —,
+ *                            "data center linux"…); TEM de vir ANTES do
+ *                            filtro "Linux" (que só aceita rótulos que
+ *                            começam com "linux")
  *   - filtro "Projetos"    → começa com "Projetos" (inclui "Projetos Internos"
  *                            e "Projetos Locais" — mesma fila no Movidesk)
  *   - demais               → igualdade canônica (Comercial, Cabeamento…)
@@ -68,6 +78,12 @@ export function normalizarDepartamentoHoras(depto: string | null | undefined): s
   // coberto pelo grupo "Datacenter") continua no grupo.
   if (/^(\d{1,2}-)?datacenterwindows$/.test(min.replace(/[\s_-]+/g, '')))
     return 'Datacenter Windows'
+
+  // Time de Datacenter Linux (espelho do Windows): "07-datacenter-linux",
+  // "datacenter linux", "datacenter-linux" e variações → setor canônico
+  // "Datacenter Linux". "Datacenter: Linux" (rótulo bruto real do banco)
+  // continua no grupo "Datacenter" — mesmo padrão do lado Windows.
+  if (/^(\d{1,2}-)?datacenterlinux$/.test(min.replace(/[\s_-]+/g, ''))) return 'Datacenter Linux'
 
   // "Datacenter: Windows" e "Datacenter: Linux" → grupo único "Datacenter"
   if (/^datacenter\s*:\s*(windows|linux)$/.test(min)) return 'Datacenter'
@@ -107,7 +123,8 @@ function eN2DeTimeNaoLinux(logMin: string): boolean {
  * true quando o lançamento de horas pertence ao departamento selecionado.
  * Comparação SEMÂNTICA por família de rótulo (ver cabeçalho do arquivo) —
  * "Linux" traz "Linux N1/N2" (SOMENTE o filtro Linux o traz), "Windows N2"
- * traz os N2 de time específico, "Datacenter" agrupa os dois dois-pontos.
+ * traz os N2 de time específico, "Datacenter" agrupa os dois dois-pontos,
+ * "Datacenter Windows"/"Datacenter Linux" são filas próprias dos times.
  */
 export function casaDepartamento(
   deptoDoLog: string | null | undefined,
@@ -123,6 +140,14 @@ export function casaDepartamento(
   // pertence ao setor Linux e NÃO entra no filtro N2 (pedido do usuário:
   // "Linux N1/N2 seja apenas Linux" — só o filtro Linux o traz).
   if (filtroMin.includes('n2')) return eN2DeTimeNaoLinux(logMin)
+
+  // Datacenter Linux: time próprio (espelho do Datacenter Windows) — casa os
+  // rótulos com datacenter + linux ("Datacenter: Linux" — a GRAFIA REAL do
+  // banco em time_logs —, "07-datacenter-linux", "data center linux"). TEM de
+  // vir ANTES do filtro "Linux" (que só aceita rótulos começando com "linux").
+  if (filtroMin.includes('datacenter') && filtroMin.includes('linux')) {
+    return logMin.includes('datacenter') && logMin.includes('linux')
+  }
 
   // Linux: rótulos do setor Linux (não "Datacenter: Linux", que é Datacenter)
   if (filtroMin.includes('linux')) return logMin.startsWith('linux')
@@ -185,7 +210,13 @@ export function uniaoDepartamentosHoras(
   // mesmo antes do primeiro lançamento; filtrar sem dados resulta em zero,
   // igual aos demais setores que só existem nas horas. "Projetos Locais"
   // já entra normalizado como "Projetos" — nunca vira opção separada.
-  const set = new Set<string>(['Projetos', 'Ativação', 'Datacenter Windows', 'Laboratório'])
+  const set = new Set<string>([
+    'Projetos',
+    'Ativação',
+    'Datacenter Windows',
+    'Datacenter Linux',
+    'Laboratório',
+  ])
   for (const source of sources) {
     for (const bruto of source) {
       const norm = normalizarDepartamentoHoras(bruto)
