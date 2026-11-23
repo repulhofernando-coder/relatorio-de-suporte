@@ -152,6 +152,25 @@ function isComercial(depto?: string | null): boolean {
   return norm === 'comercial'
 }
 
+// Setores SEM quadro de benchmark (v0.0.108) — igual Comercial: os números
+// reais ficam nos demais painéis da Visão Geral, sem comparativo de metas
+// (nem quadro "a medir"). A grafia real do banco é "Cabeamento", "Financeiro"
+// e "Alocado"; "Cabeamento/Infra" e "Alocados" caem na mesma fila quando
+// aparecerem. "Cabeamento" SÓ casa com rótulos que começam com "Cabeamento" —
+// nunca com Infra/Datacenter.
+function isSemBenchmark(depto?: string | null): boolean {
+  if (!depto) return false
+  const norm = depto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+  if (norm === 'comercial' || norm === 'financeiro') return true
+  if (/^alocados?(\s*\/\s*\S+)?$/.test(norm)) return true
+  if (/^cabeamento(\s*\/\s*infra)?$/.test(norm)) return true
+  return false
+}
+
 function isLaboratorio(depto?: string | null): boolean {
   if (!depto) return false
   const norm = depto
@@ -189,7 +208,12 @@ export function BenchmarkPanel({
     () => isDatacenterLinux(selectedDepartamento),
     [selectedDepartamento],
   )
-  const isFilterComercial = useMemo(() => isComercial(selectedDepartamento), [selectedDepartamento])
+  // Sem quadro de benchmark: Comercial + Cabeamento + Financeiro + Alocado
+  // (v0.0.108) — só números reais, sem comparativo de metas.
+  const isFilterSemBenchmark = useMemo(
+    () => isSemBenchmark(selectedDepartamento),
+    [selectedDepartamento],
+  )
   const isFilterLaboratorio = useMemo(
     () => isLaboratorio(selectedDepartamento),
     [selectedDepartamento],
@@ -342,10 +366,11 @@ export function BenchmarkPanel({
   const rows: BenchmarkRow[] = useMemo(() => {
     const list: BenchmarkRow[] = []
 
-    // Comercial: métrica diferenciada ainda não definida pela gestão —
-    // o quadro NÃO exibe comparativo de metas (nem quadro "a medir");
-    // os números reais ficam nos demais painéis da Visão Geral.
-    if (isFilterComercial) return list
+    // Comercial (e Cabeamento/Financeiro/Alocado, v0.0.108): métrica
+    // diferenciada ainda não definida pela gestão — o quadro NÃO exibe
+    // comparativo de metas (nem quadro "a medir"); os números reais ficam
+    // nos demais painéis da Visão Geral.
+    if (isFilterSemBenchmark) return list
 
     if (isFilterLinux) {
       // =========================================================
@@ -1633,7 +1658,7 @@ export function BenchmarkPanel({
     isFilterAtivacao,
     isFilterDatacenterWindows,
     isFilterDatacenterLinux,
-    isFilterComercial,
+    isFilterSemBenchmark,
     isFilterLaboratorio,
     activeCapacity,
   ])
@@ -1752,23 +1777,25 @@ export function BenchmarkPanel({
                 )}
               </h3>
               <p className="text-xs text-slate-500">
-                {isFilterLinux
-                  ? 'Comparação com os benchmarks para operação mista Linux (Intelligent Swarming: cPanel/PHP vs redes Fortigate/UniFi)'
-                  : isFilterCampo
-                    ? 'Comparação com os benchmarks de gestão para operação Campo (deslocamento, laboratório e atendimento presencial)'
-                    : isFilterN2
-                      ? 'Comparação com os benchmarks de gestão para operação N2 (baixo volume, infraestrutura e projetos)'
-                      : isFilterProjetos
-                        ? 'Comparação com as metas internas da fila única de Projetos (execução de projetos e demandas internas/locais)'
-                        : isFilterAtivacao
-                          ? 'Comparação com as metas internas de Ativação (implantações e onboarding de clientes)'
-                          : isFilterDatacenterWindows
-                            ? 'Comparação com as metas internas de Datacenter Windows (engenharia de servidores e cloud: rotinas de RAM/VPN e projetos de VPS, migração e POC)'
-                            : isFilterDatacenterLinux
-                              ? 'Comparação com as metas internas de Datacenter Linux no cenário Ideal (N2/N3 Cloud): engenharia de servidores, VPNs e provisionamento de VPS'
-                              : isFilterLaboratorio
-                                ? 'Comparação com as metas internas do Laboratório de Manutenção (bancada: reparo de hardware, triagem, testes e devolução)'
-                                : 'Comparação entre a operação real e as referências de mercado N1 Remoto (HDI/MetricNet)'}
+                {isFilterSemBenchmark
+                  ? `Setor sem comparativo de metas: os números reais de ${selectedDepartamento} (chamados, horas, técnicos) ficam nos demais painéis da Visão Geral`
+                  : isFilterLinux
+                    ? 'Comparação com os benchmarks para operação mista Linux (Intelligent Swarming: cPanel/PHP vs redes Fortigate/UniFi)'
+                    : isFilterCampo
+                      ? 'Comparação com os benchmarks de gestão para operação Campo (deslocamento, laboratório e atendimento presencial)'
+                      : isFilterN2
+                        ? 'Comparação com os benchmarks de gestão para operação N2 (baixo volume, infraestrutura e projetos)'
+                        : isFilterProjetos
+                          ? 'Comparação com as metas internas da fila única de Projetos (execução de projetos e demandas internas/locais)'
+                          : isFilterAtivacao
+                            ? 'Comparação com as metas internas de Ativação (implantações e onboarding de clientes)'
+                            : isFilterDatacenterWindows
+                              ? 'Comparação com as metas internas de Datacenter Windows (engenharia de servidores e cloud: rotinas de RAM/VPN e projetos de VPS, migração e POC)'
+                              : isFilterDatacenterLinux
+                                ? 'Comparação com as metas internas de Datacenter Linux no cenário Ideal (N2/N3 Cloud): engenharia de servidores, VPNs e provisionamento de VPS'
+                                : isFilterLaboratorio
+                                  ? 'Comparação com as metas internas do Laboratório de Manutenção (bancada: reparo de hardware, triagem, testes e devolução)'
+                                  : 'Comparação entre a operação real e as referências de mercado N1 Remoto (HDI/MetricNet)'}
               </p>
             </div>
           </div>
@@ -1825,6 +1852,11 @@ export function BenchmarkPanel({
               <Layers className="w-3.5 h-3.5 text-orange-600" />
               <span className="font-medium text-slate-700">Fontes: {FONTES_LABORATORIO}</span>
             </>
+          ) : isFilterSemBenchmark ? (
+            <>
+              <Info className="w-3.5 h-3.5 text-slate-400" />
+              <span>Sem metas definidas (setor sem benchmark)</span>
+            </>
           ) : (
             <>
               <Info className="w-3.5 h-3.5 text-slate-400" />
@@ -1875,6 +1907,14 @@ export function BenchmarkPanel({
           {[1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="h-12 bg-slate-50 rounded-xl animate-pulse" />
           ))}
+        </div>
+      ) : isFilterSemBenchmark ? (
+        <div className="mb-2 flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-600">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+          <p className="leading-relaxed">
+            <b>{selectedDepartamento}</b> não possui quadro de benchmark/metas: os números do setor
+            (chamados, horas, técnicos) ficam nos demais painéis da Visão Geral.
+          </p>
         </div>
       ) : dados.totalChamados === 0 ? (
         <p className="text-xs text-slate-400 py-10 text-center">
@@ -1949,23 +1989,25 @@ export function BenchmarkPanel({
       {/* Nota de rodapé da tabela com referências oficiais por departamento */}
       <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-400">
         <span className="leading-relaxed">
-          {isFilterLinux
-            ? 'Fontes oficiais de Linux: Consortium for Service Innovation — Intelligent Swarming℠ (operação sem filas rígidas); HDI — Support Center Practices & Salary Report (resolução por complexidade: 30–45 min cPanel/PHP; 1h30–3h Fortigate/UniFi); MetricNet — Infrastructure and Network Support Benchmarks (TMA misto 30–50 min).'
-            : isFilterCampo
-              ? 'Fontes oficiais de Campo (Field Service): MetricNet — Field Service Benchmarks (1,2–1,8 ch/dia; 70–80% ocupação com trânsito) e CompTIA — Workforce & Tech Support Trends (metodologia de laboratório e swap de máquinas vs ineficiência de formatações in loco de 5h–6h).'
-              : isFilterN2
-                ? 'Fontes oficiais de N2: AXELOS/PeopleCert — ITIL 4 Framework (Incident Management: TMA 1h–2h30 para diagnóstico de causa raiz e investigação técnica) e Gartner — ITSM Research Reports (disponibilidade vs incidentes recorrentes; modo proativo/preventivo).'
-                : isFilterProjetos
-                  ? `Fontes oficiais de Projetos: Project Management Institute — PMBOK Guide (dimensionamento de equipe e TMA de 8h a 16h líquidas por projeto) e Service Leadership ( benchmarks de lucratividade e ocupação de equipes de projetos: 40–90%).`
-                  : isFilterAtivacao
-                    ? 'Fontes oficiais de Ativação: AXELOS/PeopleCert — ITIL 4 Framework (lead time e handover de implantação: 7–15 dias úteis; transferência formal acima de 90%) e CompTIA — Workforce & Tech Support Trends (impacto de projetos na capacidade: até 25%).'
-                    : isFilterDatacenterWindows
-                      ? `Fontes oficiais de Datacenter Windows: Gartner — Cloud Infrastructure & Operations (dimensionamento de equipe de 3–4 analistas + gestor dedicado, produtividade de 1,8–2,5 chamados/dia por recurso e volume de 100–140 chamados/mês); ITIL 4 (AXELOS/PeopleCert) — Gerenciamento de Capacidade e Disponibilidade (SLA por complexidade: Rotinas RAM/VPN 45min–1h30; Cloud VPS/Migração/POC 4h–12h); Uptime Institute — Padrões de Operação de Datacenter (ocupação direta de 65–75% do tempo, preservando espaço para monitoramento proativo, backups e segurança dos hosts).`
-                      : isFilterDatacenterLinux
-                        ? `Fontes oficiais de Datacenter Linux: ${FONTES_DATACENTER_LINUX} — volume ideal de 50–80 chamados/mês para 2 técnicos; produtividade de 1,2–2,0 chamados/dia por técnico; SLA por complexidade: Rotinas RAM/VPN 45m–1h30 e Cloud VPS/Migração/POC 4h–12h; proatividade acima de 75% (tuning, segurança, backups e automação).`
-                        : isFilterLaboratorio
-                          ? `Fontes oficiais de Laboratório: CompTIA — Benchmarks de Reparo de Hardware e Bancada (volume de 35–50 chamados/mês para 1 técnico; tempo líquido de bancada de 1h30–3h00 por equipamento, incluindo triagem, testes de estresse, troca de componente, formatação e limpeza) e MetricNet — Métricas de Depot Repair / Manutenção Interna (prazo total TAT de 2–4 dias úteis sem troca de peça; taxa de reincidência RMA abaixo de 4% em retorno de 30 dias).`
-                          : 'Fontes oficiais de N1: HDI (Help Desk Institute) — Service Desk Benchmarking Report (TMA 15–25 min para resolução remota rápida) e MetricNet — Desktop Support and Service Desk Benchmarks (produtividade 12–18 chamados/dia).'}
+          {isFilterSemBenchmark
+            ? `Setor ${selectedDepartamento} sem quadro de benchmark/metas definido pela gestão — os números reais do setor (chamados, horas e técnicos) ficam nos demais painéis da Visão Geral.`
+            : isFilterLinux
+              ? 'Fontes oficiais de Linux: Consortium for Service Innovation — Intelligent Swarming℠ (operação sem filas rígidas); HDI — Support Center Practices & Salary Report (resolução por complexidade: 30–45 min cPanel/PHP; 1h30–3h Fortigate/UniFi); MetricNet — Infrastructure and Network Support Benchmarks (TMA misto 30–50 min).'
+              : isFilterCampo
+                ? 'Fontes oficiais de Campo (Field Service): MetricNet — Field Service Benchmarks (1,2–1,8 ch/dia; 70–80% ocupação com trânsito) e CompTIA — Workforce & Tech Support Trends (metodologia de laboratório e swap de máquinas vs ineficiência de formatações in loco de 5h–6h).'
+                : isFilterN2
+                  ? 'Fontes oficiais de N2: AXELOS/PeopleCert — ITIL 4 Framework (Incident Management: TMA 1h–2h30 para diagnóstico de causa raiz e investigação técnica) e Gartner — ITSM Research Reports (disponibilidade vs incidentes recorrentes; modo proativo/preventivo).'
+                  : isFilterProjetos
+                    ? `Fontes oficiais de Projetos: Project Management Institute — PMBOK Guide (dimensionamento de equipe e TMA de 8h a 16h líquidas por projeto) e Service Leadership ( benchmarks de lucratividade e ocupação de equipes de projetos: 40–90%).`
+                    : isFilterAtivacao
+                      ? 'Fontes oficiais de Ativação: AXELOS/PeopleCert — ITIL 4 Framework (lead time e handover de implantação: 7–15 dias úteis; transferência formal acima de 90%) e CompTIA — Workforce & Tech Support Trends (impacto de projetos na capacidade: até 25%).'
+                      : isFilterDatacenterWindows
+                        ? `Fontes oficiais de Datacenter Windows: Gartner — Cloud Infrastructure & Operations (dimensionamento de equipe de 3–4 analistas + gestor dedicado, produtividade de 1,8–2,5 chamados/dia por recurso e volume de 100–140 chamados/mês); ITIL 4 (AXELOS/PeopleCert) — Gerenciamento de Capacidade e Disponibilidade (SLA por complexidade: Rotinas RAM/VPN 45min–1h30; Cloud VPS/Migração/POC 4h–12h); Uptime Institute — Padrões de Operação de Datacenter (ocupação direta de 65–75% do tempo, preservando espaço para monitoramento proativo, backups e segurança dos hosts).`
+                        : isFilterDatacenterLinux
+                          ? `Fontes oficiais de Datacenter Linux: ${FONTES_DATACENTER_LINUX} — volume ideal de 50–80 chamados/mês para 2 técnicos; produtividade de 1,2–2,0 chamados/dia por técnico; SLA por complexidade: Rotinas RAM/VPN 45m–1h30 e Cloud VPS/Migração/POC 4h–12h; proatividade acima de 75% (tuning, segurança, backups e automação).`
+                          : isFilterLaboratorio
+                            ? `Fontes oficiais de Laboratório: CompTIA — Benchmarks de Reparo de Hardware e Bancada (volume de 35–50 chamados/mês para 1 técnico; tempo líquido de bancada de 1h30–3h00 por equipamento, incluindo triagem, testes de estresse, troca de componente, formatação e limpeza) e MetricNet — Métricas de Depot Repair / Manutenção Interna (prazo total TAT de 2–4 dias úteis sem troca de peça; taxa de reincidência RMA abaixo de 4% em retorno de 30 dias).`
+                            : 'Fontes oficiais de N1: HDI (Help Desk Institute) — Service Desk Benchmarking Report (TMA 15–25 min para resolução remota rápida) e MetricNet — Desktop Support and Service Desk Benchmarks (produtividade 12–18 chamados/dia).'}
         </span>
         <span className="font-medium text-slate-500 shrink-0">
           Metas customizáveis no menu Equipes

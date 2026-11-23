@@ -5,8 +5,9 @@
  * (support_records: Windows, Linux, Campo, Windows N2). Valores reais em
  * time_logs.departamento: "Linux N1/N2", "Windows - N2", "Datacenter: Windows",
  * "Datacenter: Linux", "Coordenadores." — além de "Comercial", "Cabeamento",
- * "Laboratório", "Projetos", "Ativação", "Alocado", "Financeiro" e do novo
- * "07-datacenter-windows" (time de Datacenter Windows).
+ * "Cabeamento/Infra", "Laboratório", "Projetos", "Ativação", "Alocado",
+ * "Alocados", "Financeiro" e do novo "07-datacenter-windows" (time de
+ * Datacenter Windows).
  *
  * "Projetos", "Projetos Internos" e "Projetos Locais" são a MESMA fila no
  * Movidesk (pedido do usuário): os três rótulos caem no filtro canônico
@@ -44,7 +45,8 @@
  *                            começam com "linux")
  *   - filtro "Projetos"    → começa com "Projetos" (inclui "Projetos Internos"
  *                            e "Projetos Locais" — mesma fila no Movidesk)
- *   - demais               → igualdade canônica (Comercial, Cabeamento…)
+ *   - demais               → igualdade canônica (Comercial, Cabeamento,
+ *                            Financeiro, Alocado…)
  *
  * IMPORTANTE: vale APENAS para time_logs. Os relatórios de chamados
  * (support_records) continuam usando o rótulo exato — não alterar.
@@ -97,6 +99,16 @@ export function normalizarDepartamentoHoras(depto: string | null | undefined): s
 
   // "Ativacao" sem acento → rótulo canônico com acento
   if (min === 'ativacao') return 'Ativação'
+
+  // Cabeamento: a grafia real do banco é "Cabeamento" (db 2026-11, 152
+  // chamados / 64 logs); a variante "Cabeamento/Infra" cai na MESMA fila se
+  // aparecer. Só rótulos que COMEÇAM com "Cabeamento" — nunca captura
+  // Infra/Datacenter.
+  if (/^cabeamento(\s*\/\s*infra)?$/.test(min)) return 'Cabeamento'
+
+  // "Alocados" (grafia da planilha informada pelo usuário) → canônico
+  // "Alocado", a grafia real do banco (129 chamados / 188 logs, db 2026-11)
+  if (/^alocados?$/.test(min)) return 'Alocado'
 
   return bruto
 }
@@ -199,6 +211,9 @@ export const logPertenceAoDepartamento = casaDepartamento
  * (/horas e o filtro da Visão Geral que alimenta o card de horas), incluindo
  * os setores que só existem nas horas (Comercial, Datacenter, Cabeamento,
  * Laboratório, Projetos, Coordenadores, Ativação, Alocado, Financeiro).
+ * Cabeamento, Financeiro e Alocado são SEMEBRADOS no filtro (v0.0.108):
+ * aparecem como opção em todas as telas, sem quadro de benchmark (igual
+ * Comercial).
  */
 export function uniaoDepartamentosHoras(
   ...sources: Array<Array<string | null | undefined>>
@@ -216,6 +231,9 @@ export function uniaoDepartamentosHoras(
     'Datacenter Windows',
     'Datacenter Linux',
     'Laboratório',
+    'Cabeamento',
+    'Financeiro',
+    'Alocado',
   ])
   for (const source of sources) {
     for (const bruto of source) {

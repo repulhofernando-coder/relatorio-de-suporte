@@ -148,6 +148,33 @@ describe('casaDepartamento — casamento semântico sobre o rótulo BRUTO', () =
     expect(casaDepartamento('Comercial', 'Cabeamento')).toBe(false)
   })
 
+  it('novos setores sem benchmark (v0.0.108): Cabeamento, Financeiro e Alocado', () => {
+    // Grafias REAIS do banco (db 2026-11): "Cabeamento", "Financeiro",
+    // "Alocado" — sem dois-pontos e sem variação.
+    expect(casaDepartamento('Cabeamento', 'Cabeamento')).toBe(true)
+    expect(casaDepartamento('Financeiro', 'Financeiro')).toBe(true)
+    expect(casaDepartamento('Alocado', 'Alocado')).toBe(true)
+    expect(casaDepartamento('Alocados', 'Alocado')).toBe(true) // variante planilha
+    expect(casaDepartamento('Cabeamento/Infra', 'Cabeamento')).toBe(true) // variante
+    // Caixa e acento
+    expect(casaDepartamento('cabeamento', 'Cabeamento')).toBe(true)
+    expect(casaDepartamento('FINANCEIRO', 'Financeiro')).toBe(true)
+    expect(casaDepartamento(' alocado ', 'Alocado')).toBe(true)
+    // Isolamento: "Cabeamento" nunca captura Infra/Datacenter/Windows
+    expect(casaDepartamento('Cabeamento', 'Datacenter Windows')).toBe(false)
+    expect(casaDepartamento('Cabeamento', 'Datacenter Linux')).toBe(false)
+    expect(casaDepartamento('Cabeamento', 'Windows')).toBe(false)
+    expect(casaDepartamento('Cabeamento', 'Linux')).toBe(false)
+    expect(casaDepartamento('Cabeamento', 'Campo')).toBe(false)
+    expect(casaDepartamento('Cabeamento', 'Projetos')).toBe(false)
+    // E os demais filtros não puxam rótulos dos novos setores
+    expect(casaDepartamento('Alocado', 'Cabeamento')).toBe(false)
+    expect(casaDepartamento('Financeiro', 'Alocado')).toBe(false)
+    expect(casaDepartamento('Cabeamento/Infra', 'Datacenter')).toBe(false)
+    expect(casaDepartamento('Alocado', 'Linux')).toBe(false)
+    expect(casaDepartamento('Alocado', 'Campo')).toBe(false)
+  })
+
   it('filtro "Projetos" casa "Projetos Internos" e "Projetos Locais" (mesma fila)', () => {
     expect(casaDepartamento('Projetos Internos', 'Projetos')).toBe(true)
     expect(casaDepartamento('Projetos Internos', 'Projetos Internos')).toBe(true)

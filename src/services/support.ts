@@ -89,6 +89,14 @@ const FILTROS_DEPARTAMENTO_CHAMADOS: Record<string, string[]> = {
   // filtro canônico buscava eq('departamento', 'Datacenter Linux') e não
   // trazia NADA (bug do filtro vazio na Visão Geral).
   'Datacenter Linux': ['Datacenter Linux', '07-datacenter-linux', 'Datacenter: Linux'],
+  // Novos setores sem benchmark (v0.0.108, igual Comercial): a grafia real no
+  // banco é "Cabeamento" (152 chamados, db 2026-11), "Financeiro" (544) e
+  // "Alocado" (129). As variantes "Cabeamento/Infra" e "Alocados" (planilha)
+  // caem na MESMA fila quando aparecerem. Sem dois-pontos no estilo
+  // "Datacenter: Windows".
+  Cabeamento: ['Cabeamento', 'Cabeamento/Infra'],
+  Financeiro: ['Financeiro'],
+  Alocado: ['Alocado', 'Alocados'],
 }
 
 function rotulosChamadosDoFiltro(departamento: string): string[] {
