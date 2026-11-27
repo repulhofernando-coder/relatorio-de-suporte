@@ -97,7 +97,7 @@ export function exportarAbertosPorCSV(ranking: RankingAbertoPor, periodoLabel: s
         .map(esc)
         .join(';'),
     ),
-    [],
+    '',
     ['Total', '', ranking.totalChamados, '100', ''].map(esc).join(';'),
     [`Período: ${periodoLabel}`, '', '', '', ''].map(esc).join(';'),
   ]
