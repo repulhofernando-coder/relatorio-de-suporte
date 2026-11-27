@@ -28,6 +28,7 @@ import { CountUp } from '@/components/dashboard/CountUp'
 import { TecnicosPanel, resumoPorTecnico } from '@/components/chamados/TecnicosPanel'
 import { TecnicoAberturaPie } from '@/components/chamados/TecnicoAberturaPie'
 import { ResumoHorasCliente } from '@/components/chamados/ResumoHorasCliente'
+import { QuemMaisAbreChamadoCard } from '@/components/chamados/QuemMaisAbreChamadoCard'
 import { fetchClientContracts } from '@/services/contratos'
 import type { ClientContract } from '@/services/contratos'
 import { formatarMinutosLegivel } from '@/lib/duracao'
@@ -562,6 +563,13 @@ export default function Chamados() {
           contratos={contratos}
         />
       )}
+
+      {/* QUEM MAIS ABRE CHAMADO (ranking completo, respeita todos os filtros) */}
+      <QuemMaisAbreChamadoCard
+        registros={registrosFiltro}
+        periodoLabel={range.label}
+        loading={loadingRegistros}
+      />
 
       {/* RESPONSÁVEIS PELO ATENDIMENTO (+ pizza quando há técnico selecionado) */}
       <div className={`grid grid-cols-1 gap-6 ${tecnicoFiltro ? 'lg:grid-cols-3' : ''}`}>

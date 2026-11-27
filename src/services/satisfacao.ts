@@ -374,6 +374,8 @@ export interface DashboardSatisfacao {
     pctInsatisfeito: number
     mediaGeral: number | null
   }
+  /** respostas já filtradas (período/departamento) — base de todos os blocos */
+  filtradas: SatisfactionRecord[]
   evolucaoMensal: EvolucaoMesSatisfacao[]
   porTecnico: RankingSatisfacaoItem[]
   porCliente: RankingSatisfacaoItem[]
@@ -418,6 +420,7 @@ export function carregarDashboardSatisfacao(
 
   const resumo = resumirSatisfacao(filtradas)
   return {
+    filtradas,
     resumo: {
       total: resumo.total,
       pctMuitoSatisfeito: resumo.pctMuitoSatisfeito,

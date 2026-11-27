@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { CountUp } from '@/components/dashboard/CountUp'
+import { DistribuicaoNotasClicavel } from '@/components/satisfacao/DistribuicaoNotasClicavel'
 import { traduzirErro } from '@/lib/erros'
 import { formatarIndiceMedio, formatarPercentual } from '@/lib/formatar'
 import { uniaoDepartamentosHoras } from '@/lib/departamentos'
@@ -405,6 +406,9 @@ export default function Satisfacao() {
               </p>
             </div>
           </div>
+
+          {/* DISTRIBUIÇÃO DE NOTAS (clique no rosto abre quem respondeu) */}
+          <DistribuicaoNotasClicavel respostas={dashboard.filtradas} />
 
           {/* EVOLUÇÃO MÊS A MÊS */}
           <Card className="rounded-2xl shadow-sm border-slate-200/80">
